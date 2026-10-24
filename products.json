@@ -118,5 +118,17 @@
     "name": "Cash Party",
     "description": "5 minutes DOUBLE CASH for the whole server, announced with your name",
     "price": 149
+  },
+  {
+    "key": "Pass_OfflinePro",
+    "name": "Offline Pro",
+    "description": "Earn 100% of your income while offline (up to 24h) forever",
+    "price": 199
+  },
+  {
+    "key": "QuestSkip",
+    "name": "Quest Skip",
+    "description": "Instantly complete one of your daily quests",
+    "price": 29
   }
 ]
