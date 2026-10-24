@@ -26,6 +26,7 @@ jobs:
             if [ -n "$USER_ID" ]; then
               curl -sS "https://games.roblox.com/v2/users/$USER_ID/games?accessFilter=All&limit=10&sortOrder=Desc" -o games.json
               jq '.data[] | {name, id, rootPlace: .rootPlace.id}' games.json || cat games.json
+              echo "::notice::User $USER_ID games: $(jq -c '[.data[]? | {name, id, place: .rootPlace.id}]' games.json)"
               UNIVERSE_ID=$(jq -r '.data[0].id // empty' games.json)
               PLACE_ID=$(jq -r '.data[0].rootPlace.id // empty' games.json)
             fi
@@ -33,7 +34,7 @@ jobs:
           if [ -n "$PLACE_ID" ] && [ -z "$UNIVERSE_ID" ]; then
             UNIVERSE_ID=$(curl -sS "https://apis.roblox.com/universes/v1/places/$PLACE_ID/universe" | jq -r '.universeId // empty')
           fi
-          echo "Universe ID: $UNIVERSE_ID / Place ID: $PLACE_ID"
+          echo "::notice::Universe ID: '$UNIVERSE_ID' / Place ID: '$PLACE_ID' / API key set: $([ -n "$ROBLOX_API_KEY" ] && echo yes || echo no)"
           echo "UNIVERSE_ID=$UNIVERSE_ID" >> "$GITHUB_ENV"
           echo "PLACE_ID=$PLACE_ID" >> "$GITHUB_ENV"
 
