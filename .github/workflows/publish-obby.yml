@@ -112,9 +112,10 @@ jobs:
       - name: Publish to Roblox
         if: env.ROBLOX_API_KEY != '' && env.UNIVERSE_ID != '' && env.PLACE_ID != ''
         run: |
-          curl --fail-with-body -sS -X POST \
+          CODE=$(curl -sS -X POST \
             "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Published" \
             -H "x-api-key: ${ROBLOX_API_KEY}" \
             -H "Content-Type: application/xml" \
-            --data-binary @MegaRainbowObby.rbxlx -o publish.json
-          echo "::notice::Published: $(cat publish.json)"
+            --data-binary @MegaRainbowObby.rbxlx -o publish.json -w "%{http_code}")
+          echo "::notice::Publish HTTP $CODE: $(head -c 600 publish.json)"
+          [ "$CODE" = "200" ]
