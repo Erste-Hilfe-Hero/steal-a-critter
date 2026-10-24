@@ -14,9 +14,10 @@ local Services = {
 	LeaderboardService = require(script.Services.LeaderboardService),
 	ProgressService = require(script.Services.ProgressService),
 	RewardService = require(script.Services.RewardService),
+	FeatureService = require(script.Services.FeatureService),
 }
 
-local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService" }
+local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService" }
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
@@ -59,6 +60,7 @@ local function onPlayerAdded(player: Player)
 	Services.MonetizationService:OnPlayerReady(player)
 	Services.ProgressService:OnPlayerReady(player)
 	Services.RewardService:OnPlayerReady(player)
+	Services.FeatureService:OnPlayerReady(player)
 
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
@@ -78,6 +80,7 @@ Players.PlayerRemoving:Connect(function(player)
 	Services.SocialService:OnPlayerRemoving(player)
 	Services.ProgressService:OnPlayerRemoving(player)
 	Services.RewardService:OnPlayerRemoving(player)
+	Services.FeatureService:OnPlayerRemoving(player)
 	Services.UnitService:OnPlayerRemoving(player)
 	Services.MonetizationService:OnPlayerRemoving(player)
 	Services.PlotService:Release(player)

@@ -7,11 +7,12 @@ local TextChatService = game:GetService("TextChatService")
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local UI = require(script.UI)
 local Hub = require(script.Hub)
+local Features = require(script.Features)
 
 local player = Players.LocalPlayer
 
 UI.Start()
-Hub.Start(UI.Toast)
+Features.Start(Hub.Start(UI.Toast))
 
 -- Eigene Kreaturen kann man nicht klauen: Prompt lokal ausblenden.
 -- Mit Fast-Steal-Pass ist die Haltezeit kuerzer, bei Rache fast sofort (der Server prueft das ebenfalls).
@@ -35,9 +36,10 @@ local function applyPrompt(prompt: ProximityPrompt)
 	end
 	local avenging = prompt:GetAttribute("OwnerUserId") == player:GetAttribute("RevengeTargetId")
 		and workspace:GetServerTimeNow() < (player:GetAttribute("RevengeUntil") or 0)
+	local bonus = tonumber(player:GetAttribute("StealHoldBonus")) or 0
 	prompt.HoldDuration = if avenging then Config.RevengeHoldTime
-		elseif player:GetAttribute("Pass_FastSteal") then Config.FastStealHoldTime
-		else Config.StealHoldTime
+		elseif player:GetAttribute("Pass_FastSteal") then math.max(0.4, Config.FastStealHoldTime - bonus)
+		else math.max(0.4, Config.StealHoldTime - bonus)
 end
 
 local function refreshPrompts()
@@ -60,6 +62,7 @@ local function setupPrompt(prompt: Instance)
 end
 
 player:GetAttributeChangedSignal("Pass_FastSteal"):Connect(refreshPrompts)
+player:GetAttributeChangedSignal("StealHoldBonus"):Connect(refreshPrompts)
 player:GetAttributeChangedSignal("RevengeUntil"):Connect(function()
 	refreshPrompts()
 	-- Nach Ablauf der Rache wieder normale Haltezeit

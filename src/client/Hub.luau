@@ -843,10 +843,17 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 	local bountyChip, bountyLabel = chip(5, THEME.Orange)
 	local eventChip, eventLabel = chip(6, THEME.Pink)
 	local luckChip, luckLabel = chip(7, Color3.fromRGB(90, 255, 140))
-	local tickerChips = { eventChip, luckChip, bountyChip, happyChip, goalChip, featuredChip, shieldChip }
-	Windows.OnChanged(function(open)
-		bar.Visible = not open
-	end)
+	local bossChip, bossLabel = chip(8, Color3.fromRGB(255, 90, 90))
+	local nightChip, nightLabel = chip(9, Color3.fromRGB(150, 160, 255))
+	local comboChip, comboLabel = chip(10, THEME.Gold)
+	-- Wichtiges zuerst: Boss-Kampf und Combo laufen gerade, der Rest wechselt sich ab
+	local urgentChips = { bossChip, comboChip }
+	local tickerChips = { eventChip, luckChip, nightChip, bountyChip, happyChip, goalChip, featuredChip, shieldChip, bossChip }
+	local function updateBar()
+		bar.Visible = not Windows.IsOpen() and player:GetAttribute("HideHints") ~= true
+	end
+	Windows.OnChanged(updateBar)
+	player:GetAttributeChangedSignal("HideHints"):Connect(updateBar)
 
 	------------------------------------------------ Laufend aktualisieren
 
@@ -916,20 +923,80 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 			luckChip.Visible = luckLeft > 0
 			luckLabel.Text = `SERVER LUCK x{Config.ServerLuckMultiplier}  {Format.Time(math.max(0, luckLeft))}`
 
-			-- Nur einen der aktiven Hinweise zeigen, reihum
+			local bossActive = workspace:GetAttribute("BossActive") == true
+			local bossAt = workspace:GetAttribute("BossAt")
+			bossChip.Visible = bossActive or bossAt ~= nil
+			bossLabel.Text = if bossActive
+				then `👹 BOSS FIGHT at spawn!  {math.ceil((workspace:GetAttribute("BossHP") or 1) * 100)}% HP  ·  {longTime(math.max(0, (workspace:GetAttribute("BossEnds") or now) - now))}`
+				else `👹 Boss raid in {longTime(math.max(0, (bossAt or now) - now))}`
+			local nightUntil = workspace:GetAttribute("NightUntil")
+			local nightAt = workspace:GetAttribute("NightAt")
+			nightChip.Visible = nightUntil ~= nil or nightAt ~= nil
+			nightLabel.Text = if nightUntil
+				then `🌙 NIGHT: belt luck x{Config.NightLuck}  {longTime(math.max(0, nightUntil - now))}`
+				else `🌙 Night (more luck) in {longTime(math.max(0, (nightAt or now) - now))}`
+			local combo = player:GetAttribute("Combo")
+			comboChip.Visible = combo ~= nil and combo >= 2
+			comboLabel.Text = `🔥 STEAL COMBO x{combo or 0}  ·  {longTime(math.max(0, (player:GetAttribute("ComboUntil") or now) - now))}`
+
+			-- Nur einen Hinweis zeigen: Dringendes (Boss-Kampf, Combo) zuerst, sonst reihum
+			local shown = nil
+			if bossActive then
+				shown = bossChip
+			elseif comboChip.Visible then
+				shown = comboChip
+			end
 			local active = {}
 			for _, tickerChip in tickerChips do
 				if tickerChip.Visible then
 					table.insert(active, tickerChip)
 				end
+			end
+			for _, tickerChip in urgentChips do
 				tickerChip.Visible = false
 			end
-			if #active > 0 then
-				active[math.floor(os.clock() / 4) % #active + 1].Visible = true
+			for _, tickerChip in tickerChips do
+				tickerChip.Visible = false
+			end
+			if not shown and #active > 0 then
+				shown = active[math.floor(os.clock() / 4) % #active + 1]
+			end
+			if shown then
+				shown.Visible = true
 			end
 			task.wait(0.5)
 		end
 	end)
+
+	-- Bausteine fuer weitere Fenster (Features.luau)
+	return {
+		AddPage = addPage,
+		AddMoreTile = addMoreTile,
+		Open = openWindow,
+		Close = closeWindow,
+		Invoke = invoke,
+		GetState = function()
+			return state
+		end,
+		IsOpen = function(name: string): boolean
+			return openPage == name
+		end,
+		Toast = showToast,
+		Theme = THEME,
+		Create = create,
+		Text = text,
+		Button = button,
+		Corner = corner,
+		Edge = edge,
+		Padding = padding,
+		ListLayout = listLayout,
+		ProgressBar = progressBar,
+		SetEnabled = setEnabled,
+		Clear = clear,
+		Pressable = pressable,
+		TitleFont = TITLE_FONT,
+		LongTime = longTime,
+	}
 end
 
 return Hub

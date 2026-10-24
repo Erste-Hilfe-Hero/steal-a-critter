@@ -43,6 +43,21 @@ local function defaultData()
 		Codes = {}, -- [Code] = true (eingeloest)
 		LastOnline = 0, -- os.time() beim letzten Speichern (Offline-Einnahmen)
 		OfflineIncome = 0, -- Einkommen pro Sekunde beim letzten Speichern
+		-- Update 3
+		Levels = {}, -- [Slot] = Trainingsstufe
+		Vault = "", -- Slot im Tresor ("" = keiner)
+		Alarm = false,
+		Tokens = 0, -- Rebirth-Tokens
+		TokensGranted = false, -- alte Rebirths einmalig in Tokens umgewandelt
+		Perks = {}, -- [PerkId] = Stufe
+		PassXP = 0,
+		PassClaimed = 0, -- abgeholte Pass-Stufen
+		Likes = 0, -- erhaltene Likes
+		LikesGiven = {}, -- [UserId als Text] = Tag
+		GiftDay = 0,
+		GiftsToday = 0,
+		BaseColor = "",
+		Settings = {}, -- Client-Einstellungen (Namensschilder, Hinweise, Details, Kumpel)
 	}
 end
 

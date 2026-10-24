@@ -81,11 +81,13 @@ function UnitService:GetBaseIncome(player: Player): number
 	end
 	local total = 0
 	local featured = self.Services.RewardService and self.Services.RewardService:GetFeaturedId()
-	for _, code in data.Units do
+	local features = self.Services.FeatureService
+	for slotKey, code in data.Units do
 		local info = Units.Info(code)
 		if info then
-			-- Kreatur des Tages verdient doppelt
-			total += info.Income * (if info.Id == featured then Config.FeaturedMultiplier else 1)
+			-- Kreatur des Tages verdient doppelt, Training gibt +15% pro Stufe
+			local level = if features then features:LevelFactor(player, slotKey) else 1
+			total += info.Income * level * (if info.Id == featured then Config.FeaturedMultiplier else 1)
 		end
 	end
 	return total
@@ -121,6 +123,11 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 		notify(thief, "This base is locked!", RED)
 		return
 	end
+	-- Tresor: diese Kreatur kann niemand klauen
+	if services.FeatureService:IsVaulted(owner, slotKey) then
+		notify(thief, "This critter is locked in a vault! 🔒", RED)
+		return
+	end
 	-- Neulingsschutz: neue Spieler koennen in den ersten Minuten nicht bestohlen werden
 	if services.RewardService:HasShield(owner) and not avenging then
 		notify(thief, `{owner.DisplayName} is new and has a newbie shield! 🛡️`, RED)
@@ -130,6 +137,9 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	local required = if avenging then Config.RevengeHoldTime
 		elseif services.MonetizationService:HasPass(thief, "FastSteal") then Config.FastStealHoldTime
 		else Config.StealHoldTime
+	if not avenging then
+		required = math.max(0.4, required - services.FeatureService:StealHoldBonus(thief))
+	end
 	local began = holdStarted[thief]
 	holdStarted[thief] = nil
 	if not began or os.clock() - began < required - 0.35 then
@@ -185,6 +195,7 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	carrying[thief] = { Owner = owner, SlotKey = slotKey, Code = code, Visual = visual, Model = model, Prompt = prompt, StartedAt = os.clock(), Highlight = highlight }
 	thief:SetAttribute("Carrying", def.Name)
 	notify(owner, `{thief.DisplayName} is stealing your {def.Name}! Slap them!`, RED)
+	services.FeatureService:OnStealStarted(thief, owner)
 	notify(thief, `You grabbed {def.Name}! Run back to your base!`, GOLD)
 end
 
@@ -198,7 +209,9 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 	end
 	local model = UnitFactory.Build(def)
 	model:PivotTo(slotCFrame(plot, slotKey, def))
-	UnitFactory.AddLabel(model, def, "+" .. Format.Cash(def.Income) .. "/s")
+	local levelFactor = services.FeatureService:LevelFactor(player, slotKey)
+	local level = data.Levels and data.Levels[slotKey] or 0
+	UnitFactory.AddLabel(model, def, "+" .. Format.Cash(def.Income * levelFactor) .. "/s" .. (if level > 0 then `  ⭐{level}` else ""))
 	model:SetAttribute("OwnerUserId", player.UserId)
 	model:SetAttribute("SlotKey", slotKey)
 
@@ -259,6 +272,25 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 
 	model.Parent = plot.Model
 	baseUnits[player][slotKey] = model
+	if services.FeatureService then
+		services.FeatureService:UpdateVault(player)
+	end
+end
+
+function UnitService:GetBaseModels(player: Player)
+	return baseUnits[player] or {}
+end
+
+-- Neu aufbauen (z.B. nach dem Training, damit Schild und Einkommen stimmen)
+function UnitService:RefreshUnitLabel(player: Player, slotKey: string)
+	local models = baseUnits[player]
+	local model = models and models[slotKey]
+	if not model or model:GetAttribute("BeingStolen") then
+		return
+	end
+	model:Destroy()
+	models[slotKey] = nil
+	self:PlaceBaseUnit(player, slotKey)
 end
 
 function UnitService:RemoveBaseUnit(player: Player, slotKey: string)
@@ -270,6 +302,9 @@ function UnitService:RemoveBaseUnit(player: Player, slotKey: string)
 	if models and models[slotKey] then
 		models[slotKey]:Destroy()
 		models[slotKey] = nil
+	end
+	if self.Services.FeatureService then
+		self.Services.FeatureService:OnSlotCleared(player, slotKey)
 	end
 	self:UpdateIncome(player)
 end
@@ -319,6 +354,8 @@ endSteal = function(thief: Player, success: boolean)
 	end
 	carrying[thief] = nil
 	thief:SetAttribute("Carrying", nil)
+	local stolenDef = Units.Info(info.Code)
+	task.spawn(UnitService.Services.FeatureService.OnStealEnded, UnitService.Services.FeatureService, thief, success, stolenDef)
 	if info.Visual then
 		info.Visual:Destroy()
 	end
@@ -444,14 +481,14 @@ function UnitService:TakeFromBelt(model: Model?, code: string): Model?
 	return nil
 end
 
-local function spawnBeltUnit(forcedRarity: string?)
+local function spawnBeltUnit(forcedRarity: string?, forcedMutation: string?)
 	local services = UnitService.Services
 	local picked = pickUnitDef()
 	if forcedRarity and unitsByRarity[forcedRarity] then
 		local list = unitsByRarity[forcedRarity]
 		picked = list[math.random(1, #list)]
 	end
-	local def = Units.Info(Units.Encode(picked.Id, rollMutation(), 0))
+	local def = Units.Info(Units.Encode(picked.Id, forcedMutation or rollMutation(), 0))
 	local rarity = Config.RaritiesByName[def.Rarity]
 	local model = UnitFactory.Build(def)
 	local conveyor = Config.Conveyor
@@ -500,8 +537,8 @@ local function spawnBeltUnit(forcedRarity: string?)
 end
 
 -- Fuer Events: z.B. garantierte Mythic-Kreatur auf dem Laufband
-function UnitService:SpawnBeltUnit(rarityName: string?)
-	spawnBeltUnit(rarityName)
+function UnitService:SpawnBeltUnit(rarityName: string?, mutationName: string?)
+	spawnBeltUnit(rarityName, mutationName)
 end
 
 ---------------------------------------------------------------- Verkaufen
@@ -591,7 +628,14 @@ function UnitService:MutateBest(player: Player, mutationName: string): string?
 		return nil
 	end
 	local code = Units.Encode(bestInfo.Id, target.Name, bestInfo.Fusion)
+	-- Trainingsstufe und Tresor bleiben bei der Verwandlung erhalten
+	local level = data.Levels and data.Levels[bestKey]
+	local vaulted = data.Vault == bestKey
 	self:RemoveBaseUnit(player, bestKey)
+	data.Levels[bestKey] = level
+	if vaulted then
+		data.Vault = bestKey
+	end
 	self:GiveUnit(player, code, bestKey)
 	return Units.Info(code).Name
 end
@@ -697,6 +741,7 @@ local function rebirth(player: Player)
 	data.Units = {}
 	data.Cash = Config.StartCash
 	data.Rebirths += 1
+	services.FeatureService:OnRebirth(player)
 	services.DataService:UpdateAttributes(player)
 	UnitService:UpdateIncome(player)
 	notify(player, `Rebirth {data.Rebirths}! Your income is now x{UnitService.Services.MonetizationService:GetMultiplier(player)}.`, GOLD)

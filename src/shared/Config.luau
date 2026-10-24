@@ -305,6 +305,96 @@ Config.SellShare = 0.5
 Config.StudioFakePurchases = true
 Config.AdCooldown = 180 -- Sekunden zwischen zwei Werbe-Belohnungen pro Spieler
 
+---------------------------------------------------------------- Update 3 (FeatureService, Features.luau)
+
+-- Eier: nur mit Spielgeld (kein Robux, damit es keine bezahlten Zufallsgegenstaende gibt). Chancen sind im Spiel sichtbar.
+Config.Eggs = {
+	{ Id = "Basic", Name = "Basic Egg", Icon = "🥚", Price = 1_000, Color = Color3.fromRGB(120, 170, 220), Weights = { Common = 60, Uncommon = 30, Rare = 9, Epic = 1 } },
+	{ Id = "Rare", Name = "Rare Egg", Icon = "💠", Price = 40_000, Color = Color3.fromRGB(150, 90, 240), Weights = { Uncommon = 35, Rare = 40, Epic = 20, Legendary = 5 } },
+	{ Id = "Mythic", Name = "Mythic Egg", Icon = "🔥", Price = 4_000_000, Color = Color3.fromRGB(240, 80, 110), Weights = { Epic = 50, Legendary = 38, Mythic = 11, Secret = 1 } },
+}
+
+-- Training: jede Stufe +15% Einkommen fuer genau diese Kreatur (geht beim Klauen/Verkaufen verloren)
+Config.TrainBonusPer = 0.15
+Config.TrainMaxLevel = 5
+Config.TrainCostShare = 0.4 -- Kosten = Wert * Anteil * (Stufe + 1)
+
+-- Tresor: eine Kreatur kann nicht geklaut werden (Kosten = Anteil ihres Werts)
+Config.VaultCostShare = 0.25
+
+-- Alarmanlage (einmal kaufen): Warnung an alle und der Dieb wird langsamer
+Config.AlarmPrice = 25_000
+Config.AlarmSlow = 0.75
+
+-- Rebirth-Tokens: pro Rebirth 1 Token fuer dauerhafte Perks (Kosten = naechste Stufe in Tokens)
+Config.Perks = {
+	{ Id = "Cash", Name = "Cash Boost", Icon = "💰", Text = "+10% income per level", Max = 5, Per = 0.1 },
+	{ Id = "Speed", Name = "Quick Feet", Icon = "👟", Text = "+2 walk speed per level", Max = 3, Per = 2 },
+	{ Id = "Thief", Name = "Sticky Hands", Icon = "🧤", Text = "Steal 0.25s faster per level", Max = 2, Per = 0.25 },
+	{ Id = "EggLuck", Name = "Egg Luck", Icon = "🍀", Text = "Rarer critters from eggs", Max = 3, Per = 0.25 },
+}
+
+-- Critter Pass (kostenlos): XP aus allem, was man tut; jede Stufe hat eine Belohnung
+Config.PassTiers = 25
+function Config.PassXP(tier: number): number
+	return 100 + tier * 25
+end
+Config.PassXPPer = { Bought = 10, Stolen = 25, Hatched = 15, Trained = 10, QuestsDone = 50, BossHits = 1, Minutes = 5, Gems = 15, Fused = 30, Slaps = 3 }
+
+-- Klau-Combo: mehrere Diebstaehle kurz hintereinander geben Bonus-Cash (Anteil des Kreaturwerts)
+Config.ComboWindow = 180
+Config.ComboBonus = { 0, 0.2, 0.5, 1 }
+
+-- Edelstein-Jagd: Steine liegen im Spiel verteilt, wer zuerst kommt, bekommt sie
+Config.GemCount = 6
+Config.GemRespawn = 60
+Config.GemSeconds = 45 -- Sekunden Einkommen
+Config.GemMinCash = 250
+
+-- Likes fuer Basen: +1% Einkommen pro Like (hoechstens +25%), ein Like pro Spieler und Tag
+Config.LikeBonusPer = 0.01
+Config.LikeBonusMax = 0.25
+
+-- Geld verschenken: 10% vom eigenen Geld, hoechstens 3x am Tag
+Config.GiftShare = 0.1
+Config.GiftMaxPerDay = 3
+Config.GiftMinCash = 100
+
+-- Boss-Raid: alle 10 Minuten ein Riesen-Monster am Spawn, alle schlagen gemeinsam zu
+Config.BossInterval = 600
+Config.BossDuration = 90
+Config.BossHitsPerPlayer = 60
+Config.BossRewardMinutes = 4
+Config.BossMinReward = 2_000
+
+-- Speed-Pads auf dem Weg
+Config.SpeedPadBoost = 14
+Config.SpeedPadTime = 5
+
+-- Tag und Nacht: nachts mehr Glueck auf dem Laufband
+Config.DayLength = 540
+Config.NightLength = 180
+Config.NightLuck = 1.5
+
+-- Goldene Kreatur: alle 5 Minuten eine garantiert goldene Kreatur auf dem Laufband
+Config.GoldenBeltInterval = 300
+
+-- Kumpel: die beste Kreatur laeuft einem hinterher (+5% Einkommen)
+Config.BuddyBonus = 0.05
+
+-- Basis-Farben (Spielgeld)
+Config.BaseColorPrice = 5_000
+Config.BaseColors = {
+	{ Name = "Sunset", Color = Color3.fromRGB(235, 120, 80) },
+	{ Name = "Ocean", Color = Color3.fromRGB(60, 140, 230) },
+	{ Name = "Mint", Color = Color3.fromRGB(70, 200, 150) },
+	{ Name = "Grape", Color = Color3.fromRGB(150, 90, 230) },
+	{ Name = "Gold", Color = Color3.fromRGB(240, 190, 60) },
+	{ Name = "Rose", Color = Color3.fromRGB(235, 90, 150) },
+	{ Name = "Shadow", Color = Color3.fromRGB(60, 60, 75) },
+	{ Name = "Snow", Color = Color3.fromRGB(225, 230, 240) },
+}
+
 -- Lookup-Tabellen
 Config.UnitsById = {}
 for _, unit in Config.Units do

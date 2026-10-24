@@ -124,6 +124,10 @@ function ProgressService:Track(player: Player, stat: string, amount: number?)
 	end
 	self:CheckAchievements(player)
 	dirty[player] = true
+	-- Critter Pass XP (Update 3)
+	if self.Services.FeatureService then
+		self.Services.FeatureService:OnStat(player, stat, amount :: number)
+	end
 end
 
 -- Meldet neu erreichte Erfolge (abholen im Fenster AWARDS)

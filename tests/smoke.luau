@@ -54,13 +54,13 @@ local services = {}
 local ok, err = pcall(function()
 	local s = folder.Services
 	services.Net = require(s.Net)
-	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService" } do
+	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService" } do
 		services[name] = require(s[name])
 	end
 end)
 check("require services", ok, err)
 
-local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService" }
+local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService" }
 if ok then
 	ok, err = pcall(function()
 		for _, name in ORDER do
@@ -142,6 +142,27 @@ if ok then
 	local spawnOk, spawnErr = pcall(services.UnitService.SpawnBeltUnit, services.UnitService, "Secret")
 	check("spawn secret on belt", spawnOk and #workspace.BeltUnits:GetChildren() > before, spawnErr)
 	check("happy hour timer", workspace:GetAttribute("HappyHourIn") ~= nil or workspace:GetAttribute("HappyHourEnds") ~= nil)
+end
+
+-- Update 3
+check("eggs configured", #Config.Eggs == 3)
+for _, egg in Config.Eggs do
+	for rarity in egg.Weights do
+		check("egg rarity " .. egg.Id .. " " .. rarity, Config.RaritiesByName[rarity] ~= nil)
+	end
+end
+check("pass xp", Config.PassXP(0) > 0)
+if ok then
+	check("gems spawned", workspace:FindFirstChild("Gems") ~= nil and #workspace.Gems:GetChildren() == Config.GemCount)
+	check("speed pads", workspace:FindFirstChild("SpeedPads") ~= nil and #workspace.SpeedPads:GetChildren() > 0)
+	check("boss timer", workspace:GetAttribute("BossAt") ~= nil)
+	check("night timer", workspace:GetAttribute("NightAt") ~= nil)
+	local beltBefore = #workspace.BeltUnits:GetChildren()
+	local goldOk, goldErr = pcall(services.UnitService.SpawnBeltUnit, services.UnitService, "Epic", "Golden")
+	check("golden belt critter", goldOk and #workspace.BeltUnits:GetChildren() > beltBefore, goldErr)
+	check("night luck", services.FeatureService:NightLuck() >= 1)
+	local multOk, mult = pcall(services.FeatureService.GetMultiplier, services.FeatureService, game:GetService("Players"):GetPlayers()[1] or Instance.new("Folder"))
+	check("feature multiplier", multOk and mult == 1, mult)
 end
 
 table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)

@@ -73,6 +73,10 @@ function MonetizationService:GetMultiplier(player: Player): number
 	if self.Services.EventService and self.Services.EventService:IsActive("DoubleCash") then
 		multiplier *= 2
 	end
+	-- Update 3: Cash-Perk, Likes, Kumpel
+	if self.Services.FeatureService then
+		multiplier *= self.Services.FeatureService:GetMultiplier(player)
+	end
 	return math.floor(multiplier * 100 + 0.5) / 100
 end
 
@@ -85,7 +89,12 @@ function MonetizationService:AddServerLuck(seconds: number, byName: string)
 end
 
 function MonetizationService:GetLuck(): number
-	return if workspace:GetServerTimeNow() < luckUntil then Config.ServerLuckMultiplier else 1
+	local luck = if workspace:GetServerTimeNow() < luckUntil then Config.ServerLuckMultiplier else 1
+	-- Nachts mehr Glueck (Tag/Nacht in FeatureService)
+	if self.Services.FeatureService then
+		luck *= self.Services.FeatureService:NightLuck()
+	end
+	return luck
 end
 
 ---------------------------------------------------------------- Gamepasses
@@ -98,6 +107,9 @@ function MonetizationService:ApplyPassEffects(player: Player)
 		humanoid.WalkSpeed = speed
 	end
 	self.Services.PlotService:RefreshPads(player)
+	if self.Services.FeatureService then
+		self.Services.FeatureService:ApplySpeed(player)
+	end
 	self.Services.UnitService:UpdateIncome(player)
 end
 
