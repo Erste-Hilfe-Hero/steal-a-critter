@@ -13,6 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Diagnose
+        continue-on-error: true
+        run: |
+          H=$(jq -r '.hint // empty' roblox.json)
+          echo "::notice::user-by-id: $(curl -sS https://users.roblox.com/v1/users/$H | head -c 250)"
+          echo "::notice::user-by-name: $(curl -sS -X POST https://users.roblox.com/v1/usernames/users -H 'Content-Type: application/json' -d '{"usernames":["BigBabaAli"]}' | head -c 250)"
+          echo "::notice::games-public: $(curl -sS "https://games.roblox.com/v2/users/$H/games?accessFilter=2&limit=10&sortOrder=Desc" | head -c 400)"
+
       # IDs aus roblox.json lesen. Fehlen sie, wird das neueste Spiel des Benutzers ueber oeffentliche APIs gesucht.
       - name: Resolve experience IDs
         run: |
@@ -24,7 +32,7 @@ jobs:
               -d "{\"usernames\":[\"$USERNAME\"],\"excludeBannedUsers\":true}" | jq -r '.data[0].id // empty')
             echo "User ID: $USER_ID"
             if [ -n "$USER_ID" ]; then
-              curl -sS "https://games.roblox.com/v2/users/$USER_ID/games?accessFilter=All&limit=10&sortOrder=Desc" -o games.json
+              curl -sS "https://games.roblox.com/v2/users/$USER_ID/games?accessFilter=2&limit=10&sortOrder=Desc" -o games.json
               jq '.data[] | {name, id, rootPlace: .rootPlace.id}' games.json || cat games.json
               echo "::notice::User $USER_ID games: $(jq -c '[.data[]? | {name, id, place: .rootPlace.id}]' games.json)"
               UNIVERSE_ID=$(jq -r '.data[0].id // empty' games.json)
@@ -39,7 +47,7 @@ jobs:
             if [ -n "$U" ]; then
               PLACE_ID=$HINT; UNIVERSE_ID=$U
             else
-              curl -sS "https://games.roblox.com/v2/users/$HINT/games?accessFilter=All&limit=10&sortOrder=Desc" -o games.json
+              curl -sS "https://games.roblox.com/v2/users/$HINT/games?accessFilter=2&limit=10&sortOrder=Desc" -o games.json
               echo "::notice::Hint as user -> games: $(jq -c '[.data[]? | {name, id, place: .rootPlace.id}]' games.json) $(head -c 200 games.json)"
               UNIVERSE_ID=$(jq -r '.data[0].id // empty' games.json)
               PLACE_ID=$(jq -r '.data[0].rootPlace.id // empty' games.json)
