@@ -1,6 +1,6 @@
 -- Smoke-Test, der per Open Cloud Luau Execution im echten Place laeuft.
 -- Server-Scripts starten dort nicht automatisch: der Test baut die Arena selbst, startet eine Runde
--- nur mit Bots, laesst sie eine Minute laufen und prueft dabei Minions, Gold, Faehigkeiten, Tod und Respawn.
+-- nur mit Bots, laesst sie eine Minute laufen und prueft Rollen, Minions, Dschungel, Zauber, Faehigkeiten, Tod und Respawn.
 -- Jeder Laufzeitfehler (auch in Schleifen) wird ueber LogService eingesammelt und zaehlt als Fehler.
 local LogService = game:GetService("LogService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -38,19 +38,29 @@ for _, hero in Config.Heroes do
 	for _, key in Config.AbilityKeys do
 		check(`ability {hero.Id} {key}`, hero.Abilities[key] ~= nil and hero.Abilities[key].Type ~= nil)
 	end
-	check("build for role " .. hero.Role, Config.RoleBuilds[hero.Role] ~= nil)
-end
-for role, build in Config.RoleBuilds do
-	for _, id in build do
-		check(`item {id} in {role}`, Config.ItemsById[id] ~= nil)
+	for _, role in hero.Roles do
+		check(`role {hero.Id} {role}`, Config.RolesById[role] ~= nil)
+	end
+	for _, id in hero.Build.Start do
+		check(`start item {hero.Id} {id}`, Config.ItemsById[id] ~= nil)
+	end
+	for _, id in hero.Build.Items do
+		check(`build item {hero.Id} {id}`, Config.ItemsById[id] ~= nil)
 	end
 end
+for _, item in Config.Items do
+	for _, component in item.From do
+		check(`recipe {item.Id} <- {component}`, Config.ItemsById[component] ~= nil)
+	end
+end
+local discount = Config.PriceFor({ "Shortsword" }, "MinerPick")
+check("recipe discount", discount == 875 - 350, discount)
 
 -- Services laden und starten
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local services = {}
-local ORDER = { "DataService", "CombatService", "WorldService", "LaneService", "HeroService", "BotService", "MatchService", "MonetizationService" }
+local ORDER = { "DataService", "CombatService", "WorldService", "LaneService", "JungleService", "VisionService", "HeroService", "BotService", "MatchService", "MonetizationService" }
 local ok, err = pcall(function()
 	services.Net = require(folder.Services.Net)
 	for _, name in ORDER do
@@ -78,9 +88,10 @@ local match = services.MatchService
 local combat = services.CombatService
 
 check("arena built", workspace:FindFirstChild("Arena") ~= nil)
-check("12 towers", #lane.Towers == 12, #lane.Towers)
-check("2 cores", lane.Cores[1] ~= nil and lane.Cores[2] ~= nil)
-check("core protected", lane.Cores[1].Protected == true)
+check("22 towers", #lane.Towers == 22, #lane.Towers)
+check("6 inhibitors", #lane.Inhibitors == 6, #lane.Inhibitors)
+check("2 nexus", lane.Nexus[1] ~= nil and lane.Nexus[2] ~= nil)
+check("nexus protected", lane.Nexus[1].Protected == true)
 check("tier 2 protected", (function()
 	for _, tower in lane.Towers do
 		if tower.Tier == 2 and not tower.Protected then
@@ -101,23 +112,28 @@ if not physics then
 	table.insert(results, "INFO physics not simulated here, movement checks use bot walk targets")
 end
 
--- Runde nur mit Bots
+-- Runde nur mit Bots (Rollen werden automatisch aufgefuellt)
 ok, err = pcall(function()
-	match.StartedAt = workspace:GetServerTimeNow()
-	match:SetPhase("Playing")
-	for team = 1, 2 do
-		for _ = 1, Config.TeamSize do
-			match:CreateBot(team)
-		end
-	end
-	for _, hero in heroes.Heroes do
-		heroes:Spawn(hero)
-	end
-	lane:StartMatch()
+	match:StartPlaying()
 end)
 check("start bot match", ok, err)
 check("10 heroes", #heroes.Heroes == 10, #heroes.Heroes)
+local roles = {}
+for _, hero in heroes.Heroes do
+	roles[hero.Team .. hero.Role] = true
+end
+check("every role filled", (function()
+	for team = 1, 2 do
+		for _, role in Config.Roles do
+			if not roles[team .. role.Id] then
+				return false
+			end
+		end
+	end
+	return true
+end)())
 task.wait(2)
+check("elapsed clock", match:Elapsed() >= 1, match:Elapsed())
 local alive = 0
 for _, hero in heroes.Heroes do
 	if combat.Alive(hero) then
@@ -131,11 +147,38 @@ for _, hero in heroes.Heroes do
 		bought += 1
 	end
 end
-check("auto-buy at fountain", bought >= 8, bought)
+check("start items bought", bought >= 8, bought)
+local smiters = 0
+for _, hero in heroes.Heroes do
+	if hero.Role == "Jungle" and (hero.Spells.D == "Smite" or hero.Spells.F == "Smite") then
+		smiters += 1
+	end
+end
+check("junglers have smite", smiters == 2, smiters)
+local model = heroes.Heroes[1].Model
+check("vision attributes", model ~= nil and model:GetAttribute("Seen1") ~= nil and model:GetAttribute("Seen2") ~= nil)
+
+-- Beschwoererzauber, Ward und Trank duerfen nie einen Fehler werfen
+for _, hero in heroes.Heroes do
+	for _, slot in { "D", "F" } do
+		local spellOk, spellErr = pcall(heroes.CastSpell, heroes, hero, slot, hero.Root and hero.Root.Position + Vector3.new(10, 0, -10) or nil)
+		if not spellOk then
+			check(`spell {hero.HeroId} {slot}`, false, spellErr)
+		end
+	end
+	local wardOk, wardErr = pcall(heroes.PlaceWard, heroes, hero, hero.Root and hero.Root.Position + Vector3.new(5, 0, 5) or nil)
+	if not wardOk then
+		check(`ward {hero.HeroId}`, false, wardErr)
+	end
+	pcall(heroes.UsePotion, heroes, hero)
+end
+check("spells done", true)
 
 -- Jede Faehigkeit einmal ausloesen (darf nie einen Fehler werfen)
 for _, hero in heroes.Heroes do
 	for _, key in Config.AbilityKeys do
+		hero.Ranks[key] = math.max(hero.Ranks[key] or 0, 1)
+		hero.Mana = hero.MaxMana
 		local castOk, castErr = pcall(heroes.Cast, heroes, hero, key, hero.Root and hero.Root.Position + Vector3.new(20, 0, 0) or nil)
 		if not castOk then
 			check(`cast {hero.HeroId} {key}`, false, castErr)
@@ -144,10 +187,10 @@ for _, hero in heroes.Heroes do
 end
 check("casts done", true)
 
--- Schaden an einem geschuetzten Kern muss abprallen
-local before = lane.Cores[2].HP
-combat:Damage(heroes.Heroes[1], lane.Cores[2], 500)
-check("protected core takes no damage", lane.Cores[2].HP == before)
+-- Schaden am geschuetzten Nexus muss abprallen
+local before = lane.Nexus[2].HP
+combat:Damage(heroes.Heroes[1], lane.Nexus[2], 500)
+check("protected nexus takes no damage", lane.Nexus[2].HP == before)
 
 -- Tod und Respawn
 local victim = heroes.Heroes[10]
@@ -175,6 +218,8 @@ for _, minion in lane.Minions do
 	end
 end
 check("minions alive", #lane.Minions > 0, #lane.Minions)
+local jungle = services.JungleService
+check("jungle camps spawned", #jungle.Monsters >= 12, #jungle.Monsters)
 check("minions march", minionMoved > 0, minionMoved)
 if physics then
 	check("heroes gained xp", leveled >= 4, leveled)
@@ -225,7 +270,7 @@ check("end match", ok and match.Phase == "End", err)
 ok, err = pcall(function()
 	match:Reset()
 end)
-check("reset", ok and #heroes.Heroes == 0 and #lane.Towers == 12, err)
+check("reset", ok and #heroes.Heroes == 0 and #lane.Towers == 22, err)
 
 for _, message in errors do
 	check("runtime error", false, message)

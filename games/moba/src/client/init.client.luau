@@ -1,18 +1,22 @@
--- Client: HUD, Kamera, Lebensbalken, Effekte und VIP-Tag im Chat.
+-- Client: HUD, Steuerung, Kamera, Nebel des Krieges, Lebensbalken, Effekte und VIP-Tag im Chat.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 
 local Bars = require(script.Bars)
 local CameraController = require(script.CameraController)
+local Controls = require(script.Controls)
 local Fx = require(script.Fx)
 local UI = require(script.UI)
+local Vision = require(script.Vision)
 
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 Fx.Start()
 Bars.Start()
 CameraController.Start()
+Vision.Start()
+Controls.Start()
 UI.Start()
 
 remotes.Fx.OnClientEvent:Connect(Fx.Handle)

@@ -1,5 +1,5 @@
--- MOBA-Kamera von schraeg oben (Gegner-Basis ist immer "oben"), Kamerafahrt in den Pausen,
--- Zielen mit der Maus und Antippen von Gegnern als Fokus-Ziel.
+-- MOBA-Kamera von schraeg oben wie im Original: die eigene Basis unten links, die gegnerische oben rechts.
+-- Fuer Dusk ist das Bild gedreht, damit man immer "nach oben" angreift. Kamerafahrt in den Pausen.
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,8 +18,19 @@ local focusRing: BasePart? = nil
 
 CameraController.Changed = Instance.new("BindableEvent")
 
-local function teamSign(): number
+-- +1 fuer Dawn, -1 fuer Dusk (Bild um 180 Grad gedreht)
+function CameraController.TeamSign(): number
 	return if player:GetAttribute("Team") == 2 then -1 else 1
+end
+local teamSign = CameraController.TeamSign
+
+-- Bildschirm-Richtungen in der Welt: oben = -Z (Dawn), rechts = +X (Dawn)
+function CameraController.ScreenUp(): Vector3
+	return Vector3.new(0, 0, -1) * teamSign()
+end
+
+function CameraController.ScreenRight(): Vector3
+	return Vector3.new(1, 0, 0) * teamSign()
 end
 
 function CameraController.IsClassic(): boolean
@@ -39,14 +50,10 @@ function CameraController.SetClassic(enabled: boolean)
 	CameraController.Changed:Fire()
 end
 
--- Punkt auf dem Boden unter der Maus (fuer Faehigkeiten am PC)
-function CameraController.MouseGround(): Vector3?
-	if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
-		return nil
-	end
+-- Punkt auf dem Boden unter einem Bildschirmpunkt (Standard: Maus)
+function CameraController.GroundAt(screen: Vector2): Vector3?
 	local camera = workspace.CurrentCamera
-	local mouse = UserInputService:GetMouseLocation()
-	local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
+	local ray = camera:ViewportPointToRay(screen.X, screen.Y)
 	if math.abs(ray.Direction.Y) < 0.01 then
 		return nil
 	end
@@ -57,40 +64,30 @@ function CameraController.MouseGround(): Vector3?
 	return ray.Origin + ray.Direction * t
 end
 
-local function unitAt(screen: Vector2): Model?
+function CameraController.MouseGround(): Vector3?
+	if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
+		return nil
+	end
+	return CameraController.GroundAt(UserInputService:GetMouseLocation())
+end
+
+-- Einheit unter einem Bildschirmpunkt (oder in der Naehe; Finger sind ungenau)
+function CameraController.UnitAt(screen: Vector2, enemiesOnly: boolean?, seen: ((Instance) -> boolean)?): Model?
 	local camera = workspace.CurrentCamera
-	local ray = camera:ViewportPointToRay(screen.X, screen.Y)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Include
-	local units = workspace:FindFirstChild("Units")
-	local list = {}
-	if units then
-		table.insert(list, units)
-	end
-	for _, other in Players:GetPlayers() do
-		if other ~= player and other.Character then
-			table.insert(list, other.Character)
-		end
-	end
-	params.FilterDescendantsInstances = list
-	local result = workspace:Raycast(ray.Origin, ray.Direction * 400, params)
-	local hit = result and result.Instance
-	while hit and hit ~= workspace do
-		if hit:IsA("Model") and CollectionService:HasTag(hit, "Unit") then
-			return hit
-		end
-		hit = hit.Parent
-	end
-	-- Naechste Einheit in Bildschirmnaehe (Finger sind ungenau)
-	local best, bestDistance = nil, 40
+	local myTeam = player:GetAttribute("Team")
+	local best, bestDistance = nil, 34
 	for _, model in CollectionService:GetTagged("Unit") do
-		if model:IsA("Model") and model ~= player.Character and model:GetAttribute("Team") ~= player:GetAttribute("Team") then
-			local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if root then
-				local point, visible = camera:WorldToViewportPoint(root.Position)
-				local distance = (Vector2.new(point.X, point.Y) - screen).Magnitude
-				if visible and distance < bestDistance then
-					best, bestDistance = model, distance
+		if model:IsA("Model") and model ~= player.Character and (model:GetAttribute("HP") or 0) > 0 then
+			local team = model:GetAttribute("Team")
+			if (not enemiesOnly or team ~= myTeam) and (not seen or seen(model)) then
+				local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if root then
+					local point, visible = camera:WorldToViewportPoint(root.Position)
+					local radius = (tonumber(model:GetAttribute("Radius")) or 1.5) * 6
+					local distance = (Vector2.new(point.X, point.Y) - screen).Magnitude - radius
+					if visible and distance < bestDistance then
+						best, bestDistance = model, distance
+					end
 				end
 			end
 		end
@@ -98,9 +95,15 @@ local function unitAt(screen: Vector2): Model?
 	return best
 end
 
-function CameraController.SetFocus(model: Model?)
+function CameraController.Focus(): Model?
+	return focusModel
+end
+
+function CameraController.SetFocus(model: Model?, silent: boolean?)
 	focusModel = model
-	remotes.Focus:FireServer(model)
+	if not silent then
+		remotes.Focus:FireServer(model)
+	end
 	if focusRing then
 		focusRing:Destroy()
 		focusRing = nil
@@ -114,7 +117,8 @@ function CameraController.SetFocus(model: Model?)
 		ring.Material = Enum.Material.Neon
 		ring.Color = Color3.fromRGB(255, 90, 90)
 		ring.Transparency = 0.35
-		ring.Size = Vector3.new(0.15, 6, 6)
+		local radius = (tonumber(model:GetAttribute("Radius")) or 1.5) * 2 + 3
+		ring.Size = Vector3.new(0.15, radius, radius)
 		ring.Parent = workspace
 		focusRing = ring
 	end
@@ -127,26 +131,12 @@ function CameraController.Start()
 	-- Zoom mit Mausrad oder zwei Fingern
 	UserInputService.InputChanged:Connect(function(input, processed)
 		if not processed and input.UserInputType == Enum.UserInputType.MouseWheel then
-			zoom = math.clamp(zoom - input.Position.Z * 0.08, 0.65, 1.5)
-		end
-	end)
-	UserInputService.TouchPinch:Connect(function(_, scale, _, state, processed)
-		if not processed and state == Enum.UserInputState.Change then
-			zoom = math.clamp(zoom / (1 + (scale - 1) * 0.05), 0.65, 1.5)
+			zoom = math.clamp(zoom - input.Position.Z * 0.08, 0.7, 1.4)
 		end
 	end)
 
-	-- Antippen / Klicken auf einen Gegner setzt den Fokus
-	UserInputService.InputEnded:Connect(function(input, processed)
-		if processed or classic then
-			return
-		end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			local model = unitAt(Vector2.new(input.Position.X, input.Position.Y))
-			if model and model:GetAttribute("Team") ~= player:GetAttribute("Team") then
-				CameraController.SetFocus(model)
-			end
-		end
+	remotes.Focus.OnClientEvent:Connect(function(model)
+		CameraController.SetFocus(if typeof(model) == "Instance" then model :: Model else nil, true)
 	end)
 
 	local orbit = 0
@@ -156,7 +146,7 @@ function CameraController.Start()
 		local phase = match:GetAttribute("Phase")
 		local alive = root ~= nil and (phase == "Playing" or phase == "End")
 		if focusModel and (not focusModel.Parent or (focusModel:GetAttribute("HP") or 0) <= 0) then
-			CameraController.SetFocus(nil)
+			CameraController.SetFocus(nil, true)
 		end
 		if focusRing and focusModel then
 			local target = (focusModel.PrimaryPart or focusModel:FindFirstChild("HumanoidRootPart")) :: any
@@ -169,15 +159,15 @@ function CameraController.Start()
 		end
 		camera.CameraType = Enum.CameraType.Scriptable
 		if alive and root then
-			local sign = teamSign()
-			local target = Vector3.new(root.Position.X, 0, root.Position.Z) + Vector3.new(sign * 8, 0, 0)
-			local offset = Vector3.new(-sign * 34, 62, 0) * zoom
+			local up = CameraController.ScreenUp()
+			local target = Vector3.new(root.Position.X, 0, root.Position.Z) + up * 6
+			local offset = (Vector3.new(0, 64, 0) - up * 36) * zoom
 			camera.CFrame = camera.CFrame:Lerp(CFrame.lookAt(target + offset, target), math.min(1, dt * 12))
-			camera.FieldOfView = 60
+			camera.FieldOfView = 55
 		else
-			-- Kamerafahrt ueber die Arena
-			orbit += dt * 0.06
-			local position = Vector3.new(math.cos(orbit) * 190, 120, math.sin(orbit) * 150)
+			-- Kamerafahrt ueber die Kluft
+			orbit += dt * 0.05
+			local position = Vector3.new(math.cos(orbit) * 200, 140, math.sin(orbit) * 200)
 			camera.CFrame = CFrame.lookAt(position, Vector3.new(0, 0, 0))
 			camera.FieldOfView = 55
 		end
