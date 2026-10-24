@@ -7,13 +7,15 @@ local Services = {
 	CombatService = require(script.Services.CombatService),
 	WorldService = require(script.Services.WorldService),
 	LaneService = require(script.Services.LaneService),
+	JungleService = require(script.Services.JungleService),
+	VisionService = require(script.Services.VisionService),
 	HeroService = require(script.Services.HeroService),
 	BotService = require(script.Services.BotService),
 	MatchService = require(script.Services.MatchService),
 	MonetizationService = require(script.Services.MonetizationService),
 }
 
-local ORDER = { "DataService", "CombatService", "WorldService", "LaneService", "HeroService", "BotService", "MatchService", "MonetizationService" }
+local ORDER = { "DataService", "CombatService", "WorldService", "LaneService", "JungleService", "VisionService", "HeroService", "BotService", "MatchService", "MonetizationService" }
 
 Players.CharacterAutoLoads = false
 
