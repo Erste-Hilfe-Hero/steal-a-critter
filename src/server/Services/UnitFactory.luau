@@ -55,10 +55,56 @@ function UnitFactory.Build(info): Model
 		weld(body, part)
 	end
 
+	local baseColor = if mutation then mutation.Color else def.Color
+	local dark = baseColor:Lerp(Color3.new(0, 0, 0), 0.35)
 	for _, side in { -1, 1 } do
-		attach(makePart({ Name = "Eye", Shape = Enum.PartType.Ball, Size = Vector3.one * s * 0.32, Color = Color3.new(1, 1, 1) }), CFrame.new(side * s * 0.2, s * 0.15, -s * 0.4))
-		attach(makePart({ Name = "Pupil", Shape = Enum.PartType.Ball, Size = Vector3.one * s * 0.15, Color = Color3.new(0, 0, 0) }), CFrame.new(side * s * 0.2, s * 0.15, -s * 0.54))
-		attach(makePart({ Name = "Foot", Size = Vector3.new(s * 0.25, s * 0.2, s * 0.35), Color = def.Color:Lerp(Color3.new(0, 0, 0), 0.3) }), CFrame.new(side * s * 0.22, -s * 0.5, -s * 0.05))
+		attach(makePart({ Name = "Eye", Shape = Enum.PartType.Ball, Size = Vector3.one * s * 0.34, Color = Color3.new(1, 1, 1) }), CFrame.new(side * s * 0.2, s * 0.15, -s * 0.4))
+		attach(makePart({ Name = "Pupil", Shape = Enum.PartType.Ball, Size = Vector3.one * s * 0.17, Color = Color3.fromRGB(20, 15, 30) }), CFrame.new(side * s * 0.2, s * 0.15, -s * 0.55))
+		attach(makePart({ Name = "Shine", Shape = Enum.PartType.Ball, Size = Vector3.one * s * 0.06, Color = Color3.new(1, 1, 1), Material = Enum.Material.Neon }), CFrame.new(side * s * 0.2 - s * 0.04, s * 0.2, -s * 0.62))
+		attach(makePart({ Name = "Cheek", Shape = Enum.PartType.Ball, Size = Vector3.new(s * 0.16, s * 0.1, s * 0.05), Color = Color3.fromRGB(255, 120, 160) }), CFrame.new(side * s * 0.32, -s * 0.05, -s * 0.47))
+		attach(makePart({ Name = "Foot", Size = Vector3.new(s * 0.25, s * 0.2, s * 0.35), Color = dark }), CFrame.new(side * s * 0.22, -s * 0.5, -s * 0.05))
+	end
+	attach(makePart({ Name = "Mouth", Size = Vector3.new(s * 0.2, s * 0.05, s * 0.05), Color = Color3.fromRGB(20, 15, 30) }), CFrame.new(0, -s * 0.1, -s * 0.5))
+
+	-- Jede Art bekommt feste Kopf-Deko (aus der Id abgeleitet): Ohren, Hoerner, Antenne oder Hasenohren
+	local hash = 0
+	for index = 1, #def.Id do
+		hash += string.byte(def.Id, index) * index
+	end
+	local style = hash % 4
+	for _, side in { -1, 1 } do
+		if style == 0 then
+			attach(makePart({ Name = "Ear", Shape = Enum.PartType.Ball, Size = Vector3.one * s * 0.3, Color = dark }), CFrame.new(side * s * 0.35, s * 0.42, 0))
+		elseif style == 1 then
+			attach(makePart({ Name = "Horn", Shape = Enum.PartType.Cylinder, Size = Vector3.new(s * 0.4, s * 0.1, s * 0.1), Color = Color3.fromRGB(255, 240, 210) }), CFrame.new(side * s * 0.28, s * 0.5, 0) * CFrame.Angles(0, 0, math.rad(90 - side * 25)))
+		elseif style == 2 and side == 1 then
+			attach(makePart({ Name = "Antenna", Size = Vector3.new(s * 0.05, s * 0.4, s * 0.05), Color = dark }), CFrame.new(0, s * 0.65, 0))
+			attach(makePart({ Name = "AntennaTip", Shape = Enum.PartType.Ball, Size = Vector3.one * s * 0.16, Color = rarity.Color, Material = Enum.Material.Neon }), CFrame.new(0, s * 0.88, 0))
+		elseif style == 3 then
+			attach(makePart({ Name = "BunnyEar", Size = Vector3.new(s * 0.14, s * 0.5, s * 0.08), Color = baseColor }), CFrame.new(side * s * 0.18, s * 0.68, 0) * CFrame.Angles(0, 0, math.rad(-side * 12)))
+		end
+	end
+
+	-- Ab Legendary: leuchtende Fluegel
+	if rarity.Crown then
+		for _, side in { -1, 1 } do
+			attach(makePart({ Name = "Wing", Size = Vector3.new(s * 0.7, s * 0.45, s * 0.05), Color = rarity.Color, Material = Enum.Material.Neon, Transparency = 0.35 }), CFrame.new(side * s * 0.62, s * 0.15, s * 0.25) * CFrame.Angles(0, math.rad(side * 30), math.rad(side * 20)))
+		end
+	end
+
+	-- Ab Rare: Glitzer-Aura in der Farbe der Seltenheit
+	if rarity.Lucky then
+		local aura = Instance.new("ParticleEmitter")
+		aura.Name = "Aura"
+		aura.Color = ColorSequence.new(if mutation then mutation.Color else rarity.Color)
+		aura.LightEmission = 1
+		aura.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, s * 0.18), NumberSequenceKeypoint.new(1, 0) })
+		aura.Transparency = NumberSequence.new(0.2, 1)
+		aura.Lifetime = NumberRange.new(0.8, 1.4)
+		aura.Rate = if rarity.Crown then 14 else 6
+		aura.Speed = NumberRange.new(s * 0.4, s * 0.8)
+		aura.SpreadAngle = Vector2.new(180, 180)
+		aura.Parent = body
 	end
 
 	if rarity.Crown then

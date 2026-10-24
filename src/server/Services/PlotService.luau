@@ -42,7 +42,7 @@ function PlotService:Release(player: Player)
 	plot.Barrier.Transparency = 1
 	plot.LockLabel.Text = "LOCK BASE"
 	for _, pad in plot.Pads do
-		pad.Color = Color3.fromRGB(80, 80, 90)
+		pad.Color = Color3.fromRGB(60, 55, 75)
 		local label = pad:FindFirstChild("PassLabel")
 		if label then
 			label:Destroy()
@@ -81,7 +81,7 @@ function PlotService:RefreshPads(player: Player)
 	local maxSlots = self.Services.UnitService:GetMaxSlots(player)
 	for index, pad in plot.Pads do
 		local unlocked = index <= maxSlots
-		pad.Color = if unlocked then Color3.fromRGB(120, 200, 255) else Color3.fromRGB(60, 60, 65)
+		pad.Color = if unlocked then plot.Accent else Color3.fromRGB(45, 42, 55)
 		local label = pad:FindFirstChild("PassLabel")
 		if unlocked and label then
 			label:Destroy()

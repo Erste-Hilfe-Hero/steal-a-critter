@@ -1,6 +1,8 @@
 -- Baut die Map per Code: Boden, Laufband, Spawn und eine Basis pro moeglichem Spieler.
 -- So funktioniert das Projekt auch in einem leeren Place. Die Optik kann man spaeter
 -- in Studio durch gebaute Modelle ersetzen, solange die Namen gleich bleiben.
+local CollectionService = game:GetService("CollectionService")
+local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -15,6 +17,16 @@ local MIN_PLOTS = 8
 local MAX_PLOTS = 24
 local PLOT_Z = 40
 local MAX_PADS = Config.BaseSlots + Config.ExtraSlotsAmount
+
+-- Jede Basis bekommt eine eigene Neonfarbe
+local ACCENTS = {
+	Color3.fromRGB(255, 70, 160),
+	Color3.fromRGB(60, 200, 255),
+	Color3.fromRGB(255, 200, 40),
+	Color3.fromRGB(120, 255, 120),
+	Color3.fromRGB(170, 90, 255),
+	Color3.fromRGB(255, 120, 50),
+}
 
 local function makePart(props): Part
 	local part = Instance.new("Part")
@@ -49,6 +61,78 @@ function WorldService:Init(services)
 	self.Services = services
 end
 
+-- Abendstimmung mit Neon-Glow: hebt sich klar vom hellen Tageslicht der Konkurrenz ab
+local function setupLighting()
+	Lighting.ClockTime = 18.4
+	Lighting.Brightness = 2.2
+	Lighting.Ambient = Color3.fromRGB(70, 50, 110)
+	Lighting.OutdoorAmbient = Color3.fromRGB(120, 90, 160)
+	Lighting.EnvironmentDiffuseScale = 0.6
+	Lighting.EnvironmentSpecularScale = 0.8
+	for _, child in Lighting:GetChildren() do
+		if child:IsA("PostEffect") or child:IsA("Atmosphere") or child:IsA("Sky") then
+			child:Destroy()
+		end
+	end
+	local sky = Instance.new("Sky")
+	sky.StarCount = 3000
+	sky.CelestialBodiesShown = true
+	sky.Parent = Lighting
+	local atmosphere = Instance.new("Atmosphere")
+	atmosphere.Density = 0.32
+	atmosphere.Offset = 0.15
+	atmosphere.Color = Color3.fromRGB(255, 150, 200)
+	atmosphere.Decay = Color3.fromRGB(110, 70, 170)
+	atmosphere.Glare = 0.4
+	atmosphere.Haze = 1.4
+	atmosphere.Parent = Lighting
+	local bloom = Instance.new("BloomEffect")
+	bloom.Intensity = 0.9
+	bloom.Size = 28
+	bloom.Threshold = 1.4
+	bloom.Parent = Lighting
+	local color = Instance.new("ColorCorrectionEffect")
+	color.Saturation = 0.25
+	color.Contrast = 0.12
+	color.Brightness = 0.03
+	color.Parent = Lighting
+	local rays = Instance.new("SunRaysEffect")
+	rays.Intensity = 0.06
+	rays.Spread = 0.8
+	rays.Parent = Lighting
+end
+
+local function lampPost(position: Vector3, color: Color3, parent: Instance)
+	makePart({ Name = "LampPole", Size = Vector3.new(0.6, 10, 0.6), Position = position + Vector3.new(0, 5, 0), Color = Color3.fromRGB(35, 30, 50), Material = Enum.Material.Metal, Parent = parent })
+	local bulb = makePart({ Name = "LampBulb", Shape = Enum.PartType.Ball, Size = Vector3.one * 1.8, Position = position + Vector3.new(0, 10.6, 0), Color = color, Material = Enum.Material.Neon, CanCollide = false, Parent = parent })
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 18
+	light.Brightness = 1.6
+	light.Parent = bulb
+end
+
+-- Schwebender Kristall zur Deko (der Client dreht alles mit dem Tag "Spin")
+local function crystal(position: Vector3, color: Color3, size: number, parent: Instance)
+	local part = makePart({
+		Name = "Crystal",
+		Size = Vector3.new(size * 0.6, size, size * 0.6),
+		CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(45)),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Transparency = 0.15,
+		CanCollide = false,
+		CastShadow = false,
+		Parent = parent,
+	})
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = size * 3
+	light.Brightness = 1.2
+	light.Parent = part
+	CollectionService:AddTag(part, "Spin")
+end
+
 -- Position des Slots in Plot-Koordinaten (vorne = -Z, Richtung Laufband)
 function WorldService.PadOffset(index: number): Vector3
 	local col = (index - 1) % 4
@@ -59,6 +143,7 @@ end
 function WorldService:Build()
 	local world = Instance.new("Folder")
 	world.Name = "World"
+	setupLighting()
 
 	-- So viele Basen wie die Servergroesse erlaubt (in den Spieleinstellungen festgelegt)
 	local plotsPerSide = math.ceil(math.clamp(Players.MaxPlayers, MIN_PLOTS, MAX_PLOTS) / 2)
@@ -75,8 +160,17 @@ function WorldService:Build()
 		Name = "Ground",
 		Size = Vector3.new(groundSize, 2, 340),
 		Position = Vector3.new(0, -1, 0),
-		Color = Color3.fromRGB(90, 170, 80),
+		Color = Color3.fromRGB(60, 120, 90),
 		Material = Enum.Material.Grass,
+		Parent = world,
+	})
+	-- Leuchtender Weg entlang des Laufbands
+	makePart({
+		Name = "Plaza",
+		Size = Vector3.new(groundSize - 40, 0.2, 28),
+		Position = Vector3.new(0, 0.05, 0),
+		Color = Color3.fromRGB(40, 35, 60),
+		Material = Enum.Material.Slate,
 		Parent = world,
 	})
 
@@ -86,10 +180,38 @@ function WorldService:Build()
 		Name = "Conveyor",
 		Size = Vector3.new(length, 1, conveyor.Width),
 		Position = Vector3.new((conveyor.StartX + conveyor.EndX) / 2, 0.5, conveyor.Z),
-		Color = Color3.fromRGB(45, 45, 55),
+		Color = Color3.fromRGB(30, 28, 40),
 		Material = Enum.Material.DiamondPlate,
 		Parent = world,
 	})
+	-- Pfeile auf dem Laufband; der Client laesst sie als Lauflicht pulsieren (Tag "BeltArrow")
+	local arrowCount = math.floor(length / 6)
+	for index = 0, arrowCount - 1 do
+		local x = conveyor.StartX + 3 + index * 6
+		for _, side in { -1, 1 } do
+			local arrow = makePart({
+				Name = "BeltArrow",
+				Size = Vector3.new(0.5, 0.1, 2.6),
+				CFrame = CFrame.new(x, 1.02, conveyor.Z + side * 1.1) * CFrame.Angles(0, math.rad(side * 35), 0),
+				Color = Color3.fromRGB(80, 220, 255),
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+				CanQuery = false,
+				CastShadow = false,
+				Parent = world,
+			})
+			arrow:SetAttribute("Phase", index)
+			CollectionService:AddTag(arrow, "BeltArrow")
+		end
+	end
+	-- Laternen links und rechts vom Laufband
+	local lampIndex = 0
+	for x = conveyor.StartX + 8, conveyor.EndX - 8, 26 do
+		lampIndex += 1
+		for _, side in { -1, 1 } do
+			lampPost(Vector3.new(x, 0, conveyor.Z + side * 12), ACCENTS[(lampIndex % #ACCENTS) + 1], world)
+		end
+	end
 	for _, side in { -1, 1 } do
 		makePart({
 			Name = "Rail",
@@ -108,7 +230,41 @@ function WorldService:Build()
 	spawn.Size = Vector3.new(12, 1, 12)
 	spawn.Position = Vector3.new(conveyor.StartX - 20, 0.5, 0)
 	spawn.Duration = 0
+	spawn.Color = Color3.fromRGB(255, 70, 160)
+	spawn.Material = Enum.Material.Neon
 	spawn.Parent = world
+
+	-- Grosses Neon-Schild ueber dem Eingang
+	local gate = Vector3.new(conveyor.StartX - 20, 0, 0)
+	for _, side in { -1, 1 } do
+		makePart({ Name = "GatePillar", Size = Vector3.new(2, 22, 2), Position = gate + Vector3.new(6, 11, side * 13), Color = Color3.fromRGB(255, 70, 160), Material = Enum.Material.Neon, Parent = world })
+	end
+	local banner = makePart({ Name = "GateSign", Size = Vector3.new(1, 6, 28), Position = gate + Vector3.new(6, 20, 0), Color = Color3.fromRGB(25, 20, 40), Parent = world })
+	for _, face in { Enum.NormalId.Left, Enum.NormalId.Right } do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = face
+		gui.LightInfluence = 0
+		gui.CanvasSize = Vector2.new(700, 150)
+		gui.Parent = banner
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.FredokaOne
+		text.TextScaled = true
+		text.Text = "STEAL A CRITTER"
+		text.TextColor3 = Color3.fromRGB(255, 220, 60)
+		text.TextStrokeColor3 = Color3.fromRGB(255, 70, 160)
+		text.TextStrokeTransparency = 0
+		text.Parent = gui
+	end
+
+	-- Schwebende Kristalle am Rand der Karte
+	local rng = Random.new(7)
+	for _ = 1, 14 do
+		local x = rng:NextNumber(-groundSize / 2 + 10, groundSize / 2 - 10)
+		local z = (if rng:NextNumber() < 0.5 then -1 else 1) * rng:NextNumber(PLOT_Z + PLOT_SIZE / 2 + 12, 160)
+		crystal(Vector3.new(x, rng:NextNumber(10, 22), z), ACCENTS[rng:NextInteger(1, #ACCENTS)], rng:NextNumber(4, 9), world)
+	end
 
 	local plotsFolder = Instance.new("Folder")
 	plotsFolder.Name = "Plots"
@@ -121,21 +277,31 @@ function WorldService:Build()
 			local plotCF = CFrame.lookAt(center, Vector3.new(x, 1, conveyor.Z))
 			local model = Instance.new("Model")
 			model.Name = "Plot" .. (#self.Plots + 1)
+			local accent = ACCENTS[(#self.Plots % #ACCENTS) + 1]
 
 			local floor = makePart({
 				Name = "Floor",
 				Size = Vector3.new(PLOT_SIZE, 1, PLOT_SIZE),
 				CFrame = plotCF * CFrame.new(0, -0.5, 0),
-				Color = Color3.fromRGB(230, 225, 210),
-				Material = Enum.Material.WoodPlanks,
+				Color = Color3.fromRGB(45, 40, 65),
+				Material = Enum.Material.Slate,
 				Parent = model,
 			})
 			model.PrimaryPart = floor
 
-			local wallColor = Color3.fromRGB(120, 90, 200)
-			makePart({ Name = "WallBack", Size = Vector3.new(PLOT_SIZE, 8, 1), CFrame = plotCF * CFrame.new(0, 4, half), Color = wallColor, Parent = model })
-			makePart({ Name = "WallLeft", Size = Vector3.new(1, 8, PLOT_SIZE), CFrame = plotCF * CFrame.new(-half, 4, 0), Color = wallColor, Parent = model })
-			makePart({ Name = "WallRight", Size = Vector3.new(1, 8, PLOT_SIZE), CFrame = plotCF * CFrame.new(half, 4, 0), Color = wallColor, Parent = model })
+			-- Getoente Glaswaende mit Neon-Oberkante in der Farbe der Basis
+			local wallColor = accent:Lerp(Color3.fromRGB(30, 25, 50), 0.55)
+			local walls = {
+				{ "WallBack", Vector3.new(PLOT_SIZE, 8, 1), CFrame.new(0, 4, half) },
+				{ "WallLeft", Vector3.new(1, 8, PLOT_SIZE), CFrame.new(-half, 4, 0) },
+				{ "WallRight", Vector3.new(1, 8, PLOT_SIZE), CFrame.new(half, 4, 0) },
+			}
+			for _, wall in walls do
+				makePart({ Name = wall[1], Size = wall[2], CFrame = plotCF * wall[3], Color = wallColor, Material = Enum.Material.Glass, Transparency = 0.25, Parent = model })
+				makePart({ Name = "Trim", Size = wall[2] * Vector3.new(1, 0, 1) + Vector3.new(0.4, 0.5, 0.4), CFrame = plotCF * wall[3] * CFrame.new(0, 4.2, 0), Color = accent, Material = Enum.Material.Neon, CanCollide = false, Parent = model })
+			end
+			-- Neon-Linie am offenen Eingang
+			makePart({ Name = "EntryLine", Size = Vector3.new(PLOT_SIZE, 0.15, 0.6), CFrame = plotCF * CFrame.new(0, 0.05, -half), Color = accent, Material = Enum.Material.Neon, CanCollide = false, Parent = model })
 
 			local barrier = makePart({
 				Name = "Barrier",
@@ -185,8 +351,9 @@ function WorldService:Build()
 					Name = "Pad" .. index,
 					Size = Vector3.new(6, 0.2, 6),
 					CFrame = plotCF * CFrame.new(WorldService.PadOffset(index) + Vector3.new(0, 0.1, 0)),
-					Color = Color3.fromRGB(80, 80, 90),
-					Material = Enum.Material.SmoothPlastic,
+					Color = Color3.fromRGB(60, 55, 75),
+					Material = Enum.Material.Neon,
+					Transparency = 0.35,
 					CanCollide = false,
 					Parent = model,
 				})
@@ -197,6 +364,7 @@ function WorldService:Build()
 			table.insert(self.Plots, {
 				Index = #self.Plots + 1,
 				Model = model,
+				Accent = accent,
 				CFrame = plotCF,
 				HalfSize = half,
 				Pads = pads,

@@ -99,4 +99,25 @@ RunService.RenderStepped:Connect(function()
 	for _, part in CollectionService:GetTagged("RainbowCritter") do
 		(part :: BasePart).Color = Color3.fromHSV(hue, 0.8, 1)
 	end
+	-- Lauflicht auf dem Laufband (in Laufrichtung)
+	for _, arrow in CollectionService:GetTagged("BeltArrow") do
+		local wave = ((arrow:GetAttribute("Phase") or 0) * 0.25 - now * 1.5) % 1
+		(arrow :: BasePart).Transparency = 0.15 + wave * 0.75
+	end
+end)
+
+-- Deko-Kristalle drehen sich langsam und schweben (nur lokal, kostet den Server nichts)
+local spinBase = setmetatable({}, { __mode = "k" })
+RunService.Heartbeat:Connect(function()
+	local now = os.clock()
+	for _, part in CollectionService:GetTagged("Spin") do
+		local base = spinBase[part]
+		if not base then
+			base = (part :: BasePart).CFrame
+			spinBase[part] = base
+		end
+		(part :: BasePart).CFrame = CFrame.new(base.Position + Vector3.new(0, math.sin(now + base.Position.X) * 1.5, 0))
+			* CFrame.Angles(0, now * 0.6, 0)
+			* base.Rotation
+	end
 end)
