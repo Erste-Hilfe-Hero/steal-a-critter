@@ -108,6 +108,37 @@ Config.DevProducts = {
 	InstantMythic = { Id = 3721859230, Kind = "InstantBuy", Rarity = "Mythic", Name = "Instant Mythic", Description = "Buy a Mythic from the belt with Robux", PriceHint = 399, Hidden = true },
 }
 
+-- Mutationen: seltene Varianten auf dem Laufband mit Einkommens-Multiplikator
+Config.Mutations = {
+	{ Name = "Golden", Chance = 0.08, Multiplier = 2, Color = Color3.fromRGB(255, 205, 40), Material = Enum.Material.Foil },
+	{ Name = "Diamond", Chance = 0.02, Multiplier = 4, Color = Color3.fromRGB(150, 230, 255), Material = Enum.Material.Glass },
+	{ Name = "Rainbow", Chance = 0.004, Multiplier = 10, Color = Color3.fromRGB(255, 80, 200), Material = Enum.Material.Neon },
+}
+
+-- Fusion: 3 gleiche Kreaturen verschmelzen zu einer staerkeren (einzigartig im Genre)
+Config.FusionMultiplier = 3.5
+Config.MaxFusion = 3
+
+-- Rache und Versicherung: wer bestohlen wird, bekommt einen Teil zurueck und kurz Rache-Vorteile
+Config.InsuranceShare = 0.25
+Config.RevengeDuration = 90
+Config.RevengeHoldTime = 0.5
+
+-- Server-Events alle paar Minuten (Ersatz fuer "Admin Abuse"-Events, automatisch und fuer alle gratis)
+Config.EventInterval = 8 * 60
+Config.EventDuration = 2 * 60
+Config.Events = {
+	{ Id = "GoldenHour", Name = "GOLDEN HOUR", Description = "Golden critters everywhere!", Color = Color3.fromRGB(255, 205, 40) },
+	{ Id = "CritterRush", Name = "CRITTER RUSH", Description = "The belt spawns 3x faster!", Color = Color3.fromRGB(90, 220, 255) },
+	{ Id = "LuckyBelt", Name = "LUCKY BELT", Description = "Rare critters 3x more likely!", Color = Color3.fromRGB(90, 255, 140) },
+	{ Id = "DoubleCash", Name = "DOUBLE CASH", Description = "Everyone earns 2x!", Color = Color3.fromRGB(120, 255, 120) },
+}
+
+-- Taegliche Belohnung mit Serie (Streak)
+Config.DailyRewardBase = 500
+Config.DailyRewardStreakBonus = 0.5 -- +50% pro Tag in Folge
+Config.DailyRewardMaxStreak = 7
+
 -- Community-Raenge: nur aktive Spielzeit zaehlt (wer 2 Minuten nichts tut, gilt als AFK).
 -- Rechte bauen aufeinander auf: jeder Rang hat auch alle Rechte der Raenge darunter.
 Config.OwnerUserIds = { 2979321382 } -- BigBabaAli: alle Rechte, kann bannen und Raenge entziehen

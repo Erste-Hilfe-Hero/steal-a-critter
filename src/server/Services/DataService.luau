@@ -21,6 +21,8 @@ local function defaultData()
 		Receipts = {}, -- [PurchaseId] = true
 		ReceiptOrder = {},
 		TotalEarned = 0,
+		LastRewardDay = 0,
+		RewardStreak = 0,
 		PlayTime = 0, -- aktive Sekunden
 		ActiveDays = 0,
 		LastActiveDay = 0,

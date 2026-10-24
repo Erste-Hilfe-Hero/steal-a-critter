@@ -1,4 +1,5 @@
 -- Baut die Kreaturen aus einfachen Parts (keine fremden Assets noetig).
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -27,18 +28,21 @@ local function makePart(props): Part
 end
 
 -- Liefert ein Model, dessen PrimaryPart "Body" verankert ist; alle anderen Teile sind angeschweisst.
-function UnitFactory.Build(def): Model
+-- info kommt aus Units.Info (enthaelt Def, Mutation und Fusionsstufe).
+function UnitFactory.Build(info): Model
+	local def = info.Def
+	local mutation = info.Mutation
 	local rarity = Config.RaritiesByName[def.Rarity]
-	local s = rarity.Scale
+	local s = info.Scale
 	local model = Instance.new("Model")
-	model.Name = def.Name
+	model.Name = info.Name
 
 	local body = makePart({
 		Name = "Body",
 		Shape = if def.Shape == "Block" then Enum.PartType.Block else Enum.PartType.Ball,
 		Size = Vector3.one * s,
-		Color = def.Color,
-		Material = rarity.Material,
+		Color = if mutation then mutation.Color else def.Color,
+		Material = if mutation then mutation.Material else rarity.Material,
 		Anchored = true,
 		Massless = false,
 	})
@@ -65,22 +69,34 @@ function UnitFactory.Build(def): Model
 		light.Brightness = 2
 		light.Parent = body
 	end
-	if rarity.Sparkles then
+	if rarity.Sparkles or (mutation and mutation.Multiplier >= 4) then
 		local sparkles = Instance.new("Sparkles")
-		sparkles.SparkleColor = rarity.Color
+		sparkles.SparkleColor = if mutation then mutation.Color else rarity.Color
 		sparkles.Parent = body
+	end
+	if mutation and mutation.Name == "Rainbow" then
+		CollectionService:AddTag(body, "RainbowCritter") -- Client laesst die Farbe durchlaufen
+	end
+	if info.Fusion > 0 then
+		local fire = Instance.new("Fire")
+		fire.Size = s * 0.6
+		fire.Heat = 0
+		fire.Color = Color3.fromRGB(180, 80, 255)
+		fire.SecondaryColor = Color3.fromRGB(80, 200, 255)
+		fire.Parent = body
 	end
 
 	return model
 end
 
 -- Namensschild ueber der Kreatur. Gibt das Label der dritten Zeile zurueck (Preis oder Einkommen).
-function UnitFactory.AddLabel(model: Model, def, infoText: string): TextLabel
+function UnitFactory.AddLabel(model: Model, info, infoText: string): TextLabel
+	local def = info.Def
 	local rarity = Config.RaritiesByName[def.Rarity]
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Info"
 	gui.Size = UDim2.fromOffset(180, 66)
-	gui.StudsOffset = Vector3.new(0, rarity.Scale * 0.5 + 2.2, 0)
+	gui.StudsOffset = Vector3.new(0, info.Scale * 0.5 + 2.2, 0)
 	gui.MaxDistance = 80
 	gui.Parent = model.PrimaryPart
 
@@ -101,7 +117,7 @@ function UnitFactory.AddLabel(model: Model, def, infoText: string): TextLabel
 		return label
 	end
 
-	line(def.Name, Color3.new(1, 1, 1), 24)
+	line(info.Name, if info.Mutation then info.Mutation.Color else Color3.new(1, 1, 1), 24)
 	line(def.Rarity, rarity.Color, 18)
 	return line(infoText, Color3.fromRGB(120, 255, 120), 22)
 end

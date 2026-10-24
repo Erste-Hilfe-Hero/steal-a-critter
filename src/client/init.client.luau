@@ -12,33 +12,56 @@ local player = Players.LocalPlayer
 UI.Start()
 
 -- Eigene Kreaturen kann man nicht klauen: Prompt lokal ausblenden.
--- Mit Fast-Steal-Pass ist die Haltezeit kuerzer (der Server prueft das ebenfalls).
+-- Mit Fast-Steal-Pass ist die Haltezeit kuerzer, bei Rache fast sofort (der Server prueft das ebenfalls).
+-- Den Fusions-Prompt sieht dagegen nur der Besitzer.
 local stealPrompts = setmetatable({}, { __mode = "k" })
 
+local function isOwn(prompt: ProximityPrompt): boolean
+	return prompt:GetAttribute("OwnerUserId") == player.UserId
+end
+
+local function hidden(prompt: ProximityPrompt): boolean
+	return if prompt.Name == "FusePrompt" then not isOwn(prompt) else isOwn(prompt)
+end
+
 local function applyPrompt(prompt: ProximityPrompt)
-	if prompt:GetAttribute("OwnerUserId") == player.UserId then
+	if hidden(prompt) then
 		prompt.Enabled = false
 	end
-	prompt.HoldDuration = if player:GetAttribute("Pass_FastSteal") then Config.FastStealHoldTime else Config.StealHoldTime
+	if prompt.Name ~= "StealPrompt" then
+		return
+	end
+	local avenging = prompt:GetAttribute("OwnerUserId") == player:GetAttribute("RevengeTargetId")
+		and workspace:GetServerTimeNow() < (player:GetAttribute("RevengeUntil") or 0)
+	prompt.HoldDuration = if avenging then Config.RevengeHoldTime
+		elseif player:GetAttribute("Pass_FastSteal") then Config.FastStealHoldTime
+		else Config.StealHoldTime
+end
+
+local function refreshPrompts()
+	for prompt in stealPrompts do
+		applyPrompt(prompt)
+	end
 end
 
 local function setupPrompt(prompt: Instance)
-	if not prompt:IsA("ProximityPrompt") or prompt.Name ~= "StealPrompt" then
+	if not prompt:IsA("ProximityPrompt") or (prompt.Name ~= "StealPrompt" and prompt.Name ~= "FusePrompt") then
 		return
 	end
 	stealPrompts[prompt] = true
 	applyPrompt(prompt)
 	prompt:GetPropertyChangedSignal("Enabled"):Connect(function()
-		if prompt.Enabled and prompt:GetAttribute("OwnerUserId") == player.UserId then
+		if prompt.Enabled and hidden(prompt) then
 			prompt.Enabled = false
 		end
 	end)
 end
 
-player:GetAttributeChangedSignal("Pass_FastSteal"):Connect(function()
-	for prompt in stealPrompts do
-		applyPrompt(prompt)
-	end
+player:GetAttributeChangedSignal("Pass_FastSteal"):Connect(refreshPrompts)
+player:GetAttributeChangedSignal("RevengeUntil"):Connect(function()
+	refreshPrompts()
+	-- Nach Ablauf der Rache wieder normale Haltezeit
+	task.delay(Config.RevengeDuration + 0.5, refreshPrompts)
 end)
 
 for _, descendant in workspace:GetDescendants() do
@@ -65,10 +88,15 @@ TextChatService.OnIncomingMessage = function(message: TextChatMessage)
 	return properties
 end
 
--- Farbverlaeufe der Namensschilder schimmern lassen
+-- Farbverlaeufe der Namensschilder schimmern lassen, Regenbogen-Kreaturen wechseln die Farbe
 RunService.RenderStepped:Connect(function()
-	local offset = (os.clock() * 0.4) % 2 - 1
+	local now = os.clock()
+	local offset = (now * 0.4) % 2 - 1
 	for _, ui in CollectionService:GetTagged("Shimmer") do
 		(ui :: UIGradient).Offset = Vector2.new(offset, 0)
+	end
+	local hue = (now * 0.25) % 1
+	for _, part in CollectionService:GetTagged("RainbowCritter") do
+		(part :: BasePart).Color = Color3.fromHSV(hue, 0.8, 1)
 	end
 end)

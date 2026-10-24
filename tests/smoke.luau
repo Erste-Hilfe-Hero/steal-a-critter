@@ -14,6 +14,7 @@ end
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local Units = require(ReplicatedStorage.Shared.Units)
 
 -- Konfiguration
 check("Format 1500 -> 1.5K", Format.Number(1500) == "1.5K", Format.Number(1500))
@@ -35,6 +36,17 @@ for key, pass in Config.GamePasses do
 	check("pass product " .. key, pass.Id ~= 0 or (pass.ProductId or 0) ~= 0)
 end
 
+-- Kreaturen-Codes (Mutation + Fusion)
+local first = Config.Units[1]
+check("unit code plain", Units.Encode(first.Id) == first.Id)
+local golden = Units.Info(Units.Encode(first.Id, "Golden", 0))
+check("golden income x2", golden ~= nil and golden.Income == first.Income * 2, golden and golden.Income)
+local fused = Units.Info(Units.Encode(first.Id, nil, 2))
+check("fusion 2 income", fused ~= nil and math.abs(fused.Income - first.Income * Config.FusionMultiplier ^ 2) < 1e-6, fused and fused.Income)
+check("fusion name stars", fused ~= nil and fused.Name:find("★★") ~= nil, fused and fused.Name)
+check("legacy code roundtrip", Units.Info(first.Id) ~= nil and Units.Info(first.Id).Code == first.Id)
+check("invalid code nil", Units.Info("nope:Bogus:1") == nil)
+
 -- Services laden und starten wie init.server.luau
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
@@ -42,13 +54,13 @@ local services = {}
 local ok, err = pcall(function()
 	local s = folder.Services
 	services.Net = require(s.Net)
-	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService" } do
+	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService" } do
 		services[name] = require(s[name])
 	end
 end)
 check("require services", ok, err)
 
-local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService" }
+local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService" }
 if ok then
 	ok, err = pcall(function()
 		for _, name in ORDER do
@@ -69,10 +81,19 @@ if ok then
 	-- Jede Kreatur bauen
 	local UnitFactory = require(folder.Services.UnitFactory)
 	for _, def in Config.Units do
-		local built, model = pcall(UnitFactory.Build, def)
+		local info = Units.Info(def.Id)
+		local built, model = pcall(UnitFactory.Build, info)
 		check("build " .. def.Id, built and model.PrimaryPart ~= nil, if built then nil else model)
 		if built then
-			pcall(UnitFactory.AddLabel, model, def, "test")
+			pcall(UnitFactory.AddLabel, model, info, "test")
+			model:Destroy()
+		end
+	end
+	for _, mutation in Config.Mutations do
+		local info = Units.Info(Units.Encode(first.Id, mutation.Name, Config.MaxFusion))
+		local built, model = pcall(UnitFactory.Build, info)
+		check("build " .. mutation.Name .. " fused", built and model.PrimaryPart ~= nil, if built then nil else model)
+		if built then
 			model:Destroy()
 		end
 	end
@@ -85,6 +106,7 @@ if ok then
 		end
 	end)
 	check("start services", ok, err)
+	check("event timer set", workspace:GetAttribute("NextEventAt") ~= nil)
 	task.wait(8)
 	local belt = workspace:FindFirstChild("BeltUnits")
 	local count = belt and #belt:GetChildren() or 0

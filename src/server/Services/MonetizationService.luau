@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local Units = require(ReplicatedStorage.Shared.Units)
 
 local MonetizationService = { Services = nil :: any }
 
@@ -15,7 +16,7 @@ local GREEN = Color3.fromRGB(90, 220, 120)
 local RED = Color3.fromRGB(255, 80, 80)
 
 local luckUntil = 0
-local pendingInstant = {} -- [Player] = { Model, TypeId, Rarity }
+local pendingInstant = {} -- [Player] = { Model, Code, Rarity }
 local passKeyById = {}
 local productKeyById = {}
 
@@ -57,6 +58,9 @@ function MonetizationService:GetMultiplier(player: Player): number
 	end
 	if player.MembershipType == Enum.MembershipType.Premium then
 		multiplier *= Config.PremiumMultiplier
+	end
+	if self.Services.EventService and self.Services.EventService:IsActive("DoubleCash") then
+		multiplier *= 2
 	end
 	return math.floor(multiplier * 100 + 0.5) / 100
 end
@@ -127,7 +131,7 @@ local function grantProduct(player: Player, key: string): boolean
 		local typeId
 		local model
 		if pending and pending.Rarity == product.Rarity then
-			typeId = pending.TypeId
+			typeId = pending.Code
 			model = services.UnitService:TakeFromBelt(pending.Model, typeId)
 		else
 			-- Fallback: der Kauf muss immer geliefert werden
@@ -144,12 +148,12 @@ local function grantProduct(player: Player, key: string): boolean
 			if model then
 				model:Destroy()
 			end
-			local refund = Config.UnitsById[typeId].Price * 2
+			local refund = Units.Info(typeId).Price * 2
 			services.DataService:AddCash(player, refund)
 			services.Net.SendNotify(player, `Base full! You got {Format.Cash(refund)} instead.`, GOLD)
 		else
 			task.spawn(services.UnitService.GiveUnit, services.UnitService, player, typeId, slot, model)
-			services.Net.SendAnnounce(`{player.DisplayName} bought a {product.Rarity} {Config.UnitsById[typeId].Name}!`, Config.RaritiesByName[product.Rarity].Color)
+			services.Net.SendAnnounce(`{player.DisplayName} bought a {product.Rarity} {Units.Info(typeId).Name}!`, Config.RaritiesByName[product.Rarity].Color)
 		end
 	else
 		warn("[Monetization] Unbekannter Produkttyp", kind)
@@ -211,7 +215,7 @@ function MonetizationService:PromptInstantBuy(player: Player, model: Model, def)
 	if not product then
 		return
 	end
-	pendingInstant[player] = { Model = model, TypeId = def.Id, Rarity = def.Rarity }
+	pendingInstant[player] = { Model = model, Code = def.Code, Rarity = def.Rarity }
 	if product.Id ~= 0 then
 		MarketplaceService:PromptProductPurchase(player, product.Id)
 	elseif RunService:IsStudio() and Config.StudioFakePurchases then

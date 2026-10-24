@@ -185,7 +185,7 @@ function UI.Start()
 	local top = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 8),
-		Size = UDim2.fromOffset(420, 175),
+		Size = UDim2.fromOffset(420, 230),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, { create("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 2) }) })
@@ -194,10 +194,12 @@ function UI.Start()
 	local statusLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(255, 200, 40), LayoutOrder = 3, Parent = top })
 	local rankLabel = label({ Size = UDim2.new(1, 0, 0, 20), Text = "", TextColor3 = Color3.fromRGB(200, 200, 255), LayoutOrder = 5, Parent = top })
 	local luckLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(90, 255, 140), LayoutOrder = 4, Visible = false, Parent = top })
+	local eventLabel = label({ Size = UDim2.new(1, 0, 0, 22), Text = "", TextColor3 = Color3.fromRGB(255, 120, 220), LayoutOrder = 6, Parent = top })
+	local revengeLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(255, 70, 70), LayoutOrder = 7, Visible = false, Parent = top })
 
 	announceLabel = label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 190),
+		Position = UDim2.new(0.5, 0, 0, 245),
 		Size = UDim2.new(0.7, 0, 0, 36),
 		Visible = false,
 		Parent = gui,
@@ -331,6 +333,21 @@ function UI.Start()
 			luckLabel.Visible = luckLeft > 0
 			if luckLeft > 0 then
 				luckLabel.Text = `SERVER LUCK x{Config.ServerLuckMultiplier}  {Format.Time(luckLeft)}`
+			end
+
+			local now = workspace:GetServerTimeNow()
+			local eventName = workspace:GetAttribute("EventName")
+			if eventName then
+				eventLabel.Text = `EVENT: {eventName}  {Format.Time(math.max(0, (workspace:GetAttribute("EventEnds") or now) - now))}`
+			else
+				local nextAt = workspace:GetAttribute("NextEventAt")
+				eventLabel.Text = if nextAt then `Next free event in {Format.Time(math.max(0, nextAt - now))}` else ""
+			end
+
+			local revengeLeft = (player:GetAttribute("RevengeUntil") or 0) - now
+			revengeLabel.Visible = revengeLeft > 0
+			if revengeLeft > 0 then
+				revengeLabel.Text = `REVENGE on {player:GetAttribute("RevengeTarget") or "?"}: {Format.Time(revengeLeft)} - steal back instantly!`
 			end
 
 			local current = 1 + rebirths * Config.RebirthMultiplierPer

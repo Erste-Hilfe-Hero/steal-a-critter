@@ -1,4 +1,4 @@
--- Kern-Gameplay: Laufband, Kaufen, Einkommen, Klauen, Schlagen und Rebirth.
+-- Kern-Gameplay: Laufband, Kaufen, Einkommen, Klauen, Schlagen, Fusion, Rache und Rebirth.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -6,6 +6,7 @@ local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local Units = require(ReplicatedStorage.Shared.Units)
 local UnitFactory = require(script.Parent.UnitFactory)
 
 local UnitService = { Services = nil :: any }
@@ -14,9 +15,10 @@ local RED = Color3.fromRGB(255, 80, 80)
 local GREEN = Color3.fromRGB(90, 220, 120)
 local GOLD = Color3.fromRGB(255, 200, 40)
 
-local conveyorUnits = {} -- [Model] = { TypeId, X, Sold }
+local conveyorUnits = {} -- [Model] = { Code, X, Sold }
 local baseUnits = {} -- [Player] = { [slotKey] = Model }
-local carrying = {} -- [Player] = { Owner, SlotKey, TypeId, Visual, Model, StartedAt }
+local carrying = {} -- [Player] = { Owner, SlotKey, Code, Visual, Model, StartedAt }
+local revenge = {} -- [Opfer] = { Thief = Player, Until = os.clock() }
 local holdStarted = {} -- [Player] = os.clock()
 local lastSlap = {} -- [Player] = os.clock()
 
@@ -57,8 +59,8 @@ function UnitService:FindFreeSlot(player: Player): string?
 	return nil
 end
 
-local function slotCFrame(plot, slotKey: string, def): CFrame
-	local scale = Config.RaritiesByName[def.Rarity].Scale
+local function slotCFrame(plot, slotKey: string, info): CFrame
+	local scale = info.Scale
 	local offset = UnitService.Services.WorldService.PadOffset(tonumber(slotKey) :: number)
 	return plot.CFrame * CFrame.new(offset + Vector3.new(0, scale * 0.6 + 0.3, 0))
 end
@@ -71,10 +73,10 @@ function UnitService:GetBaseIncome(player: Player): number
 		return 0
 	end
 	local total = 0
-	for _, typeId in data.Units do
-		local def = Config.UnitsById[typeId]
-		if def then
-			total += def.Income
+	for _, code in data.Units do
+		local info = Units.Info(code)
+		if info then
+			total += info.Income
 		end
 	end
 	return total
@@ -104,12 +106,16 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	if not model or model:GetAttribute("BeingStolen") then
 		return
 	end
-	if services.PlotService:IsLocked(owner) then
+	-- Rache: wer gerade bestohlen wurde, kommt kurz durch die Sperre des Diebes und klaut fast sofort
+	local avenging = UnitService:HasRevenge(thief, owner)
+	if services.PlotService:IsLocked(owner) and not avenging then
 		notify(thief, "This base is locked!", RED)
 		return
 	end
 	-- Serverseitige Pruefung der Haltezeit (Schutz gegen Exploits)
-	local required = if services.MonetizationService:HasPass(thief, "FastSteal") then Config.FastStealHoldTime else Config.StealHoldTime
+	local required = if avenging then Config.RevengeHoldTime
+		elseif services.MonetizationService:HasPass(thief, "FastSteal") then Config.FastStealHoldTime
+		else Config.StealHoldTime
 	local began = holdStarted[thief]
 	holdStarted[thief] = nil
 	if not began or os.clock() - began < required - 0.35 then
@@ -126,8 +132,8 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 		return
 	end
 	local ownerData = services.DataService:Get(owner)
-	local typeId = ownerData and ownerData.Units[slotKey]
-	local def = typeId and Config.UnitsById[typeId]
+	local code = ownerData and ownerData.Units[slotKey]
+	local def = Units.Info(code)
 	if not def then
 		return
 	end
@@ -145,15 +151,14 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 			part.Massless = true
 		end
 	end
-	local scale = Config.RaritiesByName[def.Rarity].Scale
-	visual:PivotTo(head.CFrame * CFrame.new(0, 0.8 + scale / 2, 0))
+	visual:PivotTo(head.CFrame * CFrame.new(0, 0.8 + def.Scale / 2, 0))
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = head
 	weld.Part1 = visual.PrimaryPart
 	weld.Parent = visual
 	visual.Parent = character
 
-	carrying[thief] = { Owner = owner, SlotKey = slotKey, TypeId = typeId, Visual = visual, Model = model, Prompt = prompt, StartedAt = os.clock() }
+	carrying[thief] = { Owner = owner, SlotKey = slotKey, Code = code, Visual = visual, Model = model, Prompt = prompt, StartedAt = os.clock() }
 	thief:SetAttribute("Carrying", def.Name)
 	notify(owner, `{thief.DisplayName} is stealing your {def.Name}! Slap them!`, RED)
 	notify(thief, `You grabbed {def.Name}! Run back to your base!`, GOLD)
@@ -163,7 +168,7 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 	local services = self.Services
 	local data = services.DataService:Get(player)
 	local plot = services.PlotService:GetPlot(player)
-	local def = data and Config.UnitsById[data.Units[slotKey]]
+	local def = data and Units.Info(data.Units[slotKey])
 	if not def or not plot then
 		return
 	end
@@ -189,6 +194,26 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 		startSteal(thief, player, slotKey, prompt)
 	end)
 
+	-- Fusion: nur der Besitzer sieht diesen Prompt (der Client blendet ihn fuer andere aus)
+	if def.Fusion < Config.MaxFusion then
+		local fusePrompt = Instance.new("ProximityPrompt")
+		fusePrompt.Name = "FusePrompt"
+		fusePrompt.ActionText = "Fuse 3x"
+		fusePrompt.ObjectText = def.Name
+		fusePrompt.KeyboardKeyCode = Enum.KeyCode.F
+		fusePrompt.GamepadKeyCode = Enum.KeyCode.ButtonY
+		fusePrompt.HoldDuration = 0.5
+		fusePrompt.MaxActivationDistance = 8
+		fusePrompt.RequiresLineOfSight = false
+		fusePrompt:SetAttribute("OwnerUserId", player.UserId)
+		fusePrompt.Parent = model.PrimaryPart
+		fusePrompt.Triggered:Connect(function(who)
+			if who == player then
+				UnitService:Fuse(player, slotKey)
+			end
+		end)
+	end
+
 	model.Parent = plot.Model
 	baseUnits[player][slotKey] = model
 end
@@ -207,9 +232,9 @@ function UnitService:RemoveBaseUnit(player: Player, slotKey: string)
 end
 
 -- Gibt dem Spieler eine Kreatur. sourceModel (optional) fliegt vom Laufband zur Basis.
-function UnitService:GiveUnit(player: Player, typeId: string, slotKey: string?, sourceModel: Model?): boolean
+function UnitService:GiveUnit(player: Player, code: string, slotKey: string?, sourceModel: Model?): boolean
 	local data = self.Services.DataService:Get(player)
-	local def = Config.UnitsById[typeId]
+	local def = Units.Info(code)
 	local plot = self.Services.PlotService:GetPlot(player)
 	slotKey = slotKey or self:FindFreeSlot(player)
 	if not data or not def or not plot or not slotKey then
@@ -219,7 +244,8 @@ function UnitService:GiveUnit(player: Player, typeId: string, slotKey: string?, 
 		return false
 	end
 	local key = slotKey :: string
-	data.Units[key] = typeId
+	code = def.Code
+	data.Units[key] = code
 	self:UpdateIncome(player)
 
 	if sourceModel and sourceModel.PrimaryPart then
@@ -234,7 +260,7 @@ function UnitService:GiveUnit(player: Player, typeId: string, slotKey: string?, 
 		sourceModel:Destroy()
 	end
 	-- Spieler koennte waehrend des Flugs gegangen sein oder rebirthed haben
-	if player.Parent and baseUnits[player] and data.Units[key] == typeId and not baseUnits[player][key] then
+	if player.Parent and baseUnits[player] and data.Units[key] == code and not baseUnits[player][key] then
 		self:PlaceBaseUnit(player, key)
 	end
 	return true
@@ -256,15 +282,22 @@ endSteal = function(thief: Player, success: boolean)
 	local services = UnitService.Services
 	local owner: Player = info.Owner
 	local ownerModels = baseUnits[owner]
-	local def = Config.UnitsById[info.TypeId]
+	local def = Units.Info(info.Code)
 	if success and owner.Parent and ownerModels and ownerModels[info.SlotKey] == info.Model then
 		local ownerData = services.DataService:Get(owner)
 		local slot = UnitService:FindFreeSlot(thief)
-		if ownerData and ownerData.Units[info.SlotKey] == info.TypeId and slot then
+		if ownerData and ownerData.Units[info.SlotKey] == info.Code and slot then
 			UnitService:RemoveBaseUnit(owner, info.SlotKey)
-			task.spawn(UnitService.GiveUnit, UnitService, thief, info.TypeId, slot)
+			task.spawn(UnitService.GiveUnit, UnitService, thief, info.Code, slot)
+			-- Versicherung und Rache: der Verlust tut weniger weh, und man kann zurueckschlagen
+			local payout = math.floor(def.Value * Config.InsuranceShare)
+			services.DataService:AddCash(owner, payout)
+			revenge[owner] = { Thief = thief, Until = os.clock() + Config.RevengeDuration }
+			owner:SetAttribute("RevengeTarget", thief.DisplayName)
+			owner:SetAttribute("RevengeTargetId", thief.UserId)
+			owner:SetAttribute("RevengeUntil", workspace:GetServerTimeNow() + Config.RevengeDuration)
 			notify(thief, `You stole {def.Name}!`, GREEN)
-			notify(owner, `{thief.DisplayName} stole your {def.Name}! Lock your base!`, RED)
+			notify(owner, `{thief.DisplayName} stole your {def.Name}! Insurance paid {Format.Cash(payout)}. REVENGE: steal back instantly for {Config.RevengeDuration}s!`, RED)
 			if Config.RaritiesByName[def.Rarity].Announce then
 				services.Net.SendAnnounce(`{thief.DisplayName} stole a {def.Rarity} {def.Name} from {owner.DisplayName}!`, Config.RaritiesByName[def.Rarity].Color)
 			end
@@ -302,13 +335,30 @@ local function pickUnitDef()
 	return Config.Units[1]
 end
 
+local function rollMutation(): string?
+	local golden = UnitService.Services.EventService:IsActive("GoldenHour")
+	local luck = UnitService.Services.MonetizationService:GetLuck()
+	-- Seltenste zuerst pruefen
+	for index = #Config.Mutations, 1, -1 do
+		local mutation = Config.Mutations[index]
+		local chance = mutation.Chance * luck
+		if golden and mutation.Name == "Golden" then
+			chance = 0.4
+		end
+		if math.random() < chance then
+			return mutation.Name
+		end
+	end
+	return nil
+end
+
 local function tryBuy(player: Player, model: Model)
 	local services = UnitService.Services
 	local entry = conveyorUnits[model]
 	if not entry or entry.Sold then
 		return
 	end
-	local def = Config.UnitsById[entry.TypeId]
+	local def = Units.Info(entry.Code)
 	local data = services.DataService:Get(player)
 	if not data then
 		return
@@ -326,13 +376,13 @@ local function tryBuy(player: Player, model: Model)
 	conveyorUnits[model] = nil
 	services.DataService:AddCash(player, -def.Price)
 	notify(player, `Bought {def.Name}!`, GREEN)
-	UnitService:GiveUnit(player, def.Id, slot, model)
+	UnitService:GiveUnit(player, def.Code, slot, model)
 end
 
 -- Fuer Robux-Sofortkauf: nimmt die Kreatur vom Band, falls sie noch da ist.
-function UnitService:TakeFromBelt(model: Model?, typeId: string): Model?
+function UnitService:TakeFromBelt(model: Model?, code: string): Model?
 	local entry = model and conveyorUnits[model]
-	if entry and not entry.Sold and entry.TypeId == typeId then
+	if entry and not entry.Sold and entry.Code == code then
 		entry.Sold = true
 		conveyorUnits[model :: Model] = nil
 		return model
@@ -342,11 +392,11 @@ end
 
 local function spawnBeltUnit()
 	local services = UnitService.Services
-	local def = pickUnitDef()
+	local def = Units.Info(Units.Encode(pickUnitDef().Id, rollMutation(), 0))
 	local rarity = Config.RaritiesByName[def.Rarity]
 	local model = UnitFactory.Build(def)
 	local conveyor = Config.Conveyor
-	local entry = { TypeId = def.Id, X = conveyor.StartX, Y = 1 + rarity.Scale * 0.6 + 0.2, Sold = false }
+	local entry = { Code = def.Code, X = conveyor.StartX, Y = 1 + def.Scale * 0.6 + 0.2, Sold = false }
 	model:PivotTo(CFrame.lookAt(Vector3.new(entry.X, entry.Y, conveyor.Z), Vector3.new(entry.X + 1, entry.Y, conveyor.Z)))
 	UnitFactory.AddLabel(model, def, Format.Cash(def.Price) .. "  (+" .. Format.Cash(def.Income) .. "/s)")
 
@@ -385,9 +435,51 @@ local function spawnBeltUnit()
 
 	model.Parent = beltFolder
 	conveyorUnits[model] = entry
-	if rarity.Announce then
-		services.Net.SendAnnounce(`A {def.Rarity} {def.Name} is on the belt!`, rarity.Color)
+	if rarity.Announce or (def.Mutation and def.Mutation.Multiplier >= 4) then
+		services.Net.SendAnnounce(`A {def.Rarity} {def.Name} is on the belt!`, if def.Mutation then def.Mutation.Color else rarity.Color)
 	end
+end
+
+---------------------------------------------------------------- Fusion und Rache
+
+-- 3 identische Kreaturen (gleiche Art, Mutation und Stufe) werden zu einer mit einem Stern mehr
+function UnitService:Fuse(player: Player, slotKey: string)
+	local data = self.Services.DataService:Get(player)
+	local code = data and data.Units[slotKey]
+	local info = Units.Info(code)
+	if not info or info.Fusion >= Config.MaxFusion then
+		return
+	end
+	local models = baseUnits[player] or {}
+	local partners = {}
+	for key, other in data.Units do
+		if key ~= slotKey and other == code and models[key] and not models[key]:GetAttribute("BeingStolen") then
+			table.insert(partners, key)
+			if #partners == 2 then
+				break
+			end
+		end
+	end
+	if #partners < 2 or (models[slotKey] and models[slotKey]:GetAttribute("BeingStolen")) then
+		notify(player, `You need 3x {info.Name} to fuse!`, RED)
+		return
+	end
+	for _, key in partners do
+		self:RemoveBaseUnit(player, key)
+	end
+	self:RemoveBaseUnit(player, slotKey)
+	local fused = Units.Encode(info.Id, info.Mutation and info.Mutation.Name, info.Fusion + 1)
+	self:GiveUnit(player, fused, slotKey)
+	local result = Units.Info(fused)
+	notify(player, `FUSION! You created {result.Name} (+{Format.Cash(result.Income)}/s)`, GOLD)
+	if result.Fusion >= 2 then
+		self.Services.Net.SendAnnounce(`{player.DisplayName} fused a {result.Name}!`, Color3.fromRGB(180, 80, 255))
+	end
+end
+
+function UnitService:HasRevenge(player: Player, target: Player): boolean
+	local entry = revenge[player]
+	return entry ~= nil and entry.Thief == target and os.clock() < entry.Until
 end
 
 ---------------------------------------------------------------- Schlagen
@@ -518,6 +610,7 @@ function UnitService:OnPlayerRemoving(player: Player)
 	baseUnits[player] = nil
 	holdStarted[player] = nil
 	lastSlap[player] = nil
+	revenge[player] = nil
 end
 
 function UnitService:Start()
@@ -545,7 +638,8 @@ function UnitService:Start()
 	task.spawn(function()
 		while true do
 			spawnBeltUnit()
-			task.wait(Config.Conveyor.SpawnInterval)
+			local rush = services.EventService:IsActive("CritterRush")
+			task.wait(Config.Conveyor.SpawnInterval / (if rush then 3 else 1))
 		end
 	end)
 
