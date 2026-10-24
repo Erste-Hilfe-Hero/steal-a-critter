@@ -184,18 +184,19 @@ function UI.Start()
 	local top = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 8),
-		Size = UDim2.fromOffset(320, 150),
+		Size = UDim2.fromOffset(420, 175),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, { create("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 2) }) })
 	local cashLabel = label({ Size = UDim2.new(1, 0, 0, 52), Text = "$0", TextColor3 = Color3.fromRGB(120, 255, 120), LayoutOrder = 1, Parent = top })
 	local incomeLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "+$0/s", LayoutOrder = 2, Parent = top })
 	local statusLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(255, 200, 40), LayoutOrder = 3, Parent = top })
+	local rankLabel = label({ Size = UDim2.new(1, 0, 0, 20), Text = "", TextColor3 = Color3.fromRGB(200, 200, 255), LayoutOrder = 5, Parent = top })
 	local luckLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(90, 255, 140), LayoutOrder = 4, Visible = false, Parent = top })
 
 	announceLabel = label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 165),
+		Position = UDim2.new(0.5, 0, 0, 190),
 		Size = UDim2.new(0.7, 0, 0, 36),
 		Visible = false,
 		Parent = gui,
@@ -303,6 +304,12 @@ function UI.Start()
 				statusLabel.Text = "Base locked " .. Format.Time(lockedFor)
 			else
 				statusLabel.Text = ""
+			end
+
+			local nextRank = player:GetAttribute("NextRank")
+			rankLabel.Text = `Rank: {player:GetAttribute("Rank") or "Newbie"}` .. (if nextRank then `  (next {nextRank})` else "") .. "  /rank"
+			if player:GetAttribute("RankColor") then
+				rankLabel.TextColor3 = Color3.fromHex(player:GetAttribute("RankColor"))
 			end
 
 			local luckLeft = (workspace:GetAttribute("LuckUntil") or 0) - workspace:GetServerTimeNow()

@@ -106,6 +106,22 @@ Config.DevProducts = {
 	InstantMythic = { Id = 3721859230, Kind = "InstantBuy", Rarity = "Mythic", Name = "Instant Mythic", Description = "Buy a Mythic from the belt with Robux", PriceHint = 399, Hidden = true },
 }
 
+-- Community-Raenge: nur aktive Spielzeit zaehlt (wer 2 Minuten nichts tut, gilt als AFK).
+-- Rechte bauen aufeinander auf: jeder Rang hat auch alle Rechte der Raenge darunter.
+Config.OwnerUserIds = { 2979321382 } -- BigBabaAli: alle Rechte, kann bannen und Raenge entziehen
+Config.AfkTimeout = 120
+Config.Ranks = {
+	{ Name = "Newbie", Hours = 0, Days = 0, Color = "#C8C8C8", Rights = {} },
+	{ Name = "Member", Hours = 1, Days = 1, Color = "#78DCFF", Rights = { Vote = true } },
+	{ Name = "Regular", Hours = 5, Days = 3, Color = "#55DC6E", Rights = { VoteKick = true } },
+	{ Name = "Veteran", Hours = 20, Days = 7, Color = "#B450FF", Rights = { Announce = true } },
+	{ Name = "Guardian", Hours = 50, Days = 14, Color = "#FFBE28", Rights = { Kick = true } },
+}
+Config.VoteKickDuration = 30
+Config.VoteKickMinVotes = 3
+Config.AnnounceCooldown = 600
+Config.GuardianKickCooldown = 60
+
 -- In Studio Kaeufe mit ID 0 simulieren, damit alles testbar ist
 Config.StudioFakePurchases = true
 

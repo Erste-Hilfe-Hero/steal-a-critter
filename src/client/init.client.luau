@@ -49,8 +49,16 @@ TextChatService.OnIncomingMessage = function(message: TextChatMessage)
 	local properties = Instance.new("TextChatMessageProperties")
 	local source = message.TextSource
 	local sender = source and Players:GetPlayerByUserId(source.UserId)
-	if sender and sender:GetAttribute("Pass_VIP") then
-		properties.PrefixText = `<font color="#FFC828">[VIP]</font> {message.PrefixText}`
+	if sender then
+		local prefix = message.PrefixText
+		local rank = sender:GetAttribute("Rank")
+		if rank and rank ~= "Newbie" then
+			prefix = `<font color="{sender:GetAttribute("RankColor") or "#FFFFFF"}">[{rank}]</font> {prefix}`
+		end
+		if sender:GetAttribute("Pass_VIP") then
+			prefix = `<font color="#FFC828">[VIP]</font> {prefix}`
+		end
+		properties.PrefixText = prefix
 	end
 	return properties
 end

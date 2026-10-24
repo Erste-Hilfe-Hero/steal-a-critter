@@ -8,9 +8,10 @@ local Services = {
 	PlotService = require(script.Services.PlotService),
 	UnitService = require(script.Services.UnitService),
 	MonetizationService = require(script.Services.MonetizationService),
+	CommunityService = require(script.Services.CommunityService),
 }
 
-local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService" }
+local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService" }
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
@@ -30,6 +31,10 @@ local function onCharacterAdded(player: Player, character: Model)
 end
 
 local function onPlayerAdded(player: Player)
+	if Services.CommunityService:IsBanned(player) then
+		player:Kick("You are banned from this game or server.")
+		return
+	end
 	local plot = Services.PlotService:Assign(player)
 	if not plot then
 		player:Kick("This server is full. Please join another server!")
@@ -42,6 +47,7 @@ local function onPlayerAdded(player: Player)
 	end
 	Services.MonetizationService:LoadPasses(player)
 	Services.UnitService:OnPlayerReady(player)
+	Services.CommunityService:OnPlayerReady(player)
 
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
@@ -57,6 +63,7 @@ for _, player in Players:GetPlayers() do
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	Services.CommunityService:OnPlayerRemoving(player)
 	Services.UnitService:OnPlayerRemoving(player)
 	Services.MonetizationService:OnPlayerRemoving(player)
 	Services.PlotService:Release(player)
