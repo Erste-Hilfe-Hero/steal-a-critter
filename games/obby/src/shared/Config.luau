@@ -56,19 +56,19 @@ Config.Trails = {
 -- "Gamepasses" werden als Developer Products verkauft und dauerhaft gespeichert
 -- (der API-Schluessel kann keine echten Gamepasses anlegen). ProductName = Name in products.json.
 Config.GamePasses = {
-	VIP = { ProductId = 0, ProductName = "VIP", Name = "VIP", Description = "Golden name, [VIP] chat tag + Golden VIP trail", PriceHint = 199, Order = 1 },
-	DoubleJump = { ProductId = 0, ProductName = "Double Jump", Name = "Double Jump", Description = "Jump again in mid-air", PriceHint = 199, Order = 2 },
-	GravityCoil = { ProductId = 0, ProductName = "Gravity Coil", Name = "Gravity Coil", Description = "Equip to jump way higher", PriceHint = 149, Order = 3 },
-	SpeedCoil = { ProductId = 0, ProductName = "Speed Coil", Name = "Speed Coil", Description = "Equip to run much faster", PriceHint = 99, Order = 4 },
-	TrailPack = { ProductId = 0, ProductName = "Trail Pack", Name = "Trail Pack", Description = "Unlock all 6 premium trails", PriceHint = 149, Order = 5 },
+	VIP = { ProductId = 3721935421, ProductName = "VIP", Name = "VIP", Description = "Golden name, [VIP] chat tag + Golden VIP trail", PriceHint = 199, Order = 1 },
+	DoubleJump = { ProductId = 3721935425, ProductName = "Double Jump", Name = "Double Jump", Description = "Jump again in mid-air", PriceHint = 199, Order = 2 },
+	GravityCoil = { ProductId = 3721935430, ProductName = "Gravity Coil", Name = "Gravity Coil", Description = "Equip to jump way higher", PriceHint = 149, Order = 3 },
+	SpeedCoil = { ProductId = 3721935433, ProductName = "Speed Coil", Name = "Speed Coil", Description = "Equip to run much faster", PriceHint = 99, Order = 4 },
+	TrailPack = { ProductId = 3721935439, ProductName = "Trail Pack", Name = "Trail Pack", Description = "Unlock all 6 premium trails", PriceHint = 149, Order = 5 },
 }
 
 -- Developer Products: beliebig oft kaufbar
 Config.DevProducts = {
-	SkipStage = { Id = 0, ProductName = "Skip Stage", Kind = "Skip", Stages = 1, Name = "Skip Stage", Description = "Go to the next stage", PriceHint = 19, Order = 1 },
-	Skip5 = { Id = 0, ProductName = "Skip 5 Stages", Kind = "Skip", Stages = 5, Name = "Skip 5 Stages", Description = "Jump 5 stages ahead", PriceHint = 79, Order = 2 },
-	Skip10 = { Id = 0, ProductName = "Skip 10 Stages", Kind = "Skip", Stages = 10, Name = "Skip 10 Stages", Description = "Jump 10 stages ahead (best deal!)", PriceHint = 129, Order = 3 },
-	KillAll = { Id = 0, ProductName = "Kill Everyone", Kind = "KillAll", Name = "Kill Everyone", Description = "Troll! Everyone else respawns at their checkpoint", PriceHint = 49, Order = 4 },
+	SkipStage = { Id = 3721935444, ProductName = "Skip Stage", Kind = "Skip", Stages = 1, Name = "Skip Stage", Description = "Go to the next stage", PriceHint = 19, Order = 1 },
+	Skip5 = { Id = 3721935453, ProductName = "Skip 5 Stages", Kind = "Skip", Stages = 5, Name = "Skip 5 Stages", Description = "Jump 5 stages ahead", PriceHint = 79, Order = 2 },
+	Skip10 = { Id = 3721935449, ProductName = "Skip 10 Stages", Kind = "Skip", Stages = 10, Name = "Skip 10 Stages", Description = "Jump 10 stages ahead (best deal!)", PriceHint = 129, Order = 3 },
+	KillAll = { Id = 3721935457, ProductName = "Kill Everyone", Kind = "KillAll", Name = "Kill Everyone", Description = "Troll! Everyone else respawns at their checkpoint", PriceHint = 49, Order = 4 },
 }
 
 Config.PremiumBadge = true -- Premium-Spieler bekommen ein Abzeichen am Namen (erhoeht Premium Payouts durch Spielzeit)
