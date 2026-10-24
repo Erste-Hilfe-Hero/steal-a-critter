@@ -1,0 +1,63 @@
+name: Publish Pet Sim to Roblox
+
+on:
+  push:
+    branches: [main]
+    paths: [games/petsim/**, .github/workflows/publish-petsim.yml]
+  pull_request:
+    paths: [games/petsim/**, .github/workflows/publish-petsim.yml]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: games/petsim
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fuer welche Experiences gilt der Schluessel? (der Schluessel selbst wird nicht ausgegeben)
+      - name: Key scopes
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: |
+          curl -sS -X POST https://apis.roblox.com/api-keys/v1/introspect -H "Content-Type: application/json" \
+            -d "{\"apiKey\":\"$ROBLOX_API_KEY\"}" -o introspect.json
+          echo "::notice::key universes: $(jq -c '[.scopes[]?.targetParts[]?] | unique' introspect.json 2>/dev/null || head -c 300 introspect.json)"
+          for U in $(jq -r '[.scopes[]?.targetParts[]?] | unique | map(select(. != "*")) | .[]' introspect.json 2>/dev/null); do
+            echo "::notice::universe $U: $(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{displayName, rootPlace: .rootPlace, visibility}' 2>/dev/null)"
+          done
+
+      - name: Read experience IDs
+        run: |
+          echo "UNIVERSE_ID=$(jq -r '.universeId' roblox.json)" >> "$GITHUB_ENV"
+          echo "PLACE_ID=$(jq -r '.placeId' roblox.json)" >> "$GITHUB_ENV"
+
+      - name: Install Rojo
+        run: |
+          curl -sSL -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
+          unzip -q rojo.zip
+          chmod +x rojo
+
+      - name: Build place file
+        run: ./rojo build default.project.json -o PetSim.rbxlx
+
+      - name: Upload place file
+        uses: actions/upload-artifact@v4
+        with:
+          name: PetSim
+          path: games/petsim/PetSim.rbxlx
+
+      - name: Publish to Roblox
+        if: github.event_name != 'pull_request' && env.ROBLOX_API_KEY != '' && env.UNIVERSE_ID != '' && env.PLACE_ID != ''
+        run: |
+          curl --fail-with-body -sS -X POST \
+            "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Published" \
+            -H "x-api-key: ${ROBLOX_API_KEY}" \
+            -H "Content-Type: application/xml" \
+            --data-binary @PetSim.rbxlx -o publish.json
+          echo "::notice::Published: $(cat publish.json)"

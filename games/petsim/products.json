@@ -1,0 +1,15 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "x1.5 coins forever + VIP chat tag", "price": 249},
+  {"key": "Pass_DoubleCoins", "name": "2x Coins", "description": "Double all coins forever", "price": 399},
+  {"key": "Pass_TripleHatch", "name": "Triple Hatch", "description": "Open 3 eggs at once", "price": 349},
+  {"key": "Pass_AutoHatch", "name": "Auto Hatch", "description": "Hatch eggs automatically while you stand next to them", "price": 299},
+  {"key": "Pass_MorePets", "name": "+3 Pets Equipped", "description": "Equip 6 pets instead of 3", "price": 299},
+  {"key": "Pass_Lucky", "name": "Lucky", "description": "x1.5 chance for Rare and better pets", "price": 249},
+  {"key": "Pass_Speed", "name": "Speed", "description": "Run faster forever", "price": 99},
+  {"key": "CoinsSmall", "name": "Coin Bag", "description": "Coins for about 4 eggs of your best zone", "price": 49},
+  {"key": "CoinsMedium", "name": "Coin Chest", "description": "Coins for about 20 eggs of your best zone", "price": 199},
+  {"key": "CoinsLarge", "name": "Coin Vault", "description": "Coins for about 80 eggs of your best zone", "price": 699},
+  {"key": "CoinBoost", "name": "2x Coins (30 min)", "description": "Double coins for 30 minutes", "price": 79},
+  {"key": "ServerLuck", "name": "Server Luck x2", "description": "15 min: rare pets x2 more likely for EVERYONE", "price": 199},
+  {"key": "PetStorage", "name": "+50 Pet Storage", "description": "Keep 50 more pets in your inventory", "price": 99}
+]

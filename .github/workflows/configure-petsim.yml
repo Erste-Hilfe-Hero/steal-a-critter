@@ -1,0 +1,49 @@
+name: Configure pet sim experience
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [games/petsim/experience.json, games/petsim/roblox.json]
+
+defaults:
+  run:
+    working-directory: games/petsim
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip until experience IDs exist
+        id: ids
+        run: echo "ready=$(jq -r 'if .universeId != "" then "yes" else "no" end' roblox.json)" >> "$GITHUB_OUTPUT"
+
+      # Name, Beschreibung, Sichtbarkeit und Servergroesse aus experience.json setzen
+      - name: Update universe and place
+        if: steps.ids.outputs.ready == 'yes'
+        run: |
+          U=$(jq -r '.universeId' roblox.json); P=$(jq -r '.placeId' roblox.json)
+          echo "::notice::scopes: $(curl -sS -X POST https://apis.roblox.com/api-keys/v1/introspect -H 'Content-Type: application/json' -d "{\"apiKey\":\"$ROBLOX_API_KEY\"}" | jq -c '[.scopes[]?.name]')"
+          R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$U?updateMask=displayName,description" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -c '{displayName: .name, description: .description}' experience.json)")
+          echo "::notice::universe info: $(echo "$R" | head -c 400)"
+          R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$U/places/$P?updateMask=displayName,description,serverSize" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -c '{displayName: .name, description: .description, serverSize: .serverSize}' experience.json)")
+          echo "::notice::place: $(echo "$R" | head -c 400)"
+          R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$U?updateMask=visibility" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -c '{visibility: .visibility}' experience.json)")
+          echo "::notice::visibility: $(echo "$R" | head -c 400)"
+          if [ "$(jq -r '.visibility' experience.json)" = "PUBLIC" ]; then
+            for URL in "https://apis.roblox.com/legacy-develop/v1/universes/$U/activate" "https://develop.roblox.com/v1/universes/$U/activate"; do
+              R=$(curl -sS -X POST "$URL" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Length: 0" -w " HTTP %{http_code}")
+              echo "::notice::activate $URL: $(echo "$R" | head -c 300)"
+            done
+            echo "::notice::now: $(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{visibility, ageRating}')"
+          fi
