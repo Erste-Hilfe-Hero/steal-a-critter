@@ -1,0 +1,17 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "x1.5 coins forever, gold name and Golden Inferno flames", "price": 299},
+  {"key": "Pass_DoubleCoins", "name": "2x Coins", "description": "Double coins from every race forever", "price": 399},
+  {"key": "Pass_InfernoKart", "name": "Inferno GT", "description": "The fastest kart in the game, yours forever", "price": 499},
+  {"key": "Pass_RocketStart", "name": "Rocket Start", "description": "Perfect turbo start in every race forever", "price": 149},
+  {"key": "Pass_DoubleItems", "name": "Item Pockets", "description": "Carry 2 items at once forever", "price": 249},
+  {"key": "CoinsSmall", "name": "Coin Stack", "description": "2,000 coins", "price": 49},
+  {"key": "CoinsMedium", "name": "Coin Bag", "description": "9,000 coins", "price": 179},
+  {"key": "CoinsLarge", "name": "Coin Chest", "description": "35,000 coins", "price": 499},
+  {"key": "CoinsHuge", "name": "Coin Vault", "description": "120,000 coins", "price": 1299},
+  {"key": "SuperItem", "name": "3 Inferno Items", "description": "3x Inferno Mode to use in any race", "price": 49},
+  {"key": "CoinParty", "name": "Coin Party", "description": "10 minutes of 2x coins for everyone in the server", "price": 99},
+  {"key": "ChooseTrack", "name": "Pick Next Track", "description": "You choose the next track", "price": 39},
+  {"key": "StartNow", "name": "Start Race Now", "description": "Skip the wait, the race starts now", "price": 19},
+  {"key": "StarterPack", "name": "Starter Pack", "description": "One time: 6,000 coins, 3 Inferno items and Blue Plasma flames", "price": 79},
+  {"key": "AdCoins", "name": "Free Coins (Video Ad)", "description": "Reward for watching a video ad: 400 coins", "price": 5}
+]
