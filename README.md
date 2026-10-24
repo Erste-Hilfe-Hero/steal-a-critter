@@ -110,6 +110,7 @@ src/client/UI.luau              ← HUD, Shop, Rebirth-Fenster, Meldungen
 ## So kommt das Geld tatsächlich rein
 
 - **Thumbnail und Icon sind alles.** Die Klickrate entscheidet, ob der Algorithmus das Spiel zeigt. Mehrere Varianten testen (Creator Hub → Thumbnail-Tests).
+- **Bilder automatisch hochladen:** `media.json` listet Icon und Thumbnails aller Spiele. Bei jeder Aenderung laedt `.github/workflows/media.yml` sie per API-Key hoch: als Startseiten-Kacheln (mehrere Bilder = automatischer A/B-Test) und als Icon/Thumbnails fuer alle Sprachen ausser Englisch. Das englische Haupt-Icon und die Haupt-Thumbnails laesst Roblox nur im Creator Hub setzen.
 - **Werbung:** Mit 5.000–20.000 Robux an *Sponsored Experiences / Ads Manager* testen. Wenn Spieler im Schnitt über 10 Minuten bleiben, lohnt es sich, mehr zu investieren.
 - **TikTok/Shorts:** Klau-Momente und "Mythic gezogen"-Clips. Das Genre lebt von Clips.
 - **Updates jede Woche:** Neue Kreaturen in `Config.Units` eintragen (eine Zeile pro Kreatur) und Events mit Server Luck. Top-Spiele verdienen durch ständige Updates.
