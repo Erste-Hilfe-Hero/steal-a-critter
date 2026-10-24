@@ -139,6 +139,15 @@ Config.DailyRewardBase = 500
 Config.DailyRewardStreakBonus = 0.5 -- +50% pro Tag in Folge
 Config.DailyRewardMaxStreak = 7
 
+-- Freunde & Einladungen
+Config.FriendBoostPer = 0.1 -- +10 % Einkommen pro Freund im selben Server
+Config.FriendBoostMax = 0.4
+Config.ReferralBoostPer = 0.05 -- +5 % dauerhaft pro eingeladenem neuen Spieler
+Config.ReferralBoostMaxCount = 10
+Config.ReferralNewcomerCash = 2500 -- Startbonus fuer den Eingeladenen
+Config.ReferralInviterCash = 5000 -- mindestens, sonst 5 Minuten Einkommen
+Config.ReferralMaxPlayTime = 300 -- nur wirklich neue Spieler zaehlen (Sekunden Spielzeit)
+
 -- Community-Raenge: nur aktive Spielzeit zaehlt (wer 2 Minuten nichts tut, gilt als AFK).
 -- Rechte bauen aufeinander auf: jeder Rang hat auch alle Rechte der Raenge darunter.
 Config.OwnerUserIds = { 2979321382 } -- BigBabaAli: alle Rechte, kann bannen und Raenge entziehen

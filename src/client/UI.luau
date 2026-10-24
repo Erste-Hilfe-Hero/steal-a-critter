@@ -3,6 +3,7 @@ local AdService = game:GetService("AdService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SocialService = game:GetService("SocialService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -185,7 +186,7 @@ function UI.Start()
 	local top = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 8),
-		Size = UDim2.fromOffset(420, 230),
+		Size = UDim2.fromOffset(420, 252),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, { create("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 2) }) })
@@ -195,11 +196,12 @@ function UI.Start()
 	local rankLabel = label({ Size = UDim2.new(1, 0, 0, 20), Text = "", TextColor3 = Color3.fromRGB(200, 200, 255), LayoutOrder = 5, Parent = top })
 	local luckLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(90, 255, 140), LayoutOrder = 4, Visible = false, Parent = top })
 	local eventLabel = label({ Size = UDim2.new(1, 0, 0, 22), Text = "", TextColor3 = Color3.fromRGB(255, 120, 220), LayoutOrder = 6, Parent = top })
+	local friendLabel = label({ Size = UDim2.new(1, 0, 0, 20), Text = "", TextColor3 = Color3.fromRGB(110, 210, 255), LayoutOrder = 8, Parent = top })
 	local revengeLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(255, 70, 70), LayoutOrder = 7, Visible = false, Parent = top })
 
 	announceLabel = label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 245),
+		Position = UDim2.new(0.5, 0, 0, 268),
 		Size = UDim2.new(0.7, 0, 0, 36),
 		Visible = false,
 		Parent = gui,
@@ -217,12 +219,13 @@ function UI.Start()
 	local side = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 10, 0.5, 0),
-		Size = UDim2.fromOffset(120, 210),
+		Size = UDim2.fromOffset(120, 280),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, { create("UIListLayout", { Padding = UDim.new(0, 10) }) })
 	local shopButton = button({ Size = UDim2.new(1, 0, 0, 60), Text = "SHOP", Parent = side }, Color3.fromRGB(60, 200, 90))
 	local rebirthButton = button({ Size = UDim2.new(1, 0, 0, 60), Text = "REBIRTH", Parent = side }, Color3.fromRGB(160, 80, 255))
+	local inviteButton = button({ Size = UDim2.new(1, 0, 0, 60), Text = "INVITE +$", Parent = side }, Color3.fromRGB(40, 170, 255))
 	local adButton = button({ Size = UDim2.new(1, 0, 0, 60), Text = "FREE CASH (Ad)", Visible = false, Parent = side }, Color3.fromRGB(255, 140, 30))
 
 	-- Freiwillige Video-Werbung: Knopf nur zeigen, wenn Roblox gerade eine Werbung bereit hat
@@ -232,6 +235,18 @@ function UI.Start()
 			adButton.Visible = ok and result and result.AdAvailabilityResult == Enum.AdAvailabilityResult.IsAvailable
 			task.wait(30)
 		end
+	end)
+	-- Freunde einladen: LaunchData traegt die eigene UserId, damit der Server den Einladenden belohnen kann
+	inviteButton.Activated:Connect(function()
+		local ok, canInvite = pcall(SocialService.CanSendGameInviteAsync, SocialService, player)
+		if not ok or not canInvite then
+			showToast("Invites are not available on this device.", Color3.fromRGB(255, 90, 90))
+			return
+		end
+		local options = Instance.new("ExperienceInviteOptions")
+		options.PromptMessage = "Invite friends - you both get cash and you earn +5% income forever!"
+		options.LaunchData = tostring(player.UserId)
+		pcall(SocialService.PromptGameInvite, SocialService, player, options)
 	end)
 	adButton.Activated:Connect(function()
 		adButton.Visible = false
@@ -349,6 +364,10 @@ function UI.Start()
 			if revengeLeft > 0 then
 				revengeLabel.Text = `REVENGE on {player:GetAttribute("RevengeTarget") or "?"}: {Format.Time(revengeLeft)} - steal back instantly!`
 			end
+
+			local friends = player:GetAttribute("FriendsHere") or 0
+			local referrals = player:GetAttribute("Referrals") or 0
+			friendLabel.Text = `Friends here: {friends} (+{math.floor((player:GetAttribute("FriendBoost") or 0) * 100)}%)   Invited: {referrals}`
 
 			local current = 1 + rebirths * Config.RebirthMultiplierPer
 			rebirthInfo.Text = `Cost: {Format.Cash(cost)}\nRebirth multiplier: x{current} -> x{current + Config.RebirthMultiplierPer}\nResets your cash and critters.`

@@ -28,6 +28,8 @@ local function defaultData()
 		LastActiveDay = 0,
 		RankRevoked = false, -- vom Owner entzogen: maximal Regular
 		RobuxSpent = 0,
+		ReferredBy = 0, -- UserId des Einladenden (0 = keiner)
+		Referrals = 0, -- Anzahl eingeladener neuer Spieler
 	}
 end
 

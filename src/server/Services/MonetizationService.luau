@@ -59,6 +59,10 @@ function MonetizationService:GetMultiplier(player: Player): number
 	if player.MembershipType == Enum.MembershipType.Premium then
 		multiplier *= Config.PremiumMultiplier
 	end
+	if data then
+		multiplier *= 1 + math.min(data.Referrals or 0, Config.ReferralBoostMaxCount) * Config.ReferralBoostPer
+	end
+	multiplier *= 1 + (tonumber(player:GetAttribute("FriendBoost")) or 0)
 	if self.Services.EventService and self.Services.EventService:IsActive("DoubleCash") then
 		multiplier *= 2
 	end

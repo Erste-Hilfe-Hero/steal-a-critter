@@ -27,6 +27,8 @@ Die Features antworten direkt auf die häufigsten Spieler-Beschwerden über "Ste
 - **Mutationen:** Golden (x2), Diamond (x4), Rainbow (x10, Farbe läuft durch) auf dem Laufband.
 - **Gratis-Server-Events** alle 8 Minuten für 2 Minuten: Golden Hour, Critter Rush, Lucky Belt, Double Cash.
 - **Tägliche Belohnung** mit Serie (bis +300 % am 7. Tag).
+- **Freunde-Bonus:** +10 % Einkommen pro Freund im selben Server (max. +40 %).
+- **Einladen lohnt sich:** INVITE-Knopf. Kommt ein neuer Spieler über die Einladung (oder einen Teilen-Link), bekommt er 2.500 Startgeld und der Einladende Cash plus dauerhaft +5 % Einkommen (bis zu 10 Einladungen). Belohnungen für Einladende in anderen Servern liegen im DataStore `Referrals_v1` und werden alle 2 Minuten abgeholt.
 
 ## Monetarisierung (eingebaut)
 
