@@ -1,0 +1,8 @@
+{
+  "name": "Soccer Jam - 1 Day",
+  "ownerUserId": "2979321382",
+  "paymentType": "CREDIT_CARD",
+  "budgetMicros": "11000000",
+  "durationInDays": 1,
+  "idempotencyKey": "b3e9d2c4-7a15-4f86-9c2e-1d5a8f4b6e27"
+}
