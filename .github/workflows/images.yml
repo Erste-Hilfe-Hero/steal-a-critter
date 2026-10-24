@@ -1,0 +1,25 @@
+name: Upload icon and thumbnail
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["assets/**"]
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload icon and thumbnail
+        run: |
+          U=$(jq -r '.universeId' roblox.json)
+          R=$(curl -sS -X POST "https://apis.roblox.com/legacy-publish/v1/games/$U/icon" \
+            -H "x-api-key: $ROBLOX_API_KEY" -F "request.files=@assets/icon.png;type=image/png" -w " HTTP %{http_code}")
+          echo "::notice::icon: $(echo "$R" | head -c 300)"
+          R=$(curl -sS -X POST "https://apis.roblox.com/legacy-publish/v1/games/$U/thumbnail/image" \
+            -H "x-api-key: $ROBLOX_API_KEY" -F "request.files=@assets/thumbnail.png;type=image/png" -w " HTTP %{http_code}")
+          echo "::notice::thumbnail: $(echo "$R" | head -c 300)"
