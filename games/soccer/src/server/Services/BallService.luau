@@ -506,10 +506,10 @@ function BallService:Start()
 			self:Pass(actor)
 		end
 	end)
-	net.Tackle.OnServerEvent:Connect(function(player)
+	net.Tackle.OnServerEvent:Connect(function(player, aim)
 		local actor = self.Services.MatchService:ActorForPlayer(player)
 		if actor then
-			self.Services.CombatService:Swing(actor, "Slash")
+			self.Services.CombatService:Swing(actor, "Slash", aim)
 		end
 	end)
 end

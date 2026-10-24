@@ -105,7 +105,7 @@ local function knife()
 		return
 	end
 	player:SetAttribute("KnifeReadyAt", serverNow() + Config.Knife.Slash.Cooldown)
-	remotes.Tackle:FireServer()
+	remotes.Tackle:FireServer(camera.CFrame.LookVector)
 	Viewmodel.Swing("Slash")
 end
 
@@ -118,7 +118,7 @@ local function stab()
 		return
 	end
 	player:SetAttribute("KnifeReadyAt", serverNow() + Config.Knife.Stab.Cooldown)
-	remotes.Stab:FireServer()
+	remotes.Stab:FireServer(camera.CFrame.LookVector)
 	Viewmodel.Swing("Stab")
 end
 

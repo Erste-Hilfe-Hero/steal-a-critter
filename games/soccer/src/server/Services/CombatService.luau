@@ -221,7 +221,7 @@ local function playAnimation(actor, kind: string)
 end
 
 -- Startet einen Messerangriff; der Treffer wird im naechsten Moment gesucht (Heartbeat)
-function CombatService:Swing(actor, kind: string): boolean
+function CombatService:Swing(actor, kind: string, aim: Vector3?): boolean
 	local def = Config.Knife[kind]
 	if not def or not playing() or self:IsKO(actor) then
 		return false
@@ -236,7 +236,8 @@ function CombatService:Swing(actor, kind: string): boolean
 	if actor.Player then
 		actor.Player:SetAttribute("KnifeReadyAt", actor.KnifeReadyAt)
 	end
-	swings[actor] = { Kind = kind, Starts = now() + def.Windup, Ends = now() + def.Windup + def.Window }
+	local aimFlat = if typeof(aim) == "Vector3" and aim == aim then flat(aim) else nil
+	swings[actor] = { Kind = kind, Starts = now() + def.Windup, Ends = now() + def.Windup + def.Window, Aim = if aimFlat and aimFlat.Magnitude > 0.5 then aimFlat else nil }
 	playAnimation(actor, kind)
 	self.Services.Net.PlaySound(kind, actor.Root.Position)
 	return true
@@ -295,13 +296,14 @@ local function resolveSwings()
 			swings[actor] = nil
 		elseif t >= swing.Starts then
 			local def = Config.Knife[swing.Kind]
-			local look = flat(actor.Root.CFrame.LookVector)
+			-- Spieler zielen mit der Kamera (Ego-Sicht): Blickrichtung vom Client, sonst die des Koerpers
+			local look = swing.Aim or flat(actor.Root.CFrame.LookVector)
 			local best, bestDistance = nil, math.huge
 			for _, other in match:GetActors() do
 				if other.Team ~= actor.Team and not CombatService:IsKO(other) and other.Root.Parent then
 					local offset = other.Root.Position - actor.Root.Position
 					local distance = Vector3.new(offset.X, 0, offset.Z).Magnitude
-					if distance <= def.Range and math.abs(offset.Y) < 5 and (distance < 3 or look:Dot(flat(offset)) > 0.25) and distance < bestDistance then
+					if distance <= def.Range and math.abs(offset.Y) < 7 and (distance < 4 or look:Dot(flat(offset)) > 0) and distance < bestDistance then
 						best, bestDistance = other, distance
 					end
 				end
@@ -331,10 +333,10 @@ function CombatService:Start()
 		end
 	end)
 	local net = self.Services.Net
-	net.Stab.OnServerEvent:Connect(function(player)
+	net.Stab.OnServerEvent:Connect(function(player, aim)
 		local actor = self.Services.MatchService:ActorForPlayer(player)
 		if actor then
-			self:Swing(actor, "Stab")
+			self:Swing(actor, "Stab", aim)
 		end
 	end)
 	-- Pass fordern wie im Original (ALT): ein "!" ueber dem Kopf fuer 2 Sekunden
