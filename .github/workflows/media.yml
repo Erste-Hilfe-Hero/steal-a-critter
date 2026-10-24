@@ -5,7 +5,7 @@ name: Upload icons and thumbnails
 # - Icon + Thumbnails fuer jede Sprache ausser der Ausgangssprache (Lokalisierungs-API)
 # Die Ausgangssprache nimmt per API-Key keine Bilder an, und Roblox zeigt ueberall nur deren Bilder
 # (getestet 2026-10-24: Ausgangssprache auf Albanisch, en/de als Uebersetzung -> nirgends sichtbar).
-# Das Haupt-Icon und die Haupt-Thumbnails gehen deshalb nur im Creator Hub.
+# Haupt-Icon und Haupt-Thumbnails laedt media-main.yml mit Alis Login-Cookie (Secret ROBLOSECURITY).
 
 on:
   workflow_dispatch:
