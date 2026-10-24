@@ -79,6 +79,22 @@
       "thumbnails": [
         "games/surf/assets/thumbnail.png"
       ]
+    },
+    {
+      "name": "Midnight Mystery",
+      "universeId": "10772818139",
+      "icon": "games/mystery/assets/icon.png",
+      "thumbnails": [
+        "games/mystery/assets/thumbnail.png"
+      ]
+    },
+    {
+      "name": "Lantern Legends",
+      "universeId": "10772818148",
+      "icon": "games/lantern/assets/icon.png",
+      "thumbnails": [
+        "games/lantern/assets/thumbnail.png"
+      ]
     }
   ],
   "languages": [
