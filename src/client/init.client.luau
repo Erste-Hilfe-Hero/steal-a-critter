@@ -6,14 +6,16 @@ local TextChatService = game:GetService("TextChatService")
 
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local UI = require(script.UI)
+local Hub = require(script.Hub)
 
 local player = Players.LocalPlayer
 
 UI.Start()
+Hub.Start(UI.Toast)
 
 -- Eigene Kreaturen kann man nicht klauen: Prompt lokal ausblenden.
 -- Mit Fast-Steal-Pass ist die Haltezeit kuerzer, bei Rache fast sofort (der Server prueft das ebenfalls).
--- Den Fusions-Prompt sieht dagegen nur der Besitzer.
+-- Den Fusions- und Verkaufs-Prompt sieht dagegen nur der Besitzer.
 local stealPrompts = setmetatable({}, { __mode = "k" })
 
 local function isOwn(prompt: ProximityPrompt): boolean
@@ -21,7 +23,7 @@ local function isOwn(prompt: ProximityPrompt): boolean
 end
 
 local function hidden(prompt: ProximityPrompt): boolean
-	return if prompt.Name == "FusePrompt" then not isOwn(prompt) else isOwn(prompt)
+	return if prompt.Name == "FusePrompt" or prompt.Name == "SellPrompt" then not isOwn(prompt) else isOwn(prompt)
 end
 
 local function applyPrompt(prompt: ProximityPrompt)
@@ -45,7 +47,7 @@ local function refreshPrompts()
 end
 
 local function setupPrompt(prompt: Instance)
-	if not prompt:IsA("ProximityPrompt") or (prompt.Name ~= "StealPrompt" and prompt.Name ~= "FusePrompt") then
+	if not prompt:IsA("ProximityPrompt") or (prompt.Name ~= "StealPrompt" and prompt.Name ~= "FusePrompt" and prompt.Name ~= "SellPrompt") then
 		return
 	end
 	stealPrompts[prompt] = true

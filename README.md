@@ -55,6 +55,31 @@ Kaufabwicklung: `ProcessReceipt` mit Kaufhistorie gegen doppelte Vergabe und sof
 - **Cash Party** (149 R$): 5 Minuten Double Cash für den ganzen Server, mit Namen angekündigt.
 - **Rangliste** „Richest Critter Bosses“ neben dem Spawn (OrderedDataStore `TopEarned_v1`, alle 2 Minuten).
 
+## Update 2: 20 neue Funktionen (Bindung + Umsatz)
+
+1. Tägliche Quests (3 pro Tag, Bonus für alle 3) – `ProgressService`
+2. Erfolge (17 Meilensteine mit Cash) – `ProgressService`
+3. Critter-Index: jede entdeckte Art +2 % Einkommen für immer, Meilenstein-Belohnungen
+4. Spielzeit-Geschenke (3 bis 60 Minuten pro Sitzung) – `RewardService`
+5. Gratis-Glücksrad alle 20 Stunden (kein Robux-Glücksspiel)
+6. Codes (RELEASE, CRITTER, UPDATE2, BIGBABA) – neue Codes in `Config.Codes`
+7. Offline-Einnahmen (25 %, bis 6 h)
+8. Neuer Pass „Offline Pro“ (100 %, bis 24 h)
+9. Neues Produkt „Quest Skip“
+10. Basis-Ausbau (10 Stufen, +10 % Einkommen und +5 s Sperre je Stufe)
+11. Kreaturen verkaufen (R gedrückt halten, 50 % Wert)
+12. Neue Seltenheit „Secret“ und 7 neue Kreaturen
+13. Event „Cash Rain“ (Münzen einsammeln)
+14. Event „Mythic Drop“ (garantiert Mythic oder Secret)
+15. Happy Hour täglich 18 Uhr UTC (Double Cash)
+16. Server-Ziel: gemeinsam 40 Käufe/Klaus → 5 min Double Cash
+17. Kopfgeld auf den reichsten Spieler (+50 % Bonus beim Klauen)
+18. Neulingsschutz in den ersten 10 Minuten
+19. Dieb leuchtet rot, solange er eine Kreatur trägt
+20. Zwei neue Ranglisten (Rebirths, Diebe) + Kreatur des Tages (2x Einkommen)
+
+Deploy: `publish.yml` lädt erst eine gespeicherte Version hoch, testet sie mit `tests/smoke.luau` und schaltet sie nur bei 0 Fehlern live.
+
 ## Projektstruktur (Rojo)
 
 ```

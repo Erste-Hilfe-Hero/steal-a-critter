@@ -19,6 +19,41 @@ Net.RequestRebirth = remote("RequestRebirth") -- Client -> Server
 Net.FakePurchase = remote("FakePurchase") -- Client -> Server (nur Studio)
 Net.Offer = remote("Offer") -- Server -> Spieler: passendes Angebot im richtigen Moment (mit "No thanks")
 Net.WatchAd = remote("WatchAd") -- Client -> Server: Spieler will freiwillig eine Werbung sehen
+Net.Sync = remote("Sync") -- Server -> Spieler: Fortschritt (Quests, Index, Erfolge, Geschenke, Basis)
+
+-- Client -> Server: Anfragen (Quest abholen, Rad drehen, Code einloesen ...). Antwort: ok, Text
+Net.Request = Instance.new("RemoteFunction")
+Net.Request.Name = "Request"
+Net.Request.Parent = folder
+local handlers = {}
+local lastRequest = setmetatable({}, { __mode = "k" })
+Net.Request.OnServerInvoke = function(player: Player, action: any, arg: any)
+	local handler = type(action) == "string" and handlers[action]
+	if not handler then
+		return false, "Unknown action"
+	end
+	-- Schutz gegen Spam: hoechstens 8 Anfragen pro Sekunde
+	local now = os.clock()
+	local entry = lastRequest[player]
+	if not entry or now - entry.At > 1 then
+		entry = { At = now, Count = 0 }
+		lastRequest[player] = entry
+	end
+	entry.Count += 1
+	if entry.Count > 8 then
+		return false, "Slow down!"
+	end
+	local ok, success, message, extra = pcall(handler, player, arg)
+	if not ok then
+		warn("[Net] Anfrage fehlgeschlagen", action, success)
+		return false, "Something went wrong"
+	end
+	return success, message, extra
+end
+
+function Net.Handle(action: string, handler: (Player, any) -> (boolean, string?, any))
+	handlers[action] = handler
+end
 
 folder.Parent = ReplicatedStorage
 

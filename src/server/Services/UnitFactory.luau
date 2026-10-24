@@ -261,7 +261,7 @@ function UnitFactory.Build(info): Model
 			end
 		end
 	end
-	if rarity.Name == "Mythic" then
+	if rarity.Glow then
 		local glow = Instance.new("PointLight")
 		glow.Color = rarity.Color
 		glow.Range = s * 3

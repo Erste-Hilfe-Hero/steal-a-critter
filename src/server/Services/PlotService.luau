@@ -127,7 +127,7 @@ function PlotService:Start()
 				self.Services.Net.SendNotify(player, "This is not your base!", Color3.fromRGB(255, 80, 80))
 				return
 			end
-			self:Lock(player, Config.LockDuration, false)
+			self:Lock(player, Config.LockDuration + self.Services.RewardService:GetLockBonus(player), false)
 		end)
 	end
 

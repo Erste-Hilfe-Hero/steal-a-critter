@@ -10,13 +10,19 @@ local EventService = { Services = nil :: any }
 local activeId: string? = nil
 local activeUntil = 0
 local partyUntil = 0 -- gekaufte Cash Party (Double Cash fuer alle)
+local goalProgress = 0 -- Server-Ziel: gemeinsam gekaufte/geklaute Kreaturen
+local coinFolder: Folder? = nil
+
+local function happyHour(): boolean
+	return os.date("!*t").hour == Config.HappyHourUtc
+end
 
 function EventService:Init(services)
 	self.Services = services
 end
 
 function EventService:IsActive(id: string): boolean
-	if id == "DoubleCash" and os.clock() < partyUntil then
+	if id == "DoubleCash" and (os.clock() < partyUntil or happyHour()) then
 		return true
 	end
 	return activeId == id and os.clock() < activeUntil
@@ -29,12 +35,12 @@ local function refreshIncomes()
 end
 
 -- Cash Party: ein Spieler schenkt dem ganzen Server Double Cash (wird mit Namen angekuendigt)
-function EventService:StartParty(seconds: number, buyerName: string)
+function EventService:StartParty(seconds: number, buyerName: string, message: string?)
 	local now = os.clock()
 	partyUntil = math.max(now, partyUntil) + seconds
 	workspace:SetAttribute("PartyEnds", workspace:GetServerTimeNow() + (partyUntil - now))
 	workspace:SetAttribute("PartyBy", buyerName)
-	self.Services.Net.SendAnnounce(`{buyerName} started a CASH PARTY: DOUBLE CASH for everyone!`, Color3.fromRGB(120, 255, 120))
+	self.Services.Net.SendAnnounce(message or `{buyerName} started a CASH PARTY: DOUBLE CASH for everyone!`, Color3.fromRGB(120, 255, 120))
 	refreshIncomes()
 	local myEnd = partyUntil
 	task.delay(partyUntil - now + 0.1, function()
@@ -44,6 +50,69 @@ function EventService:StartParty(seconds: number, buyerName: string)
 			refreshIncomes()
 		end
 	end)
+end
+
+---------------------------------------------------------------- Server-Ziel
+
+-- Jeder Kauf und Klau zaehlt; ist das Ziel erreicht, gibt es Double Cash fuer alle
+function EventService:AddGoalProgress(amount: number)
+	goalProgress += amount
+	if goalProgress >= Config.ServerGoal then
+		goalProgress = 0
+		self:StartParty(Config.ServerGoalReward, "Server Goal", `🎯 SERVER GOAL REACHED! {Config.ServerGoalReward // 60} min DOUBLE CASH for everyone!`)
+	end
+	workspace:SetAttribute("GoalProgress", goalProgress)
+end
+
+---------------------------------------------------------------- Cash Rain
+
+local function spawnCoin()
+	local conveyor = Config.Conveyor
+	local coin = Instance.new("Part")
+	coin.Name = "RainCoin"
+	coin.Shape = Enum.PartType.Cylinder
+	coin.Size = Vector3.new(0.4, 2.4, 2.4)
+	coin.Color = Color3.fromRGB(255, 205, 40)
+	coin.Material = Enum.Material.Neon
+	coin.Anchored = true
+	coin.CanCollide = false
+	coin.CanQuery = false
+	local x = math.random() * (conveyor.EndX - conveyor.StartX) + conveyor.StartX
+	local z = (math.random() * 2 - 1) * 24
+	coin.CFrame = CFrame.new(x, 3, z) * CFrame.Angles(0, 0, math.rad(90))
+	game:GetService("CollectionService"):AddTag(coin, "Spin")
+	local taken = false
+	coin.Touched:Connect(function(hit)
+		local player = Players:GetPlayerFromCharacter(hit.Parent)
+		if taken or not player or not EventService.Services.DataService:Get(player) then
+			return
+		end
+		taken = true
+		coin:Destroy()
+		local amount = EventService.Services.ProgressService.IncomeReward(player, Config.CashRainCoinSeconds / 60, Config.CashRainMinCash)
+		EventService.Services.DataService:AddCash(player, amount)
+		EventService.Services.ProgressService:Track(player, "Coins", 1)
+		EventService.Services.Net.SendNotify(player, `+{Format.Cash(amount)}`, Color3.fromRGB(110, 255, 130))
+	end)
+	coin.Parent = coinFolder
+	task.delay(20, function()
+		if coin.Parent then
+			coin:Destroy()
+		end
+	end)
+end
+
+local function cashRain()
+	local waves = 8
+	for _ = 1, waves do
+		if activeId ~= "CashRain" then
+			return
+		end
+		for _ = 1, math.ceil(Config.CashRainCoins / waves) do
+			spawnCoin()
+		end
+		task.wait(Config.EventDuration / waves)
+	end
 end
 
 local function startEvent(event)
@@ -56,6 +125,13 @@ local function startEvent(event)
 	EventService.Services.Net.SendAnnounce(`EVENT: {event.Name}! {event.Description}`, event.Color)
 	for _, player in Players:GetPlayers() do
 		EventService.Services.UnitService:UpdateIncome(player)
+	end
+	if event.Id == "CashRain" then
+		task.spawn(cashRain)
+	elseif event.Id == "MythicDrop" then
+		task.delay(3, function()
+			EventService.Services.UnitService:SpawnBeltUnit(if math.random() < 0.1 then "Secret" else "Mythic")
+		end)
 	end
 end
 
@@ -94,7 +170,39 @@ function EventService:OnPlayerReady(player: Player)
 end
 
 function EventService:Start()
+	local folder = Instance.new("Folder")
+	folder.Name = "RainCoins"
+	folder.Parent = workspace
+	coinFolder = folder
+	workspace:SetAttribute("GoalProgress", 0)
+	workspace:SetAttribute("GoalTarget", Config.ServerGoal)
 	workspace:SetAttribute("NextEventAt", workspace:GetServerTimeNow() + Config.EventInterval - Config.EventDuration)
+
+	-- Happy Hour: Anfang und Ende ankuendigen, Einkommen neu berechnen
+	task.spawn(function()
+		local wasActive = false
+		while true do
+			local active = happyHour()
+			if active ~= wasActive then
+				wasActive = active
+				if active then
+					local now = os.time()
+					workspace:SetAttribute("HappyHourEnds", workspace:GetServerTimeNow() + (3600 - now % 3600))
+					self.Services.Net.SendAnnounce("⏰ HAPPY HOUR! DOUBLE CASH for everyone for 1 hour!", Color3.fromRGB(120, 255, 120))
+				else
+					workspace:SetAttribute("HappyHourEnds", nil)
+				end
+				refreshIncomes()
+			end
+			local nextStart = (os.time() // 86400) * 86400 + Config.HappyHourUtc * 3600
+			if nextStart <= os.time() then
+				nextStart += 86400
+			end
+			workspace:SetAttribute("HappyHourIn", workspace:GetServerTimeNow() + (nextStart - os.time()))
+			task.wait(10)
+		end
+	end)
+
 	task.spawn(function()
 		while true do
 			task.wait(Config.EventInterval - Config.EventDuration)
