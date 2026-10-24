@@ -259,6 +259,29 @@ function MonetizationService:AfterMatch(player: Player, result: string)
 	end
 end
 
+-- Wer oft umgehauen wird, bekommt (hoechstens alle 4 K.O.s) Iron Body oder Golden Knife angeboten
+local knockouts = {}
+function MonetizationService:AfterKnockout(player: Player)
+	knockouts[player] = (knockouts[player] or 0) + 1
+	if knockouts[player] % 4 ~= 3 then
+		return
+	end
+	local choices = {}
+	for _, key in { "IronBody", "GoldenKnife" } do
+		if not self:HasPass(player, key) then
+			table.insert(choices, key)
+		end
+	end
+	if #choices > 0 then
+		local key = choices[(knockouts[player] // 4) % #choices + 1]
+		task.delay(Config.KOSeconds + 0.5, function()
+			if player.Parent then
+				self.Services.Net.Offer:FireClient(player, key)
+			end
+		end)
+	end
+end
+
 ---------------------------------------------------------------- Start
 
 function MonetizationService:Start()
@@ -293,6 +316,7 @@ function MonetizationService:Start()
 	Players.PlayerRemoving:Connect(function(player)
 		lastAd[player] = nil
 		lossOffers[player] = nil
+		knockouts[player] = nil
 	end)
 
 	-- Nur in Studio: Kaeufe von noch nicht angelegten Produkten simulieren

@@ -351,6 +351,14 @@ if player.Character then
 end
 applyView()
 
+local function styleViewmodel()
+	local team = Config.Teams[player:GetAttribute("Team") or ""]
+	Viewmodel.SetStyle(if team then team.Color else Color3.fromRGB(40, 60, 140), player:GetAttribute("Pass_GoldenKnife") == true)
+end
+player:GetAttributeChangedSignal("Team"):Connect(styleViewmodel)
+player:GetAttributeChangedSignal("Pass_GoldenKnife"):Connect(styleViewmodel)
+styleViewmodel()
+
 -- Messer vor der Kamera, nach der Kamera aktualisiert
 RunService:BindToRenderStep("KnifeViewmodel", Enum.RenderPriority.Camera.Value + 1, function(dt)
 	local _, humanoid = getCharacter()

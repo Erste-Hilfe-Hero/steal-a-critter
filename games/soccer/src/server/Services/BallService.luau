@@ -202,6 +202,9 @@ function BallService:Kick(actor, dir: Vector3, power: number, spin: number?)
 	if powerPlay.Team == actor.Team then
 		speed *= 1 + Config.PowerPlayBonus * powerPlay.Count
 	end
+	if actor.Player and actor.Player:GetAttribute("Pass_CannonShot") == true then
+		speed *= Config.CannonShotPower
+	end
 	local velocity = (forward * math.cos(angle) + Vector3.yAxis * math.sin(angle)) * speed
 	local position = actor.Root.Position + forward * 3 + Vector3.new(0, -3 + RADIUS + 0.3, 0)
 	immune[actor] = now() + Config.PickupCooldown

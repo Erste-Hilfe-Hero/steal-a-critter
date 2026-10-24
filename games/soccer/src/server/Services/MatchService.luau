@@ -365,6 +365,9 @@ function MatchService:OnKO(attacker, victim, kind: string)
 		end
 	end
 	self.Services.Net.PlaySound("Ooh", victim.Root.Position)
+	if victim.Player then
+		self.Services.MonetizationService:AfterKnockout(victim.Player)
+	end
 	self.Services.Net.MatchEvent:FireAllClients("KO", {
 		Attacker = if attacker then attacker.Name else nil,
 		AttackerTeam = if attacker then attacker.Team else nil,
