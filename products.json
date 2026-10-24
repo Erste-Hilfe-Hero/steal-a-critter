@@ -82,5 +82,41 @@
     "name": "Free Cash (Video Ad)",
     "description": "Reward for watching a video ad: 5 minutes of income",
     "price": 5
+  },
+  {
+    "key": "StarterPack",
+    "name": "Starter Pack",
+    "description": "One time only: 25K cash + a Golden Epic critter",
+    "price": 79
+  },
+  {
+    "key": "GoldenTouch",
+    "name": "Golden Touch",
+    "description": "Turn your best critter Golden (x2 income)",
+    "price": 99
+  },
+  {
+    "key": "DiamondTouch",
+    "name": "Diamond Touch",
+    "description": "Turn your best critter Diamond (x4 income)",
+    "price": 249
+  },
+  {
+    "key": "RainbowTouch",
+    "name": "Rainbow Touch",
+    "description": "Turn your best critter Rainbow (x10 income)",
+    "price": 599
+  },
+  {
+    "key": "FusionCatalyst",
+    "name": "Fusion Catalyst",
+    "description": "Your next fusion needs only 2 identical critters instead of 3",
+    "price": 79
+  },
+  {
+    "key": "CashParty",
+    "name": "Cash Party",
+    "description": "5 minutes DOUBLE CASH for the whole server, announced with your name",
+    "price": 149
   }
 ]
