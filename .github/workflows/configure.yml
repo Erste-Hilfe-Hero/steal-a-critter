@@ -31,3 +31,10 @@ jobs:
             -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
             -d "$(jq -c '{visibility: .visibility}' experience.json)")
           echo "::notice::visibility: $(echo "$R" | head -c 400)"
+          if [ "$(jq -r '.visibility' experience.json)" = "PUBLIC" ]; then
+            for URL in "https://apis.roblox.com/legacy-develop/v1/universes/$U/activate" "https://develop.roblox.com/v1/universes/$U/activate"; do
+              R=$(curl -sS -X POST "$URL" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Length: 0" -w " HTTP %{http_code}")
+              echo "::notice::activate $URL: $(echo "$R" | head -c 300)"
+            done
+            echo "::notice::now: $(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{visibility, ageRating}')"
+          fi
