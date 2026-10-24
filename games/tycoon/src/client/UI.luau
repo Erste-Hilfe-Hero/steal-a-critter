@@ -50,13 +50,84 @@ local function label(props)
 	return create("TextLabel", props, { create("UIStroke", { Thickness = 2 }) })
 end
 
+local SHINE = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 190))
+
 local function button(props, color: Color3)
 	props.BackgroundColor3 = color
 	props.Font = FONT
 	props.TextScaled = true
 	props.TextColor3 = Color3.new(1, 1, 1)
 	props.AutoButtonColor = true
-	return create("TextButton", props, { corner(10), stroke(2), create("UITextSizeConstraint", { MaxTextSize = 26 }) })
+	local scale = create("UIScale", {})
+	local result = create("TextButton", props, {
+		corner(10),
+		stroke(2),
+		scale,
+		create("UITextSizeConstraint", { MaxTextSize = 26 }),
+		create("UIGradient", { Color = SHINE, Rotation = 90 }),
+		create("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4), PaddingTop = UDim.new(0, 3), PaddingBottom = UDim.new(0, 3) }),
+	})
+	result.MouseButton1Down:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.06), { Scale = 0.92 }):Play()
+	end)
+	result.MouseButton1Up:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.15, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end)
+	result.MouseLeave:Connect(function()
+		scale.Scale = 1
+	end)
+	return result
+end
+
+---------------------------------------------------------------- Effekte und Klaenge
+
+local SOUNDS = {
+	Harvest = "rbxasset://sounds/electronicpingshort.wav",
+	Sell = "rbxasset://sounds/electronicpingshort.wav",
+}
+
+local function playSound(kind: string, pitch: number)
+	local id = SOUNDS[kind]
+	if not id then
+		return
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = 0.35
+	sound.PlaybackSpeed = pitch
+	sound.Parent = workspace.CurrentCamera
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	task.delay(3, sound.Destroy, sound)
+end
+
+-- Text, der ueber dem Feld aufsteigt und verblasst
+local function floatText(position: Vector3, text: string, color: Color3)
+	local anchor = Instance.new("Part")
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.one
+	anchor.Position = position + Vector3.new(0, 4, 0)
+	anchor.Parent = workspace
+	local billboard = create("BillboardGui", { Size = UDim2.fromScale(8, 1.6), AlwaysOnTop = true, Parent = anchor })
+	local textLabel = create("TextLabel", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextScaled = true,
+		Text = text,
+		TextColor3 = color,
+		Parent = billboard,
+	}, { create("UIStroke", { Thickness = 2 }) }) :: TextLabel
+	local info = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(anchor, info, { Position = anchor.Position + Vector3.new(0, 5, 0) }):Play()
+	TweenService:Create(textLabel, info, { TextTransparency = 1 }):Play()
+	TweenService:Create(textLabel:FindFirstChildOfClass("UIStroke") :: UIStroke, info, { Transparency = 1 }):Play()
+	task.delay(1.2, anchor.Destroy, anchor)
 end
 
 ---------------------------------------------------------------- Meldungen
@@ -65,7 +136,15 @@ local toastContainer: Frame
 local announceLabel: TextLabel
 
 local function showToast(text: string, color: Color3?)
-	local toast = label({ Size = UDim2.new(1, 0, 0, 30), Text = text, TextColor3 = color or Color3.new(1, 1, 1), Parent = toastContainer })
+	local toast = label({
+		Size = UDim2.new(1, 0, 0, 32),
+		Text = text,
+		TextColor3 = color or Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.45,
+		BackgroundColor3 = Color3.fromRGB(15, 25, 20),
+		Parent = toastContainer,
+	})
+	corner(16).Parent = toast
 	task.delay(3.5, function()
 		TweenService:Create(toast, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
 		task.wait(0.4)
@@ -100,6 +179,7 @@ local function makeWindow(gui: Instance, title: string, color: Color3): (Frame, 
 		Visible = false,
 		Parent = gui,
 	}, { corner(14), stroke(3), create("UISizeConstraint", { MinSize = Vector2.new(330, 260), MaxSize = Vector2.new(640, 720) }) })
+	create("UIGradient", { Color = ColorSequence.new(color:Lerp(DARK, 0.75), DARK), Rotation = 90, Parent = frame })
 	label({ Position = UDim2.fromOffset(16, 8), Size = UDim2.new(1, -80, 0, 40), Text = title, TextColor3 = color, TextXAlignment = Enum.TextXAlignment.Left, Parent = frame })
 	local close = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 8), Size = UDim2.fromOffset(42, 42), Text = "X", Parent = frame }, Color3.fromRGB(220, 60, 60))
 	close.Activated:Connect(function()
@@ -129,6 +209,7 @@ end
 -- Zeile mit Titel, Untertitel und Knopf rechts
 local function makeRow(parent: Instance, order: number, title: string, color: Color3?): (Frame, TextLabel, TextLabel, TextButton)
 	local row = create("Frame", { Size = UDim2.new(1, -10, 0, 66), BackgroundColor3 = ROW, LayoutOrder = order, Parent = parent }, { corner(10) })
+	create("Frame", { Size = UDim2.new(0, 5, 1, -16), Position = UDim2.fromOffset(3, 8), BackgroundColor3 = color or Color3.fromRGB(120, 200, 120), BorderSizePixel = 0, Parent = row }, { corner(3) })
 	local titleLabel = label({ Position = UDim2.fromOffset(12, 5), Size = UDim2.new(0.62, -12, 0, 30), Text = title, TextColor3 = color or Color3.new(1, 1, 1), TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
 	local info = label({ Position = UDim2.fromOffset(12, 37), Size = UDim2.new(0.62, -12, 0, 22), Text = "", TextColor3 = Color3.fromRGB(200, 205, 210), TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
 	local action = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.new(0.34, 0, 0, 46), Text = "", Parent = row }, Color3.fromRGB(60, 190, 90))
@@ -194,6 +275,16 @@ function UI.Start()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
+	-- Auf kleinen Handys alles etwas kleiner
+	local uiScale = create("UIScale", { Parent = gui })
+	local function rescale()
+		local camera = workspace.CurrentCamera
+		uiScale.Scale = if camera then math.clamp(camera.ViewportSize.Y / 720, 0.68, 1) else 1
+	end
+	rescale()
+	if workspace.CurrentCamera then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
+	end
 
 	-- Anzeige oben
 	local top = create("Frame", {
@@ -203,7 +294,10 @@ function UI.Start()
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, { create("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }) })
-	local coinsLabel = label({ Size = UDim2.new(1, 0, 0, 48), Text = "$0", TextColor3 = Color3.fromRGB(255, 220, 80), LayoutOrder = 1, Parent = top })
+	local coinsPill = create("Frame", { Size = UDim2.new(0.62, 0, 0, 50), BackgroundColor3 = Color3.fromRGB(15, 25, 20), BackgroundTransparency = 0.35, LayoutOrder = 1, Parent = top }, { corner(25) })
+	local coinsLabel = label({ Size = UDim2.new(1, -20, 1, -6), Position = UDim2.fromOffset(10, 3), Text = "$0", TextColor3 = Color3.fromRGB(255, 220, 80), Parent = coinsPill })
+	local coinsScale = create("UIScale", { Parent = coinsPill })
+	local lastCoins = 0
 	local bagLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", LayoutOrder = 2, Parent = top })
 	local eventLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(140, 200, 255), LayoutOrder = 3, Parent = top })
 	local rankLabel = label({ Size = UDim2.new(1, 0, 0, 20), Text = "", TextColor3 = Color3.fromRGB(200, 200, 255), LayoutOrder = 4, Parent = top })
@@ -347,6 +441,15 @@ function UI.Start()
 
 	remotes.Notify.OnClientEvent:Connect(showToast)
 	remotes.Announce.OnClientEvent:Connect(showAnnouncement)
+	remotes.Effect.OnClientEvent:Connect(function(kind: string, position: Vector3?, text: string, color: Color3)
+		if kind == "Harvest" and position then
+			floatText(position, text, color)
+			playSound("Harvest", 1 + math.random() * 0.3)
+		elseif kind == "Sell" then
+			playSound("Sell", 0.8)
+			showAnnouncement(text, color)
+		end
+	end)
 
 	-- Anzeige laufend aktualisieren
 	task.spawn(function()
@@ -354,6 +457,11 @@ function UI.Start()
 			local coins = player:GetAttribute("Coins") or 0
 			local multiplier = player:GetAttribute("SellMultiplier") or 1
 			coinsLabel.Text = Format.Cash(coins)
+			if coins > lastCoins and lastCoins > 0 then
+				coinsScale.Scale = 1.12
+				TweenService:Create(coinsScale, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+			end
+			lastCoins = coins
 			local fruits = player:GetAttribute("FruitCount") or 0
 			local bagValue = math.floor((player:GetAttribute("FruitValue") or 0) * multiplier)
 			bagLabel.Text = `Backpack {fruits}/{Config.BackpackSize}  ·  worth {Format.Cash(bagValue)}  ·  x{multiplier}`

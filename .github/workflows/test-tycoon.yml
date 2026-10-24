@@ -1,0 +1,45 @@
+name: Smoke test Magic Garden Tycoon
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Publish Magic Garden Tycoon"]
+    types: [completed]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    defaults:
+      run:
+        working-directory: games/tycoon
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fuehrt tests/smoke.luau im veroeffentlichten Place aus (Open Cloud Luau Execution)
+      - name: Run smoke test
+        run: |
+          U=$(jq -r '.universeId' roblox.json); P=$(jq -r '.placeId' roblox.json)
+          BASE="https://apis.roblox.com/cloud/v2/universes/$U/places/$P"
+          curl -sS -X POST "$BASE/luau-execution-session-tasks" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -n --rawfile s tests/smoke.luau '{script: $s, timeout: "120s"}')" -o task.json
+          TASK=$(jq -r '.path // empty' task.json)
+          if [ -z "$TASK" ]; then echo "::error::create failed: $(head -c 400 task.json)"; exit 1; fi
+          for i in $(seq 1 60); do
+            sleep 5
+            curl -sS "https://apis.roblox.com/cloud/v2/$TASK" -H "x-api-key: $ROBLOX_API_KEY" -o state.json
+            STATE=$(jq -r '.state' state.json)
+            [ "$STATE" = "COMPLETE" ] || [ "$STATE" = "FAILED" ] || [ "$STATE" = "CANCELLED" ] && break
+          done
+          echo "::notice::state: $STATE"
+          if [ "$STATE" = "COMPLETE" ]; then
+            jq -r '.output.results[0] // .output // empty' state.json | while IFS= read -r line; do
+              case "$line" in FAIL*) echo "::error::$line";; *) echo "::notice::$line";; esac
+            done
+            jq -r '.output.results[0] // ""' state.json | head -1 | grep -q "^SUMMARY: 0 failed" || exit 1
+          else
+            echo "::error::$(jq -c '.error' state.json | head -c 600)"
+            curl -sS "https://apis.roblox.com/cloud/v2/$TASK/logs" -H "x-api-key: $ROBLOX_API_KEY" | head -c 1500 | tr '\n' ' ' | sed 's/^/::notice::logs: /'
+            exit 1
+          fi

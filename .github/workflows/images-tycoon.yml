@@ -1,0 +1,47 @@
+name: Upload Magic Garden Tycoon icon and thumbnail
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["games/tycoon/assets/icon.png", "games/tycoon/assets/thumbnail.png", ".github/workflows/images-tycoon.yml"]
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    defaults:
+      run:
+        working-directory: games/tycoon
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mehrere bekannte Endpunkte probieren; der erste, der klappt, reicht
+      - name: Upload Magic Garden Tycoon icon and thumbnail
+        run: |
+          U=$(jq -r '.universeId' roblox.json)
+          up() { # name url field file
+            R=$(curl -sS -X POST "$2" -H "x-api-key: $ROBLOX_API_KEY" -F "$3=@$4;type=image/png" -w " HTTP %{http_code}")
+            echo "::notice::$1 $3: $(echo "$R" | tr -d '\n' | tail -c 250)"
+            echo "$R" | grep -q "HTTP 20"
+          }
+          B=https://apis.roblox.com
+          # Ohne Ausgangssprache lehnt die API Bilder ab ("Language is not supported")
+          R=$(curl -sS -X PATCH "$B/legacy-game-internationalization/v1/source-language/games/$U?languageCode=en" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Length: 0" -w " HTTP %{http_code}")
+          echo "::notice::source-language: $R"
+          R=$(curl -sS "$B/legacy-game-internationalization/v1/source-language/games/$U" -H "x-api-key: $ROBLOX_API_KEY" -w " HTTP %{http_code}")
+          echo "::notice::source-language now: $R"
+          for F in request.files files; do
+            up icon-i18n "$B/legacy-game-internationalization/v1/game-icon/games/$U/language-codes/en" $F assets/icon.png && break
+          done
+          for F in request.files files; do
+            up icon-publish "$B/legacy-publish/v1/games/$U/icon" $F assets/icon.png && break
+          done
+          for F in request.files files; do
+            up thumb-i18n "$B/legacy-game-internationalization/v1/game-thumbnails/games/$U/language-codes/en/image" $F assets/thumbnail.png && break
+          done
+          for F in request.files files; do
+            up thumb-publish "$B/legacy-publish/v1/games/$U/thumbnail/image" $F assets/thumbnail.png && break
+          done
+          true
