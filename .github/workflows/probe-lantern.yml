@@ -1,0 +1,37 @@
+name: Probe place creation (Lantern Legends)
+
+# Einmaliger Test: kann der API-Schluessel einen zusaetzlichen Place in einer bestehenden Experience anlegen?
+on:
+  push:
+    branches: [claude/project-thread-4bj3cb]
+    paths: [.github/workflows/probe-lantern.yml]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      U: "10772778395"
+    steps:
+      - name: Try endpoints
+        run: |
+          try() { # name method url body
+            R=$(curl -sS -X "$2" "$3" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" -D h.txt -d "$4" -w " HTTP %{http_code}")
+            T=$(grep -i '^x-csrf-token' h.txt | cut -d' ' -f2 | tr -d '\r')
+            if [ -n "$T" ]; then
+              R=$(curl -sS -X "$2" "$3" -H "x-api-key: $ROBLOX_API_KEY" -H "x-csrf-token: $T" -H "Content-Type: application/json" -d "$4" -w " HTTP %{http_code}")
+            fi
+            echo "::notice::$1: $(echo "$R" | tr -d '\n' | tail -c 400)"
+          }
+          B=https://apis.roblox.com
+          try list-v2 GET "$B/cloud/v2/universes/$U/places?maxPageSize=10" ""
+          try cloud-v2-create POST "$B/cloud/v2/universes/$U/places" '{"displayName":"Lantern Legends"}'
+          try universes-v1 POST "$B/universes/v1/universes/$U/places" '{"templatePlaceId":95206881}'
+          try universes-v1-user POST "$B/universes/v1/user/universes/$U/places" '{"templatePlaceId":95206881}'
+          try legacy-develop-v2 POST "$B/legacy-develop/v2/universes/$U/places" '{"templatePlaceId":95206881}'
+          try legacy-develop-v1 POST "$B/legacy-develop/v1/universes/$U/places" '{"templatePlaceId":95206881}'
+          try develop-v2 POST "https://develop.roblox.com/v2/universes/$U/places" '{"templatePlaceId":95206881}'
+          try develop-v1-create POST "https://develop.roblox.com/v1/places/create" '{"universeId":'$U'}'
+          try universe-create-legacy POST "$B/legacy-develop/v1/universes/create" '{"templatePlaceId":95206881}'
+          try universe-create POST "$B/universes/v1/universes/create" '{"templatePlaceId":95206881}'
+          true
