@@ -1,7 +1,7 @@
 {
   "name": "Turbo Soccer",
-  "universeId": "",
-  "placeId": "",
-  "nameMatch": "Soccer",
+  "universeId": "10772779542",
+  "placeId": "110121380431805",
+  "nameMatch": "Soccer|^7$",
   "ownerUserId": "2979321382"
 }
