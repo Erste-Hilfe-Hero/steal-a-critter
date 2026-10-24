@@ -29,8 +29,7 @@ jobs:
           }
           B=https://apis.roblox.com
           # Ohne Ausgangssprache lehnt die API Bilder ab ("Language is not supported")
-          R=$(curl -sS -X PATCH "$B/legacy-game-internationalization/v1/source-language/games/$U?languageCode=en" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Length: 0" -w " HTTP %{http_code}")
-          echo "::notice::source-language: $R"
+          # Ausgangssprache nicht anfassen: media.yml stellt sie bewusst um
           R=$(curl -sS "$B/legacy-game-internationalization/v1/source-language/games/$U" -H "x-api-key: $ROBLOX_API_KEY" -w " HTTP %{http_code}")
           echo "::notice::source-language now: $R"
           for F in request.files files; do

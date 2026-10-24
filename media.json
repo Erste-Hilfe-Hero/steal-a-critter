@@ -51,6 +51,55 @@
       "thumbnails": [
         "games/moba/assets/thumbnail.png"
       ]
+    },
+    {
+      "name": "Soccer Jam",
+      "universeId": "10772779542",
+      "icon": "games/soccer/assets/icon.png",
+      "thumbnails": [
+        "games/soccer/assets/thumbnail.png"
+      ]
+    },
+    {
+      "name": "Fire Blaster Race",
+      "universeId": "10772779494",
+      "icon": "games/kart/assets/icon.png",
+      "thumbnails": [
+        "games/kart/assets/thumbnail.png"
+      ]
+    },
+    {
+      "name": "Colosseum Catcher",
+      "universeId": "10772779368",
+      "icon": "games/colosseum/assets/icon.png",
+      "thumbnails": [
+        "games/colosseum/assets/thumbnail.png"
+      ]
+    },
+    {
+      "name": "Turbo City",
+      "universeId": "10772779320",
+      "icon": "games/city/assets/icon.png",
+      "thumbnails": [
+        "games/city/assets/thumbnail.png",
+        "games/city/assets/thumbnail_heist.png"
+      ]
+    },
+    {
+      "name": "Lanebreakers",
+      "universeId": "10772779235",
+      "icon": "games/moba/assets/icon.png",
+      "thumbnails": [
+        "games/moba/assets/thumbnail.png"
+      ]
+    },
+    {
+      "name": "surf_ski",
+      "universeId": "10772779420",
+      "icon": "games/surf/assets/icon.png",
+      "thumbnails": [
+        "games/surf/assets/thumbnail.png"
+      ]
     }
   ],
   "languages": [
@@ -71,5 +120,6 @@
     "pl",
     "vi",
     "ar"
-  ]
+  ],
+  "sourceLanguage": "sq"
 }
