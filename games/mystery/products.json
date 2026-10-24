@@ -1,0 +1,23 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "x1.5 coins, +10 coin bag, VIP tag and gold name forever", "price": 299},
+  {"key": "Pass_DoubleCoins", "name": "Double Coins", "description": "Earn twice the coins forever", "price": 249},
+  {"key": "Pass_DoubleXP", "name": "Double XP", "description": "Double XP and Battle Pass XP forever", "price": 199},
+  {"key": "Pass_BigBag", "name": "Big Coin Bag", "description": "+20 coins in your bag every round forever", "price": 149},
+  {"key": "Pass_Emotes", "name": "Emote Pack", "description": "3 dance emotes: Dance, Groove and Party", "price": 99},
+  {"key": "Pass_PetSlot", "name": "Extra Pet Slot", "description": "Equip 2 pets at the same time", "price": 149},
+  {"key": "Coins1", "name": "1,000 Coins", "description": "1,000 coins for crates and skins", "price": 49},
+  {"key": "Coins2", "name": "3,500 Coins", "description": "3,500 coins for crates and skins", "price": 149},
+  {"key": "Coins3", "name": "10,000 Coins", "description": "10,000 coins for crates and skins", "price": 399},
+  {"key": "Coins4", "name": "30,000 Coins", "description": "30,000 coins for crates and skins", "price": 999},
+  {"key": "MurdererTicket", "name": "Murderer Ticket", "description": "Be the Murderer in your next round", "price": 49},
+  {"key": "SheriffTicket", "name": "Sheriff Ticket", "description": "Be the Sheriff in your next round", "price": 39},
+  {"key": "BattlePass", "name": "Premium Pass S1", "description": "Unlock the Premium track of Season 1: Midnight", "price": 399},
+  {"key": "TierSkip1", "name": "Skip 1 Tier", "description": "Skip one Battle Pass tier", "price": 49},
+  {"key": "TierSkip10", "name": "Skip 10 Tiers", "description": "Skip ten Battle Pass tiers", "price": 349},
+  {"key": "StarterPack", "name": "Starter Pack", "description": "One time only: 2,500 coins, Starlight knife and Starshot blaster", "price": 79},
+  {"key": "MoonBundle", "name": "Moonlight Bundle", "description": "Exclusive Midnight set: Eclipse knife, Lunar Ray blaster and Moonling pet", "price": 499},
+  {"key": "StarBundle", "name": "Starlight Bundle", "description": "Starlight knife, Starshot blaster and Midnight Cat pet", "price": 199},
+  {"key": "XPBoost", "name": "2x XP 30 min", "description": "Double XP for 30 minutes", "price": 39},
+  {"key": "Blackout", "name": "Server Blackout", "description": "Turn off all the lights for the next round", "price": 29},
+  {"key": "AdCoins", "name": "Free Coins (Video Ad)", "description": "Reward for watching a video ad: free coins", "price": 5}
+]

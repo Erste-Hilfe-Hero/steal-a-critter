@@ -1,0 +1,74 @@
+name: Create experiences
+
+# Legt fuer jedes Spiel aus experiences.json eine eigene (private) Experience in Alis Konto an, falls es
+# noch keine mit diesem Namen gibt. Das geht nur mit Login-Cookie (Open Cloud kann keine Experiences
+# anlegen); Ali hat den Cookie selbst als Secret ROBLOSECURITY hinterlegt und das Anlegen freigegeben.
+# Der Cookie wird nie ausgegeben. Danach findet der jeweilige Publish-Workflow die Experience ueber den Namen.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["experiences.json"]
+
+concurrency: create-experiences
+
+permissions:
+  contents: read
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    env:
+      COOKIE: ${{ secrets.ROBLOSECURITY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create missing experiences
+        run: |
+          set +e
+          if [ -z "$COOKIE" ]; then echo "::warning::Secret ROBLOSECURITY fehlt, nichts zu tun"; exit 0; fi
+          note() { echo "::notice::$1: $(echo "$2" | tr -d '\n' | head -c 300)"; }
+          CSRF=""
+          # Roblox-Aufruf mit Cookie; holt bei 403 einmal das CSRF-Token und wiederholt
+          call() { # method url [curl args...]
+            M=$1; URL=$2; shift 2
+            for TRY in 1 2; do
+              R=$(curl -sS -X "$M" "$URL" -H "Cookie: .ROBLOSECURITY=$COOKIE" -H "x-csrf-token: $CSRF" \
+                -D headers.txt "$@" -w '\nHTTP %{http_code}')
+              T=$(grep -i '^x-csrf-token:' headers.txt | tr -d '\r' | awk '{print $2}')
+              rm -f headers.txt
+              if echo "$R" | grep -q 'HTTP 403' && [ -n "$T" ]; then CSRF=$T; continue; fi
+              break
+            done
+            echo "$R"
+          }
+          body() { echo "$1" | sed '$d'; }
+
+          # Alle Experiences des eingeloggten Kontos (auch private) mit Namen
+          LIST=$(call GET 'https://develop.roblox.com/v1/user/universes?limit=50&sortOrder=Desc')
+          # Ohne Liste lieber nichts anlegen, sonst entstehen Doppelte
+          if ! echo "$LIST" | grep -q 'HTTP 200'; then echo "::error::Liste der Experiences nicht lesbar: $(echo "$LIST" | tail -1)"; exit 1; fi
+          EXISTING=$(body "$LIST" | jq -r '.data[]? | "\(.id)\t\(.name)"')
+          echo "$EXISTING" | sed 's/^/existing: /'
+
+          jq -c '.experiences[]' experiences.json | while read -r E; do
+            NAME=$(echo "$E" | jq -r .name)
+            # Teilname reicht: die Publish-Workflows setzen spaeter Emojis und Untertitel davor/dahinter
+            FOUND=$(echo "$EXISTING" | awk -F'\t' -v n="$NAME" 'index($2, n){print $1; exit}')
+            if [ -n "$FOUND" ]; then note "$NAME" "exists as universe $FOUND"; continue; fi
+
+            # Neue Experience aus der leeren Baseplate-Vorlage
+            R=$(call POST 'https://apis.roblox.com/universes/v1/universes/create' \
+              -H 'Content-Type: application/json' -d '{"templatePlaceId":95206881}')
+            note "$NAME create" "$R"
+            U=$(body "$R" | jq -r '.universeId // empty'); P=$(body "$R" | jq -r '.rootPlaceId // empty')
+            if [ -z "$U" ] || [ -z "$P" ]; then echo "::error::$NAME konnte nicht angelegt werden"; continue; fi
+
+            # Namen setzen, damit der Publish-Workflow sie findet
+            note "$NAME rename place" "$(call PATCH "https://develop.roblox.com/v2/places/$P" \
+              -H 'Content-Type: application/json' -d "$(jq -nc --arg n "$NAME" '{name: $n}')")"
+            note "$NAME rename universe" "$(call PATCH "https://develop.roblox.com/v2/universes/$U/configuration" \
+              -H 'Content-Type: application/json' -d "$(jq -nc --arg n "$NAME" '{name: $n}')")"
+            echo "::notice::CREATED $NAME universe=$U place=$P"
+          done
