@@ -32,6 +32,13 @@ local function defaultData()
 		Receipts = {}, -- [PurchaseId] = true
 		ReceiptOrder = {},
 		RobuxSpent = 0,
+		KOs = 0,
+		Saves = 0,
+		WinStreak = 0,
+		SwordSkin = "classic",
+		SwordSkins = { classic = true },
+		Quests = { Day = 0, Items = {} }, -- taegliche Quests: { Id, Progress, Done }
+		Settings = { Fov = 70, Crowd = 1, FirstPerson = true },
 	}
 end
 

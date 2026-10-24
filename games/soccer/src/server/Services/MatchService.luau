@@ -190,6 +190,7 @@ function MatchService:RemoveActor(model: Model)
 	rebuildList()
 	self.Services.BallService:Forget(actor)
 	self.Services.CombatService:Forget(actor)
+	self.Services.ExtrasService:Forget(actor)
 	self:AssignSlots()
 end
 
@@ -261,8 +262,10 @@ function MatchService:OnGoal(scoringTeam: string, scorer, assist, distance: numb
 	if state ~= "Playing" then
 		return
 	end
-	score[scoringTeam] += 1
+	-- Goldener Ball: das Tor zaehlt doppelt
+	score[scoringTeam] += self.Services.ExtrasService:GoalValue()
 	updateScore()
+	self.Services.ExtrasService:OnGoal(scoringTeam, scorer, assist, distance)
 	local team = Config.Teams[scoringTeam]
 	local scorerName = if scorer then scorer.Name else nil
 	local assistName = if assist then assist.Name else nil
@@ -314,6 +317,7 @@ function MatchService:OnTackle(actor, victim)
 		self.Services.ProgressService:AddStat(actor.Player, "Steals", 1)
 		self.Services.Net.SendNotify(actor.Player, "Ball stolen!", Config.Colors.Lime)
 	end
+	self.Services.ExtrasService:OnSteal(actor)
 	if victim.Player then
 		self.Services.Net.SendNotify(victim.Player, `{actor.Name} took the ball!`, Config.Colors.Orange)
 	end
@@ -365,12 +369,14 @@ function MatchService:OnKO(attacker, victim, kind: string)
 		end
 	end
 	self.Services.Net.PlaySound("Ooh", victim.Root.Position)
+	self.Services.ExtrasService:OnKO(attacker, victim, kind)
 	if victim.Player then
 		self.Services.MonetizationService:AfterKnockout(victim.Player)
 	end
 	self.Services.Net.MatchEvent:FireAllClients("KO", {
 		Attacker = if attacker then attacker.Name else nil,
 		AttackerTeam = if attacker then attacker.Team else nil,
+		AttackerModel = if attacker then attacker.Model else nil,
 		Victim = victim.Name,
 		VictimTeam = victim.Team,
 		VictimModel = victim.Model,
@@ -386,6 +392,7 @@ function MatchService:OnSave(actor)
 		statsFor(actor.Player).Saves += 1
 		self.Services.Net.SendNotify(actor.Player, "SAVE!", Config.Colors.Cyan)
 	end
+	self.Services.ExtrasService:OnSave(actor)
 end
 
 ---------------------------------------------------------------- Ablauf
@@ -433,6 +440,7 @@ local function finishMatch()
 		end
 	end
 	MatchService.Services.Net.MatchEvent:FireAllClients("Ended", { Winner = winner, Blue = score.Blue, Red = score.Red })
+	MatchService.Services.ExtrasService:OnMatchEnd(winner)
 	for _, player in Players:GetPlayers() do
 		local teamName = player:GetAttribute("Team")
 		if teamName then
@@ -478,6 +486,7 @@ local function runMatch()
 		MatchService.Services.ProgressService:ResetMatch(player)
 	end
 	updateScore()
+	MatchService.Services.ExtrasService:OnMatchStart()
 	kickoff()
 	local lastTick = os.clock()
 	while true do

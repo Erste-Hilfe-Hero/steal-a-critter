@@ -68,11 +68,11 @@ function Viewmodel.Swing(kind: string)
 	swingStart = os.clock()
 end
 
--- Aermel in Teamfarbe, Klinge golden mit dem Golden-Knife-Pass
-function Viewmodel.SetStyle(sleeveColor: Color3, golden: boolean)
+-- Aermel in Teamfarbe, Klinge golden mit dem Golden-Katana-Pass, sonst im gewaehlten Skin
+function Viewmodel.SetStyle(sleeveColor: Color3, golden: boolean, skinColor: Color3?, skinMaterial: Enum.Material?)
 	sleeve.Color = sleeveColor
-	local color = if golden then Color3.fromRGB(255, 200, 40) else Color3.fromRGB(205, 210, 220)
-	local material = if golden then Enum.Material.Neon else Enum.Material.Metal
+	local color = if golden then Color3.fromRGB(255, 200, 40) else skinColor or Color3.fromRGB(205, 210, 220)
+	local material = if golden then Enum.Material.Neon else skinMaterial or Enum.Material.Metal
 	for _, p in { blade, tip } do
 		p.Color = color
 		p.Material = material

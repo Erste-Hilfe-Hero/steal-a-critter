@@ -237,6 +237,70 @@ for index, trail in Config.Trails do
 	Config.TrailsById[trail.Id] = trail
 end
 
+---------------------------------------------------------------- Extras (Schwert-Skins, Quests, Titel, Events)
+
+-- Katana-Skins: mit Coins kaufen oder ueber den Sword Pack (Pass)
+Config.SwordSkins = {
+	{ Id = "classic", Name = "Classic", Color = Color3.fromRGB(215, 225, 235), Material = Enum.Material.Metal, Price = 0 },
+	{ Id = "crimson", Name = "Crimson", Color = Color3.fromRGB(220, 40, 50), Material = Enum.Material.Neon, Price = 500 },
+	{ Id = "frost", Name = "Frost", Color = Color3.fromRGB(140, 220, 255), Material = Enum.Material.Ice, Price = 900 },
+	{ Id = "toxic", Name = "Toxic", Color = Color3.fromRGB(120, 255, 60), Material = Enum.Material.Neon, Price = 1200 },
+	{ Id = "shadow", Name = "Shadow", Color = Color3.fromRGB(30, 30, 40), Material = Enum.Material.Metal, Price = 2000 },
+	{ Id = "sakura", Name = "Sakura", Color = Color3.fromRGB(255, 160, 200), Material = Enum.Material.Neon, Price = 3000 },
+	{ Id = "dragon", Name = "Dragon", Color = Color3.fromRGB(255, 110, 20), Material = Enum.Material.Neon, Pass = "SwordPack" },
+	{ Id = "void", Name = "Void", Color = Color3.fromRGB(130, 40, 255), Material = Enum.Material.Neon, Pass = "SwordPack" },
+	{ Id = "prism", Name = "Prism", Color = Color3.fromRGB(255, 255, 255), Material = Enum.Material.Glass, Pass = "SwordPack" },
+}
+Config.SwordSkinsById = {}
+for _, skin in Config.SwordSkins do
+	Config.SwordSkinsById[skin.Id] = skin
+end
+
+-- Taegliche Quests: jeden Tag 3 (mit Quest Master 4) aus dieser Liste, Belohnung in Coins
+Config.Quests = {
+	{ Id = "goals", Text = "Score %d goals", Goal = 2, Event = "Goal", Coins = 300 },
+	{ Id = "hits", Text = "Land %d sword hits", Goal = 15, Event = "Hit", Coins = 250 },
+	{ Id = "kos", Text = "Knock out %d players", Goal = 5, Event = "KO", Coins = 300 },
+	{ Id = "steals", Text = "Steal the ball %d times", Goal = 3, Event = "Steal", Coins = 250 },
+	{ Id = "saves", Text = "Make %d saves", Goal = 3, Event = "Save", Coins = 250 },
+	{ Id = "passes", Text = "Complete %d passes", Goal = 8, Event = "Pass", Coins = 200 },
+	{ Id = "win", Text = "Win %d match", Goal = 1, Event = "Win", Coins = 400 },
+	{ Id = "matches", Text = "Play %d matches", Goal = 2, Event = "Match", Coins = 200 },
+	{ Id = "assists", Text = "Get %d assists", Goal = 2, Event = "Assist", Coins = 300 },
+}
+
+-- Titel ueber dem Namen: der hoechste erreichte zaehlt
+Config.Titles = {
+	{ Name = "Rookie", Stat = "Matches", Need = 0, Color = Color3.fromRGB(200, 200, 210) },
+	{ Name = "Striker", Stat = "Goals", Need = 25, Color = Color3.fromRGB(120, 220, 255) },
+	{ Name = "Samurai", Stat = "KOs", Need = 100, Color = Color3.fromRGB(255, 90, 90) },
+	{ Name = "Champion", Stat = "Wins", Need = 50, Color = Color3.fromRGB(255, 205, 50) },
+	{ Name = "Legend", Stat = "Level", Need = 50, Color = Color3.fromRGB(200, 120, 255) },
+}
+
+Config.ComboHits = 3 -- dritter Treffer in Folge ...
+Config.ComboWindow = 3 -- ... innerhalb von 3 Sekunden ...
+Config.ComboBonus = 1.5 -- ... macht 50 % mehr Schaden
+Config.Streaks = { [2] = "DOUBLE KO", [3] = "TRIPLE KO", [5] = "RAMPAGE", [8] = "UNSTOPPABLE" }
+Config.StreakCoins = 50 -- pro K.O. in der Serie
+Config.RegenDelay = 5 -- so lange ohne Treffer, dann Leben zurueck
+Config.RegenPerSecond = 3
+Config.GoldenBallSeconds = 45 -- goldener Ball: ein Tor zaehlt doppelt
+Config.BicycleBonus = 1.15 -- Schuss in der Luft
+Config.RocketShotPower = 1.6
+Config.TeamBoostFactor = 1.1
+Config.GiantScale = 1.3
+Config.GiantReach = 3
+Config.OnFireSeconds = 8 -- so lange Ballbesitz, dann brennt man
+Config.HatTrickCoins = 500
+Config.LevelRewardEvery = 5
+Config.LevelRewardCoins = 250
+Config.WinStreakCoins = 50 -- pro Sieg in Folge, hoechstens 5
+Config.PlaytimeMinutes = 10
+Config.PlaytimeCoins = 100
+Config.NightChance = 0.3
+Config.RainChance = 0.2
+
 ---------------------------------------------------------------- Monetarisierung
 
 -- "Gamepasses" werden als Developer Products verkauft und dauerhaft gespeichert
@@ -257,6 +321,8 @@ Config.GamePasses = {
 	SteelKeeper = { ProductName = "Steel Keeper", Name = "Steel Keeper", Description = "Catch shots that are 25% harder", PriceHint = 199, Order = 13 },
 	QuickRespawn = { ProductName = "Quick Respawn", Name = "Quick Respawn", Description = "Respawn after 4 seconds instead of 10", PriceHint = 149, Order = 14 },
 	VampireKnife = { ProductName = "Vampire Knife", Name = "Vampire Blade", Description = "Heal 50% of the sword damage you deal", PriceHint = 299, Order = 15 },
+	SwordPack = { ProductName = "Sword Pack", Name = "Sword Pack", Description = "3 exclusive katanas: Dragon, Void and Prism", PriceHint = 299, Order = 17 },
+	QuestMaster = { ProductName = "Quest Master", Name = "Quest Master", Description = "Double quest rewards and a 4th daily quest", PriceHint = 199, Order = 18 },
 	Ninja = { ProductName = "Ninja", Name = "Ninja", Description = "Backstabs from a wider angle and 30% faster stab", PriceHint = 249, Order = 16 },
 }
 
@@ -269,6 +335,10 @@ Config.DevProducts = {
 	XPBoost = { ProductName = "XP Boost 30 min", Kind = "XPBoost", Name = "2x XP for 30 min", PriceHint = 39, Order = 6 },
 	Shield = { ProductName = "Bubble Shield", Kind = "Shield", Seconds = 30, Name = "Bubble Shield", Description = "No damage for 30 seconds", PriceHint = 49, Order = 8 },
 	Rage = { ProductName = "Rage Mode", Kind = "Rage", Seconds = 60, Name = "Rage Mode", Description = "60 seconds: +25% speed and +25% sword damage", PriceHint = 49, Order = 9 },
+	RocketShot = { ProductName = "Rocket Shot", Kind = "RocketShot", Shots = 3, Name = "Rocket Shot", Description = "Your next 3 kicks are 60% harder", PriceHint = 29, Order = 10 },
+	TeamBoost = { ProductName = "Team Boost", Kind = "TeamBoost", Seconds = 120, Name = "Team Boost", Description = "Your whole team runs 10% faster for 2 minutes", PriceHint = 79, Order = 11 },
+	Giant = { ProductName = "Giant Mode", Kind = "Giant", Seconds = 60, Name = "Giant Mode", Description = "60 seconds: 30% bigger with longer sword reach", PriceHint = 49, Order = 12 },
+	RespawnNow = { ProductName = "Respawn Now", Kind = "RespawnNow", Name = "Respawn Now", Description = "Skip the knockout wait and get back in instantly", PriceHint = 19, Order = 13 },
 	Fireworks = { ProductName = "Stadium Fireworks", Kind = "Fireworks", Name = "Stadium Fireworks", Description = "Light up the whole stadium", PriceHint = 29, Order = 7 },
 	StarterPack = { ProductName = "Starter Pack", Kind = "StarterPack", Coins = 2500, EXP = 1000, Name = "Starter Pack", Description = "One time: 2,500 coins + 1,000 match EXP + Starter trail", PriceHint = 79, Hidden = true },
 	AdCoins = { ProductName = "Free Coins (Video Ad)", Kind = "AdCoins", Coins = 150, Name = "Free Coins", PriceHint = 5, Hidden = true },

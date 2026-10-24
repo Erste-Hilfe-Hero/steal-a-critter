@@ -133,6 +133,7 @@ local function onReceive(actor)
 	local previous = lastHolder
 	if previous and previous ~= actor then
 		if previous.Team == actor.Team then
+			BallService.Services.ExtrasService:OnPass(previous)
 			if now() - lastHolderLost < 6 then
 				setPowerPlay(actor.Team, math.min(Config.MaxPowerPlay, (if powerPlay.Team == actor.Team then powerPlay.Count else 0) + 1))
 			end
@@ -205,6 +206,8 @@ function BallService:Kick(actor, dir: Vector3, power: number, spin: number?)
 	if actor.Player and actor.Player:GetAttribute("Pass_CannonShot") == true then
 		speed *= Config.CannonShotPower
 	end
+	speed *= self.Services.ExtrasService:KickMultiplier(actor)
+	self.Services.ExtrasService:OnKick(actor, speed)
 	local velocity = (forward * math.cos(angle) + Vector3.yAxis * math.sin(angle)) * speed
 	local position = actor.Root.Position + forward * 3 + Vector3.new(0, -3 + RADIUS + 0.3, 0)
 	immune[actor] = now() + Config.PickupCooldown

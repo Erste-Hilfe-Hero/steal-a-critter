@@ -293,16 +293,14 @@ end
 
 local skillBadge: TextLabel
 local adButton: TextButton
+local menu: Frame
 
 local function buildMenu()
-	local menu = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(78, 340), BackgroundTransparency = 1, Parent = root }, {
-		create("UIListLayout", { Padding = UDim.new(0, 10), HorizontalAlignment = Enum.HorizontalAlignment.Center }),
+	-- Zwei Spalten, damit auch Quests, Statistik, Schwerter und Einstellungen Platz haben
+	menu = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 20), Size = UDim2.fromOffset(156, 260), BackgroundTransparency = 1, Parent = root }, {
+		create("UIGridLayout", { CellSize = UDim2.fromOffset(74, 56), CellPadding = UDim2.fromOffset(8, 8), FillDirectionMaxCells = 2, SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
-	local function item(text: string, color: Color3, order: number, onClick: () -> ()): TextButton
-		local b = button({ Size = UDim2.fromOffset(74, 62), Text = text, LayoutOrder = order, Parent = menu }, color)
-		b.MouseButton1Click:Connect(onClick)
-		return b
-	end
+	local item = UI.AddMenuItem
 	local skills = item("UPGRADE", C.Lime, 1, function()
 		UI.Open("Skills")
 	end)
@@ -341,6 +339,12 @@ local function buildMenu()
 			task.wait(30)
 		end
 	end)
+end
+
+function UI.AddMenuItem(text: string, color: Color3, order: number, onClick: () -> ()): TextButton
+	local b = button({ Text = text, LayoutOrder = order, Parent = menu }, color)
+	b.MouseButton1Click:Connect(onClick)
+	return b
 end
 
 ---------------------------------------------------------------- Ausdauer und Schusskraft
@@ -866,6 +870,35 @@ function UI.ShowOffer(kind: string)
 	end
 	offerFrame.Visible = true
 	pop(offerFrame)
+end
+
+---------------------------------------------------------------- Bausteine fuer andere Module (Extras)
+
+UI.Kit = {
+	create = create,
+	corner = corner,
+	stroke = stroke,
+	label = label,
+	button = button,
+	pop = pop,
+	window = window,
+	card = card,
+	grid = grid,
+	price = price,
+	PANEL = PANEL,
+	GREEN = GREEN,
+}
+
+function UI.AddRefresher(fn: () -> ())
+	table.insert(refreshers, fn)
+end
+
+function UI.Root(): Frame
+	return root
+end
+
+function UI.IsOpen(name: string): boolean
+	return windows[name] ~= nil and windows[name].Visible
 end
 
 ---------------------------------------------------------------- Start
