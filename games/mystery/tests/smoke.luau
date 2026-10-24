@@ -226,6 +226,16 @@ if started and round.State == "Reveal" then
 
 	-- Messer: Opfer direkt vor den Murderer stellen
 	local spot = round.Map.Spawns[1]
+	-- Unbeteiligte weit weg stellen, sonst trifft Stich oder Schuss zufaellig einen Bot, der am selben Spawn steht
+	local function park(...)
+		local keep = { ... }
+		for i, actor in round.Actors do
+			if actor.Alive and not table.find(keep, actor) then
+				actor.Model:PivotTo(CFrame.new(spot.Position + Vector3.new(80 + i * 15, 3, 80)))
+			end
+		end
+	end
+	park(murderer, innocents[3])
 	murderer.Model:PivotTo(spot + Vector3.new(0, 3, 0))
 	local victim = innocents[3]
 	victim.Model:PivotTo(murderer.Root.CFrame * CFrame.new(0, 0, -3))
@@ -234,6 +244,7 @@ if started and round.State == "Reveal" then
 
 	-- Sheriff trifft einen Unschuldigen: beide raus, Blaster faellt
 	local wrong = innocents[1]
+	park(sheriff, wrong)
 	sheriff.Model:PivotTo(spot * CFrame.new(10, 11, 0))
 	wrong.Model:PivotTo(sheriff.Root.CFrame * CFrame.new(0, 0, -6))
 	task.wait(0.1)
@@ -249,6 +260,7 @@ if started and round.State == "Reveal" then
 	check("hero picks up blaster", hero.Role == "Hero" and hero.Bot.Weapon ~= nil, hero.Role)
 
 	-- Hero stoppt den Murderer
+	park(hero, murderer)
 	hero.Model:PivotTo(spot * CFrame.new(-10, 11, 0))
 	murderer.Model:PivotTo(hero.Root.CFrame * CFrame.new(0, 0, -8))
 	murderer.Hidden = false
