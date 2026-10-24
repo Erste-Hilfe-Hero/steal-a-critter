@@ -1,0 +1,122 @@
+-- Zentrale Spiel- und Monetarisierungs-Einstellungen.
+-- IDs von Gamepasses/Developer Products nach dem Anlegen im Creator Hub hier eintragen.
+-- Solange eine ID 0 ist, kann man den Kauf in Studio ueber den Shop simulieren.
+
+local Config = {}
+
+Config.DataStoreName = "PlayerData_v1"
+
+-- Wirtschaft
+Config.StartCash = 100
+Config.BaseSlots = 8
+Config.ExtraSlotsAmount = 4
+Config.IncomeTick = 1 -- Sekunden
+
+-- Laufband
+Config.Conveyor = {
+	StartX = -120,
+	EndX = 120,
+	Z = 0,
+	Width = 10,
+	Speed = 8, -- Studs pro Sekunde
+	SpawnInterval = 2.5,
+}
+
+-- Klauen und Basis-Sperre
+Config.StealHoldTime = 2.5
+Config.FastStealHoldTime = 1
+Config.StealTimeout = 60
+Config.SlapCooldown = 0.8
+Config.SlapRange = 8
+Config.SlapStunTime = 1.2
+Config.LockDuration = 45
+Config.LockCooldown = 30
+
+-- Multiplikatoren
+Config.RebirthMultiplierPer = 0.5
+Config.VipMultiplier = 1.5
+Config.DoubleCashMultiplier = 2
+Config.PremiumMultiplier = 1.2 -- belohnt Premium-Spieler, erhoeht die Premium Payouts
+Config.ServerLuckMultiplier = 3 -- auf Gewichte ab "Rare"
+Config.DefaultWalkSpeed = 16
+Config.SpeedCoilWalkSpeed = 26
+
+function Config.RebirthCost(rebirths: number): number
+	return math.floor(1_000_000 * 2.5 ^ rebirths)
+end
+
+Config.Rarities = {
+	{ Name = "Common", Color = Color3.fromRGB(200, 200, 200), Weight = 55, Scale = 2.2, Material = Enum.Material.SmoothPlastic },
+	{ Name = "Uncommon", Color = Color3.fromRGB(85, 220, 110), Weight = 28, Scale = 2.6, Material = Enum.Material.SmoothPlastic },
+	{ Name = "Rare", Color = Color3.fromRGB(70, 150, 255), Weight = 12, Scale = 3, Material = Enum.Material.SmoothPlastic, Lucky = true },
+	{ Name = "Epic", Color = Color3.fromRGB(180, 80, 255), Weight = 4, Scale = 3.4, Material = Enum.Material.Glass, Lucky = true },
+	{ Name = "Legendary", Color = Color3.fromRGB(255, 190, 40), Weight = 0.9, Scale = 3.8, Material = Enum.Material.Neon, Lucky = true, Crown = true, Announce = true },
+	{ Name = "Mythic", Color = Color3.fromRGB(255, 60, 90), Weight = 0.1, Scale = 4.4, Material = Enum.Material.Neon, Lucky = true, Crown = true, Sparkles = true, Announce = true },
+}
+
+-- Eigene Kreaturen (keine fremden Assets). Shape: "Ball" oder "Block".
+Config.Units = {
+	{ Id = "blobby", Name = "Blobby", Rarity = "Common", Price = 25, Income = 1, Color = Color3.fromRGB(120, 200, 255), Shape = "Ball" },
+	{ Id = "pebble", Name = "Pebble Pal", Rarity = "Common", Price = 50, Income = 2, Color = Color3.fromRGB(140, 140, 140), Shape = "Block" },
+	{ Id = "sock", Name = "Sock Goblin", Rarity = "Common", Price = 90, Income = 3, Color = Color3.fromRGB(110, 170, 80), Shape = "Ball" },
+
+	{ Id = "toast", Name = "Toast Knight", Rarity = "Uncommon", Price = 250, Income = 6, Color = Color3.fromRGB(210, 160, 90), Shape = "Block" },
+	{ Id = "frog", Name = "Bubble Frog", Rarity = "Uncommon", Price = 500, Income = 10, Color = Color3.fromRGB(60, 200, 120), Shape = "Ball" },
+	{ Id = "cactus", Name = "Cactus Cat", Rarity = "Uncommon", Price = 900, Income = 15, Color = Color3.fromRGB(40, 150, 60), Shape = "Block" },
+
+	{ Id = "duck", Name = "Disco Duck", Rarity = "Rare", Price = 2_500, Income = 35, Color = Color3.fromRGB(255, 230, 60), Shape = "Ball" },
+	{ Id = "ninja", Name = "Noodle Ninja", Rarity = "Rare", Price = 5_000, Income = 60, Color = Color3.fromRGB(240, 220, 160), Shape = "Ball" },
+	{ Id = "potato", Name = "Pirate Potato", Rarity = "Rare", Price = 9_000, Income = 95, Color = Color3.fromRGB(170, 120, 70), Shape = "Block" },
+
+	{ Id = "rooster", Name = "Robo Rooster", Rarity = "Epic", Price = 25_000, Income = 220, Color = Color3.fromRGB(180, 190, 200), Shape = "Block" },
+	{ Id = "llama", Name = "Lava Llama", Rarity = "Epic", Price = 50_000, Income = 380, Color = Color3.fromRGB(255, 100, 30), Shape = "Ball" },
+	{ Id = "banana", Name = "Ghost Banana", Rarity = "Epic", Price = 90_000, Income = 600, Color = Color3.fromRGB(250, 250, 200), Shape = "Ball" },
+
+	{ Id = "gecko", Name = "Galaxy Gecko", Rarity = "Legendary", Price = 300_000, Income = 1_600, Color = Color3.fromRGB(90, 60, 200), Shape = "Ball" },
+	{ Id = "turtle", Name = "Thunder Turtle", Rarity = "Legendary", Price = 650_000, Income = 3_000, Color = Color3.fromRGB(60, 120, 255), Shape = "Block" },
+	{ Id = "goose", Name = "Golden Goose", Rarity = "Legendary", Price = 1_200_000, Income = 5_000, Color = Color3.fromRGB(255, 200, 40), Shape = "Ball" },
+
+	{ Id = "capybara", Name = "Cosmic Capybara", Rarity = "Mythic", Price = 5_000_000, Income = 18_000, Color = Color3.fromRGB(150, 80, 255), Shape = "Block" },
+	{ Id = "donut", Name = "Dragon Donut", Rarity = "Mythic", Price = 12_000_000, Income = 38_000, Color = Color3.fromRGB(255, 80, 160), Shape = "Ball" },
+	{ Id = "icecream", Name = "Infinity Ice Cream", Rarity = "Mythic", Price = 30_000_000, Income = 85_000, Color = Color3.fromRGB(120, 255, 240), Shape = "Ball" },
+}
+
+-- Gamepasses: einmal kaufen, fuer immer behalten. PriceHint = empfohlener Preis in Robux.
+Config.GamePasses = {
+	VIP = { Id = 0, Name = "VIP", Description = "x1.5 income forever + VIP chat tag", PriceHint = 249, Order = 1 },
+	DoubleCash = { Id = 0, Name = "2x Cash", Description = "Double all income forever", PriceHint = 399, Order = 2 },
+	ExtraSlots = { Id = 0, Name = "+4 Base Slots", Description = "Hold 4 more critters in your base", PriceHint = 299, Order = 3 },
+	FastSteal = { Id = 0, Name = "Fast Steal", Description = "Steal in 1 second instead of 2.5", PriceHint = 199, Order = 4 },
+	SpeedCoil = { Id = 0, Name = "Speed Coil", Description = "Run faster forever - escape with loot", PriceHint = 149, Order = 5 },
+}
+
+-- Developer Products: beliebig oft kaufbar.
+-- Cash-Pakete skalieren mit dem Einkommen des Spielers, damit sie nie wertlos werden.
+Config.DevProducts = {
+	CashSmall = { Id = 0, Kind = "Cash", Minutes = 10, MinCash = 1_000, Name = "Cash Bag", Description = "10 minutes of income", PriceHint = 49, Order = 1 },
+	CashMedium = { Id = 0, Kind = "Cash", Minutes = 60, MinCash = 10_000, Name = "Cash Crate", Description = "1 hour of income", PriceHint = 199, Order = 2 },
+	CashLarge = { Id = 0, Kind = "Cash", Minutes = 360, MinCash = 100_000, Name = "Cash Vault", Description = "6 hours of income", PriceHint = 699, Order = 3 },
+	LockBase = { Id = 0, Kind = "Lock", Seconds = 300, Name = "5 Min Base Lock", Description = "Nobody can steal from you for 5 minutes", PriceHint = 39, Order = 4 },
+	ServerLuck = { Id = 0, Kind = "ServerLuck", Seconds = 900, Name = "Server Luck x3", Description = "15 min: rare critters spawn 3x more for EVERYONE", PriceHint = 199, Order = 5 },
+	-- Sofortkauf des sichtbaren Tiers auf dem Laufband (kein Zufall: der Spieler sieht genau, was er kauft)
+	InstantEpic = { Id = 0, Kind = "InstantBuy", Rarity = "Epic", Name = "Instant Epic", Description = "Buy an Epic from the belt with Robux", PriceHint = 49, Hidden = true },
+	InstantLegendary = { Id = 0, Kind = "InstantBuy", Rarity = "Legendary", Name = "Instant Legendary", Description = "Buy a Legendary from the belt with Robux", PriceHint = 149, Hidden = true },
+	InstantMythic = { Id = 0, Kind = "InstantBuy", Rarity = "Mythic", Name = "Instant Mythic", Description = "Buy a Mythic from the belt with Robux", PriceHint = 399, Hidden = true },
+}
+
+-- In Studio Kaeufe mit ID 0 simulieren, damit alles testbar ist
+Config.StudioFakePurchases = true
+
+-- Lookup-Tabellen
+Config.UnitsById = {}
+for _, unit in Config.Units do
+	Config.UnitsById[unit.Id] = unit
+end
+
+Config.RaritiesByName = {}
+for index, rarity in Config.Rarities do
+	rarity.Index = index
+	Config.RaritiesByName[rarity.Name] = rarity
+end
+
+return Config

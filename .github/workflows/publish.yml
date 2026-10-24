@@ -1,0 +1,40 @@
+name: Publish to Roblox
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      UNIVERSE_ID: ${{ vars.UNIVERSE_ID }}
+      PLACE_ID: ${{ vars.PLACE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rojo
+        run: |
+          curl -sSL -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
+          unzip -q rojo.zip
+          chmod +x rojo
+
+      - name: Build place file
+        run: ./rojo build default.project.json -o StealACritter.rbxlx
+
+      - name: Upload place file
+        uses: actions/upload-artifact@v4
+        with:
+          name: StealACritter
+          path: StealACritter.rbxlx
+
+      - name: Publish to Roblox
+        if: env.ROBLOX_API_KEY != '' && env.UNIVERSE_ID != '' && env.PLACE_ID != ''
+        run: |
+          curl --fail-with-body -sS -X POST \
+            "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Published" \
+            -H "x-api-key: ${ROBLOX_API_KEY}" \
+            -H "Content-Type: application/xml" \
+            --data-binary @StealACritter.rbxlx
