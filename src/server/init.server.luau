@@ -28,6 +28,7 @@ local function onCharacterAdded(player: Player, character: Model)
 	humanoid.WalkSpeed = player:GetAttribute("BaseWalkSpeed") or 16
 	Services.PlotService:OnCharacterAdded(player, character)
 	Services.UnitService:GiveSlapTool(player)
+	task.spawn(Services.CommunityService.AttachNameplate, Services.CommunityService, player, character)
 end
 
 local function onPlayerAdded(player: Player)

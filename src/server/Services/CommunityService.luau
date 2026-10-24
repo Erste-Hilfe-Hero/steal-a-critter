@@ -8,6 +8,7 @@
 --   /ban Name, /unban ID  dauerhaft sperren / entsperren               (nur Owner)
 --   /revoke Name          Rang auf hoechstens Regular begrenzen        (nur Owner)
 --   /restore Name         Begrenzung aufheben                          (nur Owner)
+local CollectionService = game:GetService("CollectionService")
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,6 +33,7 @@ local lastKick = {} -- [Player] = os.clock()
 local activeVote = nil -- { Target, StartedBy, Voters = {}, EndsAt }
 
 local REVOKED_MAX_RANK = 3 -- Regular
+local refreshNameplate: (player: Player) -> () -- weiter unten definiert
 
 function CommunityService:Init(services)
 	self.Services = services
@@ -92,6 +94,9 @@ local function updateRankAttributes(player: Player)
 	local color = if index > #Config.Ranks then "#FF5050" else Config.Ranks[index].Color
 	local previous = player:GetAttribute("Rank")
 	player:SetAttribute("Rank", name)
+	if previous ~= name then
+		task.defer(refreshNameplate, player)
+	end
 	player:SetAttribute("RankColor", color)
 	player:SetAttribute("RankIndex", index)
 	local data = CommunityService.Services.DataService:Get(player)
@@ -324,6 +329,100 @@ local function registerCommands()
 	folder.Parent = TextChatService
 end
 
+---------------------------------------------------------------- Namensschild
+
+-- Farbverlaeufe pro Rang (der Client laesst sie schimmern)
+local RANK_GRADIENTS = {
+	Newbie = { Color3.fromRGB(220, 220, 220), Color3.fromRGB(170, 170, 170) },
+	Member = { Color3.fromRGB(120, 220, 255), Color3.fromRGB(60, 140, 255) },
+	Regular = { Color3.fromRGB(110, 255, 140), Color3.fromRGB(30, 180, 90) },
+	Veteran = { Color3.fromRGB(210, 120, 255), Color3.fromRGB(120, 50, 255) },
+	Guardian = { Color3.fromRGB(255, 230, 90), Color3.fromRGB(255, 140, 20) },
+	Owner = { Color3.fromRGB(255, 60, 60), Color3.fromRGB(255, 200, 40), Color3.fromRGB(60, 200, 255) },
+}
+local RANK_ICONS = { Newbie = "", Member = "⭐ ", Regular = "⚡ ", Veteran = "💎 ", Guardian = "🛡️ ", Owner = "👑 " }
+
+local function gradient(colors: { Color3 }): UIGradient
+	local keypoints = {}
+	for index, color in colors do
+		table.insert(keypoints, ColorSequenceKeypoint.new((index - 1) / math.max(1, #colors - 1), color))
+	end
+	local ui = Instance.new("UIGradient")
+	ui.Color = ColorSequence.new(keypoints)
+	CollectionService:AddTag(ui, "Shimmer")
+	return ui
+end
+
+local function makeLine(parent: Instance, height: number, order: number): TextLabel
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, height, 0)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.LayoutOrder = order
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(20, 20, 30)
+	stroke.Parent = label
+	label.Parent = parent
+	return label
+end
+
+refreshNameplate = function(player: Player)
+	local head = player.Character and player.Character:FindFirstChild("Head")
+	local gui = head and head:FindFirstChild("Nameplate")
+	if not gui then
+		return
+	end
+	local rank = player:GetAttribute("Rank") or "Newbie"
+	local vip = player:GetAttribute("Pass_VIP") == true
+	local rankLabel = gui:FindFirstChild("RankLine") :: TextLabel
+	local nameLabel = gui:FindFirstChild("NameLine") :: TextLabel
+	rankLabel.Text = (RANK_ICONS[rank] or "") .. rank:upper() .. (if vip then "  ·  VIP" else "")
+	rankLabel.Visible = rank ~= "Newbie" or vip
+	nameLabel.Text = player.DisplayName
+	for _, child in rankLabel:GetChildren() do
+		if child:IsA("UIGradient") then
+			child:Destroy()
+		end
+	end
+	for _, child in nameLabel:GetChildren() do
+		if child:IsA("UIGradient") then
+			child:Destroy()
+		end
+	end
+	gradient(RANK_GRADIENTS[rank] or RANK_GRADIENTS.Newbie).Parent = rankLabel
+	if vip or rank == "Owner" then
+		gradient(if rank == "Owner" then RANK_GRADIENTS.Owner else { Color3.fromRGB(255, 240, 150), Color3.fromRGB(255, 170, 0) }).Parent = nameLabel
+	end
+end
+
+function CommunityService:AttachNameplate(player: Player, character: Model)
+	local head = character:WaitForChild("Head", 10)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not head then
+		return
+	end
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	end
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "Nameplate"
+	gui.Size = UDim2.fromScale(7, 1.8)
+	gui.StudsOffset = Vector3.new(0, 2.6, 0)
+	gui.MaxDistance = 100
+	gui.LightInfluence = 0
+	local layout = Instance.new("UIListLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	layout.Parent = gui
+	makeLine(gui, 0.4, 1).Name = "RankLine"
+	makeLine(gui, 0.6, 2).Name = "NameLine"
+	gui.Parent = head
+	refreshNameplate(player)
+end
+
 ---------------------------------------------------------------- Lebenszyklus
 
 -- Vor dem Laden pruefen: dauerhaft oder fuer diesen Server gesperrt?
@@ -346,6 +445,10 @@ function CommunityService:OnPlayerReady(player: Player)
 		lastActive[player] = os.clock()
 	end)
 	updateRankAttributes(player)
+	player:GetAttributeChangedSignal("Pass_VIP"):Connect(function()
+		refreshNameplate(player)
+	end)
+	refreshNameplate(player)
 end
 
 function CommunityService:OnPlayerRemoving(player: Player)
