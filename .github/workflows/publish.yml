@@ -10,10 +10,32 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-      UNIVERSE_ID: ${{ vars.UNIVERSE_ID }}
-      PLACE_ID: ${{ vars.PLACE_ID }}
     steps:
       - uses: actions/checkout@v4
+
+      # IDs aus roblox.json lesen. Fehlen sie, wird das neueste Spiel des Benutzers ueber oeffentliche APIs gesucht.
+      - name: Resolve experience IDs
+        run: |
+          UNIVERSE_ID=$(jq -r '.universeId' roblox.json)
+          PLACE_ID=$(jq -r '.placeId' roblox.json)
+          USERNAME=$(jq -r '.username' roblox.json)
+          if [ -z "$PLACE_ID" ] && [ -n "$USERNAME" ]; then
+            USER_ID=$(curl -sS -X POST https://users.roblox.com/v1/usernames/users -H "Content-Type: application/json" \
+              -d "{\"usernames\":[\"$USERNAME\"],\"excludeBannedUsers\":true}" | jq -r '.data[0].id // empty')
+            echo "User ID: $USER_ID"
+            if [ -n "$USER_ID" ]; then
+              curl -sS "https://games.roblox.com/v2/users/$USER_ID/games?accessFilter=All&limit=10&sortOrder=Desc" -o games.json
+              jq '.data[] | {name, id, rootPlace: .rootPlace.id}' games.json || cat games.json
+              UNIVERSE_ID=$(jq -r '.data[0].id // empty' games.json)
+              PLACE_ID=$(jq -r '.data[0].rootPlace.id // empty' games.json)
+            fi
+          fi
+          if [ -n "$PLACE_ID" ] && [ -z "$UNIVERSE_ID" ]; then
+            UNIVERSE_ID=$(curl -sS "https://apis.roblox.com/universes/v1/places/$PLACE_ID/universe" | jq -r '.universeId // empty')
+          fi
+          echo "Universe ID: $UNIVERSE_ID / Place ID: $PLACE_ID"
+          echo "UNIVERSE_ID=$UNIVERSE_ID" >> "$GITHUB_ENV"
+          echo "PLACE_ID=$PLACE_ID" >> "$GITHUB_ENV"
 
       - name: Install Rojo
         run: |
