@@ -6,6 +6,11 @@ name: Upload main icons and thumbnails
 
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Nur Spiele, deren Name diesen Text enthaelt (leer = alle)"
+        required: false
+        default: ""
   push:
     branches: [main]
     paths: ["media.json", "assets/**.png", "games/*/assets/**.png"]
@@ -20,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       COOKIE: ${{ secrets.ROBLOSECURITY }}
+      ONLY: ${{ github.event.inputs.only }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +49,8 @@ jobs:
             echo "$R"
           }
 
-          jq -c '.games[]' media.json | while read -r G; do
+          # Roblox begrenzt Uploads (429): mit "only" laesst sich ein einzelnes Spiel nachholen
+          jq -c --arg only "$ONLY" '.games[] | select(.name | contains($only))' media.json | while read -r G; do
             NAME=$(echo "$G" | jq -r .name); U=$(echo "$G" | jq -r .universeId)
             ICON=$(echo "$G" | jq -r .icon); mapfile -t THUMBS < <(echo "$G" | jq -r '.thumbnails[]')
             echo "::group::$NAME ($U)"
