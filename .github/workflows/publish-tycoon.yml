@@ -25,6 +25,7 @@ jobs:
           UNIVERSE_ID=$(jq -r '.universeId' roblox.json)
           PLACE_ID=$(jq -r '.placeId' roblox.json)
           MATCH=$(jq -r '.nameMatch' roblox.json)
+          MATCHES=""
           if [ -z "$UNIVERSE_ID" ] && [ -n "$ROBLOX_API_KEY" ]; then
             curl -sS -X POST https://apis.roblox.com/api-keys/v1/introspect -H "Content-Type: application/json" \
               -d "{\"apiKey\":\"$ROBLOX_API_KEY\"}" -o introspect.json
@@ -40,10 +41,17 @@ jobs:
               NAME=$(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -r '.displayName // empty')
               [ -z "$NAME" ] && NAME=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -r '.data[0].name // empty')
               echo "::notice::Found universe $U: '$NAME'"
-              if [ -z "$UNIVERSE_ID" ] && echo "$NAME" | grep -qi -- "$MATCH"; then
-                UNIVERSE_ID=$U
+              if echo "$NAME" | grep -qiE -- "$MATCH"; then
+                MATCHES="$MATCHES $U"
               fi
             done
+            # Nur eindeutig zuordnen, sonst wuerde womoeglich ein anderes Spiel ueberschrieben
+            COUNT=$(echo $MATCHES | wc -w)
+            if [ "$COUNT" = "1" ]; then
+              UNIVERSE_ID=$(echo $MATCHES)
+            elif [ "$COUNT" -gt 1 ]; then
+              echo "::warning::Several experiences match '$MATCH':$MATCHES - pin one in roblox.json"
+            fi
           fi
           if [ -n "$UNIVERSE_ID" ] && [ -z "$PLACE_ID" ]; then
             PLACE_ID=$(curl -sS "https://develop.roblox.com/v1/universes/$UNIVERSE_ID" | jq -r '.rootPlaceId // empty')
