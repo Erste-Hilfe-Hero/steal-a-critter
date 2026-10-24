@@ -78,10 +78,12 @@ jobs:
         run: |
           BASE="https://apis.roblox.com/developer-products/v2/universes/$UNIVERSE_ID/developer-products"
           curl -sS "$BASE/creator?pageSize=100" -H "x-api-key: $ROBLOX_API_KEY" -o existing.json
-          MAP="{}"
+          # Bereits angelegte IDs sind festgeschrieben: die Liste von Roblox ist nicht immer sofort aktuell
+          MAP=$(jq -c '.' src/shared/ProductIds.json 2>/dev/null || echo '{}')
           while IFS= read -r row; do
             KEY=$(echo "$row" | jq -r '.key'); NAME=$(echo "$row" | jq -r '.name')
             ID=$(jq -r --arg n "$NAME" '[.developerProducts[]? | select(.name == $n) | .productId][0] // empty' existing.json)
+            [ -z "$ID" ] && ID=$(echo "$MAP" | jq -r --arg k "$KEY" '.[$k] // empty')
             if [ -z "$ID" ]; then
               RESP=$(curl -sS -X POST "$BASE" -H "x-api-key: $ROBLOX_API_KEY" \
                 -F "name=$NAME" \
