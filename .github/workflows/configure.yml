@@ -26,7 +26,7 @@ jobs:
           R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$U/places/$P?updateMask=displayName,description,serverSize" \
             -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
             -d "$(jq -c '{displayName: .name, description: .description, serverSize: .serverSize}' experience.json)")
-          echo "::notice::place: $(echo "$R" | head -c 400)"
+          echo "::notice::place serverSize: $(echo "$R" | jq -c .serverSize) $(echo "$R" | head -c 200)"
           R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$U?updateMask=visibility" \
             -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
             -d "$(jq -c '{visibility: .visibility}' experience.json)")
