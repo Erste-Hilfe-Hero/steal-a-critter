@@ -30,7 +30,7 @@ jobs:
             USER_ID=$(jq -r '.ownerUserId // empty' roblox.json)
             for P in $(curl -sS "https://inventory.roblox.com/v2/users/$USER_ID/inventory/9?limit=100&sortOrder=Desc" | jq -r '.data[]?.assetId'); do
               U=$(curl -sS "https://apis.roblox.com/universes/v1/places/$P/universe" | jq -r '.universeId // empty')
-              [ -n "$U" ] && CANDIDATES="$CANDIDATES $U"
+              [ -n "$U" ] && CANDIDATES="$CANDIDATES $U" && echo "$U $P" >> placemap.txt
             done
             CANDIDATES=$(echo $CANDIDATES | tr ' ' '\n' | sort -u)
             LIST=""
@@ -39,11 +39,15 @@ jobs:
               [ -z "$NAME" ] && NAME=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -r '.data[0].name // empty')
               LIST="$LIST $U=$NAME;"
               if echo "$NAME" | grep -qi "obby"; then UNIVERSE_ID=$U; fi
+              # Ali hat eine leere "Untitled Experience" fuer das Obby freigegeben; sie wird unten in "Mega Rainbow Obby" umbenannt
+              if [ -z "$UNTITLED" ] && echo "$NAME" | grep -qi "untitled"; then UNTITLED=$U; fi
             done
+            [ -z "$UNIVERSE_ID" ] && UNIVERSE_ID=$UNTITLED
             echo "::notice::Experiences of the key:$LIST"
           fi
           if [ -n "$UNIVERSE_ID" ] && [ -z "$PLACE_ID" ]; then
-            PLACE_ID=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$UNIVERSE_ID" | jq -r '.data[0].rootPlaceId // empty')
+            PLACE_ID=$(awk -v u="$UNIVERSE_ID" '$1==u{print $2; exit}' placemap.txt 2>/dev/null)
+            [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$UNIVERSE_ID" | jq -r '.data[0].rootPlaceId // empty')
             [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://develop.roblox.com/v1/universes/$UNIVERSE_ID" | jq -r '.rootPlaceId // empty')
           fi
           [ -z "$UNIVERSE_ID" ] && echo "::warning::No experience with 'Obby' in its name found for this API key yet - only building."
