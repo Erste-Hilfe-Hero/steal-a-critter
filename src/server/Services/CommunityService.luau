@@ -370,8 +370,7 @@ local function makeLine(parent: Instance, height: number, order: number): TextLa
 end
 
 refreshNameplate = function(player: Player)
-	local head = player.Character and player.Character:FindFirstChild("Head")
-	local gui = head and head:FindFirstChild("Nameplate")
+	local gui = player.Character and player.Character:FindFirstChild("Nameplate")
 	if not gui then
 		return
 	end
@@ -399,16 +398,34 @@ refreshNameplate = function(player: Player)
 end
 
 function CommunityService:AttachNameplate(player: Player, character: Model)
+	-- Roblox tauscht beim Laden des Avatars Koerperteile (auch den Kopf) aus: erst danach anbringen
+	if not player:HasAppearanceLoaded() then
+		local loaded = false
+		local connection = player.CharacterAppearanceLoaded:Connect(function()
+			loaded = true
+		end)
+		local deadline = os.clock() + 10
+		while not loaded and os.clock() < deadline and character.Parent do
+			task.wait(0.1)
+		end
+		connection:Disconnect()
+	end
 	local head = character:WaitForChild("Head", 10)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not head then
+	if not head or player.Character ~= character then
 		return
 	end
 	if humanoid then
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	end
+	local old = character:FindFirstChild("Nameplate")
+	if old then
+		old:Destroy()
+	end
+	-- Schild haengt am Charakter (nicht im Kopf) und folgt per Adornee, damit es einen Kopftausch uebersteht
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Nameplate"
+	gui.Adornee = head
 	gui.Size = UDim2.fromScale(7, 1.8)
 	gui.StudsOffset = Vector3.new(0, 2.6, 0)
 	gui.MaxDistance = 100
@@ -419,7 +436,12 @@ function CommunityService:AttachNameplate(player: Player, character: Model)
 	layout.Parent = gui
 	makeLine(gui, 0.4, 1).Name = "RankLine"
 	makeLine(gui, 0.6, 2).Name = "NameLine"
-	gui.Parent = head
+	gui.Parent = character
+	character.ChildAdded:Connect(function(child)
+		if child.Name == "Head" and child:IsA("BasePart") then
+			gui.Adornee = child
+		end
+	end)
 	refreshNameplate(player)
 end
 
