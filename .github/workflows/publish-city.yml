@@ -1,0 +1,163 @@
+name: Publish Turbo City
+
+# Baut games/city, legt fehlende Produkte an, setzt Name/Beschreibung, testet die neue Version
+# im echten Roblox (Luau Execution) und veroeffentlicht nur, wenn der Test gruen ist.
+# Die Experience kommt aus roblox.json oder wird ueber den Namen ("nameMatch", nie "Untitled") gefunden.
+on:
+  push:
+    branches: [main]
+    paths: [games/city/**, .github/workflows/publish-city.yml]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: games/city
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve experience IDs
+        run: |
+          UNIVERSE_ID=$(jq -r '.universeId' roblox.json)
+          PLACE_ID=$(jq -r '.placeId' roblox.json)
+          MATCH=$(jq -r '.nameMatch' roblox.json)
+          OWNER=$(jq -r '.ownerUserId // empty' roblox.json)
+          MATCHES=""
+          if [ -z "$UNIVERSE_ID" ] && [ -n "$ROBLOX_API_KEY" ]; then
+            curl -sS -X POST https://apis.roblox.com/api-keys/v1/introspect -H "Content-Type: application/json" \
+              -d "{\"apiKey\":\"$ROBLOX_API_KEY\"}" -o introspect.json
+            UNIVERSES=$(jq -r '[.scopes[]? | (.universeIds // []), (.targetParts // []) | .[]] | map(select(. != "*")) | unique | .[]' introspect.json)
+            # Schluessel fuer alle Experiences ("*"): die Places des Besitzers durchsuchen
+            if [ -n "$OWNER" ]; then
+              for P in $(curl -sS "https://inventory.roblox.com/v2/users/$OWNER/inventory/9?limit=100&sortOrder=Desc" | jq -r '.data[]?.assetId'); do
+                U=$(curl -sS "https://apis.roblox.com/universes/v1/places/$P/universe" | jq -r '.universeId // empty')
+                [ -n "$U" ] && UNIVERSES="$UNIVERSES $U" && echo "$U $P" >> placemap.txt
+              done
+            fi
+            for U in $(echo $UNIVERSES | tr ' ' '\n' | sort -u); do
+              NAME=$(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -r '.displayName // empty')
+              [ -z "$NAME" ] && NAME=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -r '.data[0].name // empty')
+              echo "::notice::Found universe $U: '$NAME'"
+              if echo "$NAME" | grep -qiE -- "$MATCH"; then
+                MATCHES="$MATCHES $U"
+              fi
+            done
+            # Nur eindeutig zuordnen, sonst wuerde womoeglich ein anderes Spiel ueberschrieben
+            COUNT=$(echo $MATCHES | wc -w)
+            if [ "$COUNT" = "1" ]; then
+              UNIVERSE_ID=$(echo $MATCHES)
+            elif [ "$COUNT" -gt 1 ]; then
+              echo "::warning::Several experiences match '$MATCH':$MATCHES - pin one in roblox.json"
+            fi
+          fi
+          if [ -n "$UNIVERSE_ID" ] && [ -z "$PLACE_ID" ]; then
+            PLACE_ID=$(awk -v u="$UNIVERSE_ID" '$1==u{print $2; exit}' placemap.txt 2>/dev/null)
+            [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://develop.roblox.com/v1/universes/$UNIVERSE_ID" | jq -r '.rootPlaceId // empty')
+            [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$UNIVERSE_ID" | jq -r '.data[0].rootPlaceId // empty')
+          fi
+          if [ -z "$UNIVERSE_ID" ]; then
+            echo "::warning::No experience found whose name contains '$MATCH'. Build only, nothing published."
+          fi
+          echo "::notice::Universe ID: '$UNIVERSE_ID' / Place ID: '$PLACE_ID'"
+          echo "UNIVERSE_ID=$UNIVERSE_ID" >> "$GITHUB_ENV"
+          echo "PLACE_ID=$PLACE_ID" >> "$GITHUB_ENV"
+
+      # Fehlende Produkte anlegen (Abgleich ueber den Namen) und die IDs fuer das Spiel einbauen
+      - name: Sync products
+        if: env.UNIVERSE_ID != ''
+        run: |
+          BASE="https://apis.roblox.com/developer-products/v2/universes/$UNIVERSE_ID/developer-products"
+          curl -sS "$BASE/creator?pageSize=100" -H "x-api-key: $ROBLOX_API_KEY" -o existing.json
+          MAP="{}"
+          while IFS= read -r row; do
+            KEY=$(echo "$row" | jq -r '.key'); NAME=$(echo "$row" | jq -r '.name')
+            ID=$(jq -r --arg n "$NAME" '[.developerProducts[]? | select(.name == $n) | .productId][0] // empty' existing.json)
+            if [ -z "$ID" ]; then
+              RESP=$(curl -sS -X POST "$BASE" -H "x-api-key: $ROBLOX_API_KEY" \
+                -F "name=$NAME" \
+                -F "description=$(echo "$row" | jq -r '.description')" \
+                -F "price=$(echo "$row" | jq -r '.price')" \
+                -F "isForSale=true")
+              ID=$(echo "$RESP" | jq -r '.productId // empty')
+              [ -z "$ID" ] && echo "::warning::$KEY failed: $(echo "$RESP" | head -c 300)"
+              sleep 0.5
+            fi
+            [ -n "$ID" ] && MAP=$(echo "$MAP" | jq -c --arg k "$KEY" --arg v "$ID" '. + {($k): ($v | tonumber)}')
+          done < <(jq -c '.[]' products.json)
+          echo "$MAP" > src/shared/ProductIds.json
+          echo "::notice::ProductIds: $MAP"
+
+      - name: Configure experience
+        if: env.UNIVERSE_ID != ''
+        run: |
+          R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$UNIVERSE_ID?updateMask=displayName,description" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -c '{displayName: .name, description: .description}' experience.json)")
+          echo "::notice::universe: $(echo "$R" | jq -c '{displayName, visibility}' 2>/dev/null || echo "$R" | head -c 300)"
+          R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$UNIVERSE_ID/places/$PLACE_ID?updateMask=displayName,description,serverSize" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -c '{displayName: .name, description: .description, serverSize: .serverSize}' experience.json)")
+          echo "::notice::place: $(echo "$R" | jq -c '{displayName, serverSize}' 2>/dev/null || echo "$R" | head -c 300)"
+
+      - name: Build place file
+        run: |
+          curl -sSL -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
+          unzip -q rojo.zip && chmod +x rojo
+          ./rojo build default.project.json -o TurboCity.rbxlx
+
+      - name: Upload place file
+        uses: actions/upload-artifact@v4
+        with:
+          name: TurboCity
+          path: games/city/TurboCity.rbxlx
+
+      # Erst als "Saved" hochladen (Spieler merken nichts), dann den Smoke-Test genau auf dieser Version laufen lassen
+      - name: Save version (not live yet)
+        if: env.UNIVERSE_ID != '' && env.PLACE_ID != ''
+        run: |
+          curl --fail-with-body -sS -X POST \
+            "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Saved" \
+            -H "x-api-key: ${ROBLOX_API_KEY}" \
+            -H "Content-Type: application/xml" \
+            --data-binary @TurboCity.rbxlx -o saved.json
+          echo "::notice::Saved: $(cat saved.json)"
+          echo "SAVED_VERSION=$(jq -r '.versionNumber' saved.json)" >> "$GITHUB_ENV"
+
+      - name: Smoke test saved version
+        if: env.SAVED_VERSION != ''
+        run: |
+          BASE="https://apis.roblox.com/cloud/v2/universes/$UNIVERSE_ID/places/$PLACE_ID/versions/$SAVED_VERSION"
+          curl -sS -X POST "$BASE/luau-execution-session-tasks" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -n --rawfile s tests/smoke.luau '{script: $s, timeout: "180s"}')" -o task.json
+          TASK=$(jq -r '.path // empty' task.json)
+          if [ -z "$TASK" ]; then echo "::error::create failed: $(head -c 400 task.json)"; exit 1; fi
+          for i in $(seq 1 60); do
+            sleep 5
+            curl -sS "https://apis.roblox.com/cloud/v2/$TASK" -H "x-api-key: $ROBLOX_API_KEY" -o state.json
+            STATE=$(jq -r '.state' state.json)
+            [ "$STATE" = "COMPLETE" ] || [ "$STATE" = "FAILED" ] || [ "$STATE" = "CANCELLED" ] && break
+          done
+          echo "::notice::smoke state: $STATE"
+          if [ "$STATE" != "COMPLETE" ]; then
+            echo "::error::$(jq -c '.error' state.json | head -c 600)"
+            curl -sS "https://apis.roblox.com/cloud/v2/$TASK/logs" -H "x-api-key: $ROBLOX_API_KEY" | head -c 1500 | tr '\n' ' ' | sed 's/^/::notice::logs: /'
+            exit 1
+          fi
+          jq -r '.output.results[0] // ""' state.json | while IFS= read -r line; do
+            case "$line" in FAIL*) echo "::error::$line";; *) echo "::notice::$line";; esac
+          done
+          jq -r '.output.results[0] // ""' state.json | head -1 | grep -q "^SUMMARY: 0 failed" || exit 1
+
+      - name: Publish to Roblox
+        if: env.SAVED_VERSION != ''
+        run: |
+          curl --fail-with-body -sS -X POST \
+            "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Published" \
+            -H "x-api-key: ${ROBLOX_API_KEY}" \
+            -H "Content-Type: application/xml" \
+            --data-binary @TurboCity.rbxlx -o publish.json
+          echo "::notice::Published: $(cat publish.json)"

@@ -1,0 +1,20 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "x1.5 cash forever, VIP tag and Gold paint (forever)", "price": 249},
+  {"key": "Pass_DoubleCash", "name": "2x Cash", "description": "Double ALL cash (forever)", "price": 399},
+  {"key": "Pass_Nitro", "name": "Nitro", "description": "Nitro boost on every car (forever)", "price": 149},
+  {"key": "Pass_BigBag", "name": "Big Loot Bag", "description": "Carry 2x loot and grab faster (forever)", "price": 199},
+  {"key": "Pass_RocketKart", "name": "Rocket Kart", "description": "The fastest car in the city (forever)", "price": 299},
+  {"key": "Pass_SWAT", "name": "SWAT Team", "description": "SWAT Interceptor + 50% arrest bounty (forever)", "price": 199},
+  {"key": "Pass_Underglow", "name": "Neon Underglow", "description": "Neon underglow + Rainbow paint (forever)", "price": 99},
+  {"key": "Pass_Diamond", "name": "Diamond Penthouse", "description": "Best house: $12K rent per minute (forever)", "price": 499},
+  {"key": "CashSmall", "name": "Cash Stack", "description": "A stack of cash (grows with your house)", "price": 49},
+  {"key": "CashMedium", "name": "Cash Briefcase", "description": "A briefcase of cash (grows with your house)", "price": 199},
+  {"key": "CashLarge", "name": "Cash Truck", "description": "A whole truck of cash (grows with your house)", "price": 699},
+  {"key": "JailBreak", "name": "Jail Break", "description": "Escape jail right now", "price": 25},
+  {"key": "ClearWanted", "name": "Clear Wanted", "description": "Lose all wanted stars", "price": 35},
+  {"key": "CashParty", "name": "Cash Party", "description": "10 min 2x cash for EVERYONE", "price": 199},
+  {"key": "MoneyRain", "name": "Money Rain", "description": "Rain cash over the whole city", "price": 99},
+  {"key": "MissionSkip", "name": "Mission Skip", "description": "Finish your next daily mission", "price": 29},
+  {"key": "StarterPack", "name": "Starter Pack", "description": "One time: $50K + Zoomer GT", "price": 79},
+  {"key": "AdCash", "name": "Free Cash (Video Ad)", "description": "Reward for watching a video ad", "price": 5}
+]
