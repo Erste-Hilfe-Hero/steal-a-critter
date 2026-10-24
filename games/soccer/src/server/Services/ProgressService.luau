@@ -287,14 +287,13 @@ function ProgressService:NameTag(model: Model, name: string, level: number, colo
 	if not tag then
 		local gui = Instance.new("BillboardGui")
 		gui.Name = "NameTag"
-		gui.Size = UDim2.fromOffset(180, 46)
 		gui.StudsOffset = Vector3.new(0, 2.6, 0)
 		gui.MaxDistance = 120
 		gui.AlwaysOnTop = true
 		gui.LightInfluence = 0
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "Name"
-		nameLabel.Size = UDim2.fromScale(1, 0.6)
+		nameLabel.Size = UDim2.new(1, 0, 0, 28)
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Font = Config.Font
 		nameLabel.TextScaled = true
@@ -305,10 +304,26 @@ function ProgressService:NameTag(model: Model, name: string, level: number, colo
 		stroke.Parent = nameLabel
 		local info = nameLabel:Clone()
 		info.Name = "Info"
-		info.Position = UDim2.fromScale(0, 0.6)
-		info.Size = UDim2.fromScale(1, 0.4)
+		info.Position = UDim2.fromOffset(0, 28)
+		info.Size = UDim2.new(1, 0, 0, 16)
 		info.Font = Config.BodyFont
 		info.Parent = gui
+		-- Lebensbalken (der CombatService passt die Breite an)
+		local hpBack = Instance.new("Frame")
+		hpBack.Name = "HP"
+		hpBack.AnchorPoint = Vector2.new(0.5, 0)
+		hpBack.Position = UDim2.fromOffset(90, 46)
+		hpBack.Size = UDim2.fromOffset(70, 7)
+		hpBack.BackgroundColor3 = C.Navy
+		hpBack.BorderSizePixel = 0
+		hpBack.Parent = gui
+		local hpBar = Instance.new("Frame")
+		hpBar.Name = "Bar"
+		hpBar.Size = UDim2.fromScale(1, 1)
+		hpBar.BackgroundColor3 = Color3.fromRGB(90, 230, 90)
+		hpBar.BorderSizePixel = 0
+		hpBar.Parent = hpBack
+		gui.Size = UDim2.fromOffset(180, 54)
 		gui.Parent = head
 		tag = gui
 	end

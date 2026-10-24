@@ -18,7 +18,8 @@ local FONT = Enum.Font.LuckiestGuy
 
 local TIPS = {
 	"Hold KICK for a harder shot - run sideways while kicking to CURVE the ball!",
-	"DISARM the ball carrier to steal the ball. Timing is everything!",
+	"KNIFE the ball carrier to steal the ball. Hit them from BEHIND for triple damage!",
+	"STAB is slow but strong - a backstab knocks anyone out instantly!",
 	"Earn EXP every match and buy upgrades: Stamina, Strength, Agility, Dexterity, Disarm.",
 	"Hard enemy shots SMACK you down - level Dexterity to catch them instead!",
 	"Don't camp in the enemy box - the mascot will throw you out!",
