@@ -2,7 +2,7 @@ name: Publish Turbo City
 
 # Baut games/city, legt fehlende Produkte an, setzt Name/Beschreibung, testet die neue Version
 # im echten Roblox (Luau Execution) und veroeffentlicht nur, wenn der Test gruen ist.
-# Die Experience kommt aus roblox.json oder wird ueber den Namen ("nameMatch", nie "Untitled") gefunden.
+# Die Experience ist in roblox.json festgelegt (Alis Experience "3"), sonst Suche ueber "nameMatch".
 on:
   push:
     branches: [main]
@@ -55,6 +55,12 @@ jobs:
             fi
           fi
           if [ -n "$UNIVERSE_ID" ] && [ -z "$PLACE_ID" ]; then
+            # Private Spiele: Place ueber das Inventar des Besitzers finden
+            if [ ! -f placemap.txt ] && [ -n "$OWNER" ]; then
+              for P in $(curl -sS "https://inventory.roblox.com/v2/users/$OWNER/inventory/9?limit=100&sortOrder=Desc" | jq -r '.data[]?.assetId'); do
+                echo "$(curl -sS "https://apis.roblox.com/universes/v1/places/$P/universe" | jq -r '.universeId // empty') $P" >> placemap.txt
+              done
+            fi
             PLACE_ID=$(awk -v u="$UNIVERSE_ID" '$1==u{print $2; exit}' placemap.txt 2>/dev/null)
             [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://develop.roblox.com/v1/universes/$UNIVERSE_ID" | jq -r '.rootPlaceId // empty')
             [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$UNIVERSE_ID" | jq -r '.data[0].rootPlaceId // empty')

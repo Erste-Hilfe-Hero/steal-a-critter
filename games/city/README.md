@@ -50,18 +50,18 @@ Eigener Comic-Pop-Look: dunkles Tinten-Blau mit Orange, Pink, Türkis und Zitron
 
 ## Icon und Vorschaubilder
 
-`assets/icon.png` (512×512), `assets/thumbnail.png` und `assets/thumbnail_heist.png` (1920×1080). Neu erzeugen mit `python3 assets/make_art.py <LuckiestGuy.ttf> assets`. Hochladen geht nicht per API, also einmal von Hand im Creator Hub.
+`assets/icon.png` (512×512), `assets/thumbnail.png` und `assets/thumbnail_heist.png` (1920×1080). Neu erzeugen mit `python3 assets/make_art.py <LuckiestGuy.ttf> assets`. Hochgeladen werden sie über `media.yml`.
 
 ## Veröffentlichen
 
 Läuft automatisch über `.github/workflows/publish-city.yml` bei jedem Push auf `main` in `games/city/`:
 
-1. Experience finden: IDs aus `roblox.json` oder die Experience des Besitzers, deren Name "Turbo City" enthält (nur bei genau einem Treffer, nie "Untitled").
+1. Experience finden: Alis Experience "3" (Universe `10772779320`) ist in `roblox.json` festgelegt, die Place-ID kommt aus dem Inventar des Besitzers.
 2. Fehlende Developer Products aus `products.json` anlegen und ihre IDs in `src/shared/ProductIds.json` einbauen.
 3. Name, Beschreibung und Servergröße (20) aus `experience.json` setzen.
 4. Mit Rojo bauen, als Entwurf hochladen, den Smoke-Test (`tests/smoke.luau`) im echten Roblox laufen lassen und nur bei grünem Test veröffentlichen.
 
-Einmalig von Hand nötig: eine neue Experience mit "Turbo City" im Namen anlegen, Icon und Bilder hochladen und auf Öffentlich stellen.
+Icon und Vorschaubilder lädt `.github/workflows/media.yml` hoch (Eintrag in `media.json`). Einmalig von Hand nötig: das englische Haupt-Icon im Creator Hub setzen und auf Öffentlich stellen.
 
 ## Projektstruktur (Rojo)
 

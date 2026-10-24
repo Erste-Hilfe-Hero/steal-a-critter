@@ -34,6 +34,15 @@
       "thumbnails": [
         "games/tycoon/assets/thumbnail.png"
       ]
+    },
+    {
+      "name": "Turbo City",
+      "universeId": "10772779320",
+      "icon": "games/city/assets/icon.png",
+      "thumbnails": [
+        "games/city/assets/thumbnail.png",
+        "games/city/assets/thumbnail_heist.png"
+      ]
     }
   ],
   "languages": [
