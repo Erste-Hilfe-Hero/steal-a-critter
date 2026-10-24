@@ -7,6 +7,8 @@ NAVY2 = (32, 42, 90)
 LIME = (190, 255, 60)
 ORANGE = (255, 110, 30)
 CYAN = (40, 200, 255)
+RED = (235, 55, 55)
+BLUE = (50, 130, 255)
 WHITE = (255, 255, 255)
 DARK = (10, 14, 34)
 FONT = "/usr/share/fonts/opentype/inter/InterDisplay-BlackItalic.otf"
@@ -101,8 +103,8 @@ def icon():
     d.polygon([(0, 400), (512, 360), (512, 372), (0, 412)], fill=WHITE)
     streaks(img, 300, 205, 120)
     ball(img, 300, 205, 120)
-    outlined_text(img, (256, 378), "TURBO", 112, LIME, rot=6)
-    outlined_text(img, (262, 448), "SOCCER", 64, ORANGE, rot=6)
+    outlined_text(img, (256, 378), "SOCCER", 100, LIME, rot=6)
+    outlined_text(img, (262, 452), "JAM", 84, RED, rot=6)
     # Rahmen
     ImageDraw.Draw(img).rounded_rectangle([6, 6, w - 7, h - 7], radius=40, outline=LIME, width=10)
     img.convert("RGB").save(f"{OUT}/icon.png")
@@ -150,26 +152,26 @@ def thumbnail():
     d.ellipse([560, 800, 1360, 1180], outline=WHITE, width=10)
     # Tor rechts (Blaze, Orange-Neon)
     gx = 1500
-    d.rectangle([gx, 420, gx + 380, 650], outline=ORANGE, width=16)
+    d.rectangle([gx, 420, gx + 380, 650], outline=RED, width=16)
     for k in range(1, 8):
-        d.line([(gx + k * 47, 420), (gx + k * 47, 650)], fill=ORANGE + (120,), width=3)
+        d.line([(gx + k * 47, 420), (gx + k * 47, 650)], fill=RED, width=3)
     for k in range(1, 5):
-        d.line([(gx, 420 + k * 46), (gx + 380, 420 + k * 46)], fill=ORANGE, width=3)
+        d.line([(gx, 420 + k * 46), (gx + 380, 420 + k * 46)], fill=RED, width=3)
     # Spieler
-    player_silhouette(img, 520, 820, 95, CYAN, facing=-1)
-    player_silhouette(img, 1300, 760, 70, ORANGE, facing=1)
+    player_silhouette(img, 520, 820, 95, BLUE, facing=-1)
+    player_silhouette(img, 1300, 760, 70, RED, facing=1)
     # Ball fliegt aufs Tor
     streaks(img, 1080, 520, 120)
     ball(img, 1080, 520, 120, angle=30)
     # Logo oben links
-    outlined_text(img, (520, 170), "TURBO", 230, LIME, rot=5)
-    outlined_text(img, (560, 330), "SOCCER", 140, ORANGE, rot=5)
+    outlined_text(img, (560, 170), "SOCCER", 220, LIME, rot=5)
+    outlined_text(img, (560, 345), "JAM", 190, RED, rot=5)
     # Feature-Leiste
     font = ImageFont.truetype(FONT, 54)
     bar = Image.new("RGBA", img.size, (0, 0, 0, 0))
     bd = ImageDraw.Draw(bar)
     bd.rounded_rectangle([80, 950, 1840, 1040], radius=45, fill=DARK + (230,), outline=LIME, width=6)
-    bd.text((960, 995), "SHOOT  •  TACKLE  •  LEVEL UP 5 SKILLS  •  PLAY WITH FRIENDS", font=font, fill=WHITE, anchor="mm")
+    bd.text((960, 995), "CURVE  •  DISARM  •  SMACK  •  5 UPGRADES  •  RED VS BLUE", font=font, fill=WHITE, anchor="mm")
     img.alpha_composite(bar)
     img.convert("RGB").save(f"{OUT}/thumbnail.png")
 

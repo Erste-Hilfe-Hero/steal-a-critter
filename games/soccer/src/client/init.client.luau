@@ -76,7 +76,13 @@ local function releaseCharge()
 	UI.SetPower(nil)
 	local power = math.clamp((os.clock() - chargeStart) / Config.ChargeTime, 0, 1)
 	if carrying() then
-		remotes.Kick:FireServer(aimDirection(), power)
+		-- Kurvenball wie im Original: beim Schuss seitlich laufen gibt Effet in diese Richtung
+		local _, humanoid = getCharacter()
+		local spin = 0
+		if humanoid then
+			spin = humanoid.MoveDirection:Dot(camera.CFrame.RightVector)
+		end
+		remotes.Kick:FireServer(aimDirection(), power, spin)
 	end
 end
 
@@ -101,11 +107,11 @@ local function tackle()
 		return
 	end
 	if (player:GetAttribute("TackleReadyAt") or 0) > serverNow() then
-		UI.Toast("Tackle recharging...", Config.Colors.Orange)
+		UI.Toast("Disarm recharging...", Config.Colors.Orange)
 		return
 	end
 	-- Lokale Sperre, bis der Server die neue Abklingzeit meldet
-	player:SetAttribute("TackleReadyAt", serverNow() + Config.TackleCooldown(skill("Tackle")))
+	player:SetAttribute("TackleReadyAt", serverNow() + Config.TackleCooldown(skill("Disarm")))
 	remotes.Tackle:FireServer()
 	local direction = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z).Unit
 	local attachment = root:FindFirstChild("RootAttachment") :: Attachment?
@@ -194,7 +200,7 @@ end)
 ContextActionService:BindAction("TurboSprint", function(_, inputState)
 	sprintHeld = inputState == Enum.UserInputState.Begin
 	return Enum.ContextActionResult.Pass
-end, false, Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift, Enum.KeyCode.ButtonL2)
+end, false, Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift, Enum.KeyCode.R, Enum.KeyCode.ButtonL2)
 
 ContextActionService:BindAction("TurboPass", function(_, inputState)
 	if inputState == Enum.UserInputState.Begin then
@@ -251,6 +257,17 @@ player.CharacterAdded:Connect(function()
 	UI.SetPower(nil)
 end)
 
+-- Umgehauen (Smack oder Maskottchen): hinfallen und wegfliegen, kein Schaden
+remotes.Knockback.OnClientEvent:Connect(function(velocity: Vector3)
+	local _, humanoid, root = getCharacter()
+	if humanoid and root then
+		charging = false
+		UI.SetPower(nil)
+		humanoid:ChangeState(Enum.HumanoidStateType.FallingDown)
+		root.AssemblyLinearVelocity = velocity
+	end
+end)
+
 ---------------------------------------------------------------- Spielereignisse
 
 local function shake(strength: number, duration: number)
@@ -271,8 +288,10 @@ remotes.MatchEvent.OnClientEvent:Connect(function(kind, info)
 		UI.ShowGoal(info)
 		shake(1.2, 0.6)
 	elseif kind == "Ended" then
-		local text = if info.Winner then `{string.upper(info.Winner)} WIN {math.max(info.Bolt, info.Blaze)}-{math.min(info.Bolt, info.Blaze)}!` else `DRAW {info.Bolt}-{info.Blaze}`
+		local text = if info.Winner then `{string.upper(info.Winner)} WIN {math.max(info.Blue, info.Red)}-{math.min(info.Blue, info.Red)}!` else `DRAW {info.Blue}-{info.Red}`
 		UI.Announce(text, if info.Winner then Config.Teams[info.Winner].Color else Config.Colors.White, 5)
+	elseif kind == "EXP" then
+		UI.EXPPopup(info.Amount, info.Kind)
 	elseif kind == "LevelUp" then
 		shake(0.4, 0.3)
 	elseif kind == "Fireworks" then

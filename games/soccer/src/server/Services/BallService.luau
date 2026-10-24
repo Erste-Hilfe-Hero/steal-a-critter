@@ -25,7 +25,9 @@ local touches = {} -- { { Actor = actor, Time = number } }
 local immune = {} -- [actor] = Zeitpunkt, bis zu dem dieser Actor den Ball nicht annehmen kann
 local blockCooldown = {} -- [actor] = Zeitpunkt
 local tackles = {} -- [actor] = Ende des Tackle-Fensters
-local lastKick = { Actor = nil :: any, Time = -math.huge }
+local lastKick = { Actor = nil :: any, Time = -math.huge, Position = Vector3.zero }
+local curve = { Value = 0, Until = 0 } -- Kurvenball nach dem Schuss
+local lastActivity = 0 -- letzte Beruehrung (fuer die automatische Rueckkehr zur Mitte)
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -61,6 +63,7 @@ local function trailFor(actor): { Color3 }
 end
 
 local function addTouch(actor)
+	lastActivity = now()
 	table.insert(touches, { Actor = actor, Time = now() })
 	if #touches > 8 then
 		table.remove(touches, 1)
@@ -107,6 +110,7 @@ local function possess(actor)
 	BallService.Carrier = actor
 	carrierValue.Value = actor.Model
 	trail.Enabled = false
+	curve.Until = 0
 	addTouch(actor)
 end
 
@@ -132,6 +136,8 @@ function BallService:Reset(position: Vector3?)
 	table.clear(touches)
 	table.clear(immune)
 	lastKick.Actor = nil
+	curve.Until = 0
+	lastActivity = now()
 	ball:SetAttribute("LastTeam", nil)
 	ball.Anchored = true
 	ball.AssemblyLinearVelocity = Vector3.zero
@@ -146,8 +152,8 @@ function BallService:Unfreeze()
 	end
 end
 
--- dir: Blickrichtung (Kamera), power 0..1
-function BallService:Kick(actor, dir: Vector3, power: number)
+-- dir: Blickrichtung (Kamera), power 0..1, spin -1..1 (Kurvenball nach links/rechts)
+function BallService:Kick(actor, dir: Vector3, power: number, spin: number?)
 	if self.Carrier ~= actor or not canAct(actor) then
 		return
 	end
@@ -161,8 +167,12 @@ function BallService:Kick(actor, dir: Vector3, power: number)
 	immune[actor] = now() + Config.PickupCooldown
 	lastKick.Actor = actor
 	lastKick.Time = now()
+	lastKick.Position = actor.Root.Position
 	setTrail(trailFor(actor))
 	launch(position, velocity)
+	curve.Value = math.clamp(spin or 0, -1, 1)
+	curve.Until = if math.abs(curve.Value) > 0.15 then now() + Config.CurveTime else 0
+	lastActivity = now()
 end
 
 -- Pass zum besten Mitspieler in Blickrichtung (sonst flach nach vorne)
@@ -188,6 +198,8 @@ function BallService:Pass(actor)
 	immune[actor] = now() + Config.PickupCooldown
 	lastKick.Actor = actor
 	lastKick.Time = now()
+	lastKick.Position = actor.Root.Position
+	lastActivity = now()
 	setTrail(trailFor(actor))
 	if best then
 		local target = best.Root.Position + best.Root.AssemblyLinearVelocity * 0.3
@@ -206,7 +218,7 @@ function BallService:Tackle(actor): boolean
 	if not canAct(actor) or self.Carrier == actor then
 		return false
 	end
-	local level = self.Services.MatchService:Skill(actor, "Tackle")
+	local level = self.Services.MatchService:Skill(actor, "Disarm")
 	if (actor.TackleReadyAt or 0) > now() then
 		return false
 	end
@@ -223,18 +235,30 @@ local function stun(actor, seconds: number)
 	actor.Model:SetAttribute("StunnedUntil", actor.StunnedUntil)
 end
 
-local function resolveTackles()
+-- Umhauen und wegschleudern (kein Schaden): Spieler-Charaktere bewegt ihr eigener Client
+function BallService:Knock(actor, velocity: Vector3, seconds: number)
+	stun(actor, seconds)
+	actor.Model:SetAttribute("KnockedUntil", now() + seconds)
+	if actor.Player then
+		self.Services.Net.Knockback:FireClient(actor.Player, velocity)
+	else
+		actor.Humanoid:ChangeState(Enum.HumanoidStateType.FallingDown)
+		actor.Root.AssemblyLinearVelocity = velocity
+	end
+end
+
+local function resolveSteals()
 	local carrier = BallService.Carrier
 	local t = now()
 	for actor, ends in tackles do
 		if t > ends or not actor.Root.Parent then
 			tackles[actor] = nil
 		elseif carrier and carrier.Team ~= actor.Team and canAct(actor) then
-			local range = Config.TackleRange(BallService.Services.MatchService:Skill(actor, "Tackle"))
+			local range = Config.TackleRange(BallService.Services.MatchService:Skill(actor, "Disarm"))
 			if (carrier.Root.Position - actor.Root.Position).Magnitude <= range then
 				tackles[actor] = nil
 				local chance = Config.TackleChance(
-					BallService.Services.MatchService:Skill(actor, "Tackle"),
+					BallService.Services.MatchService:Skill(actor, "Disarm"),
 					BallService.Services.MatchService:Skill(carrier, "Dexterity")
 				)
 				if math.random() < chance then
@@ -278,9 +302,15 @@ local function checkPickup()
 	local catchSpeed = Config.CatchSpeed(BallService.Services.MatchService:Skill(bestActor, "Dexterity"))
 	local save = isSaveFor(bestActor, velocity)
 	if relative > catchSpeed then
-		-- Zu schnell zum Annehmen: Ball prallt ab (Block)
+		-- Zu schnell zum Annehmen: Ball prallt ab (Block). Harte gegnerische Schuesse hauen um (Smack).
 		if (blockCooldown[bestActor] or 0) < t then
 			blockCooldown[bestActor] = t + 0.35
+			local kicker = lastKick.Actor
+			if kicker and kicker.Team ~= bestActor.Team and velocity.Magnitude > Config.SmackSpeed and not save then
+				BallService:Knock(bestActor, flat(velocity) * 45 + Vector3.new(0, 30, 0), Config.SmackStun)
+				immune[bestActor] = t + Config.SmackStun
+				BallService.Services.MatchService:OnSmack(kicker, bestActor)
+			end
 			ball.AssemblyLinearVelocity = -velocity * 0.35 + Vector3.new(0, 18, 0)
 			addTouch(bestActor)
 			if save then
@@ -301,7 +331,7 @@ local function checkGoal()
 		local side = team.Side
 		if p.X * side > HALF_L + RADIUS * 0.6 and math.abs(p.Z) < Config.GoalWidth / 2 and p.Y < Config.GoalHeight + Config.GroundY then
 			-- Tor gegen teamName
-			local scoringTeam = if teamName == "Bolt" then "Blaze" else "Bolt"
+			local scoringTeam = if teamName == "Blue" then "Red" else "Blue"
 			local last = touches[#touches]
 			local scorer, assist = nil, nil
 			if last and last.Actor.Team == scoringTeam then
@@ -319,8 +349,13 @@ local function checkGoal()
 					end
 				end
 			end
+			local distance = nil
+			if scorer and lastKick.Actor == scorer then
+				local goal = BallService.Services.ArenaService:GoalCenter(teamName)
+				distance = (Vector3.new(goal.X, 0, goal.Z) - Vector3.new(lastKick.Position.X, 0, lastKick.Position.Z)).Magnitude
+			end
 			BallService.GoalsEnabled = false
-			BallService.Services.MatchService:OnGoal(scoringTeam, scorer, assist)
+			BallService.Services.MatchService:OnGoal(scoringTeam, scorer, assist, distance)
 			return
 		end
 	end
@@ -339,17 +374,29 @@ local function step(dt: number)
 			local factor = math.max(0, 1 - Config.BallFriction * dt)
 			ball.AssemblyLinearVelocity = Vector3.new(v.X * factor, v.Y, v.Z * factor)
 		end
+		-- Kurvenball: Flugbahn dreht sich kurz nach dem Schuss zur Seite
+		if curve.Until > now() then
+			local angle = curve.Value * Config.CurveRate * dt
+			local v2 = ball.AssemblyLinearVelocity
+			local cos, sin = math.cos(angle), math.sin(angle)
+			ball.AssemblyLinearVelocity = Vector3.new(v2.X * cos - v2.Z * sin, v2.Y, v2.X * sin + v2.Z * cos)
+		end
 		-- Sicherheitsnetz: aus der Welt gefallen
-		if ball.Position.Y < -30 or math.abs(ball.Position.X) > 300 or math.abs(ball.Position.Z) > 300 then
+		if ball.Position.Y < -30 or math.abs(ball.Position.X) > 400 or math.abs(ball.Position.Z) > 400 then
 			BallService:Reset()
 			BallService:Unfreeze()
+		elseif BallService.PickupEnabled and now() - lastActivity > Config.BallReturnSeconds then
+			-- Wie im Original: liegt der Ball zu lange herum, kommt er zur Mitte zurueck
+			BallService:Reset()
+			BallService:Unfreeze()
+			BallService.Services.Net.SendAnnounce("Ball returned to the center!", Config.Colors.Lime)
 		end
 		if BallService.PickupEnabled then
 			checkPickup()
 		end
 	end
 	if BallService.PickupEnabled then
-		resolveTackles()
+		resolveSteals()
 	end
 	if BallService.GoalsEnabled then
 		checkGoal()
@@ -375,7 +422,7 @@ function BallService:Start()
 	ball.Anchored = true
 	ball.CFrame = CFrame.new(0, Config.GroundY + RADIUS + 0.1, 0)
 
-	-- Turbo-Look: leuchtender Ring um den Ball
+	-- Leucht-Look: leuchtender Ring um den Ball
 	local glow = Instance.new("Highlight")
 	glow.FillTransparency = 1
 	glow.OutlineColor = Config.Colors.Lime
@@ -414,13 +461,16 @@ function BallService:Start()
 	RunService.Heartbeat:Connect(step)
 
 	local net = self.Services.Net
-	net.Kick.OnServerEvent:Connect(function(player, dir, power)
+	net.Kick.OnServerEvent:Connect(function(player, dir, power, spin)
 		if typeof(dir) ~= "Vector3" or typeof(power) ~= "number" or dir.Magnitude ~= dir.Magnitude or power ~= power then
 			return
 		end
+		if typeof(spin) ~= "number" or spin ~= spin then
+			spin = 0
+		end
 		local actor = self.Services.MatchService:ActorForPlayer(player)
 		if actor and dir.Magnitude > 0.01 then
-			self:Kick(actor, dir.Unit, power)
+			self:Kick(actor, dir.Unit, power, spin)
 		end
 	end)
 	net.Pass.OnServerEvent:Connect(function(player)

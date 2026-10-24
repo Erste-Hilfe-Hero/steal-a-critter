@@ -1,4 +1,4 @@
--- Baut das komplette HUD per Code im Turbo-Stil (Navy, Lime, Orange):
+-- Baut das komplette HUD per Code im Soccer-Jam-Stil (Navy, Lime, Orange):
 -- Anzeigetafel, Level/Coins, Menue, Ausdauer- und Schusskraft-Balken, Touch-Buttons,
 -- Skills, Shop, Trails, Tor-Einblendung, Ergebnis und Angebote.
 local AdService = game:GetService("AdService")
@@ -210,8 +210,8 @@ local function buildScoreboard()
 end
 
 local function updateScoreboard()
-	scoreLabels.Bolt.Text = tostring(workspace:GetAttribute("ScoreBolt") or 0)
-	scoreLabels.Blaze.Text = tostring(workspace:GetAttribute("ScoreBlaze") or 0)
+	scoreLabels.Blue.Text = tostring(workspace:GetAttribute("ScoreBlue") or 0)
+	scoreLabels.Red.Text = tostring(workspace:GetAttribute("ScoreRed") or 0)
 	scoreLabels.Time.Text = Format.Time(workspace:GetAttribute("TimeLeft") or Config.MatchSeconds)
 	local state = workspace:GetAttribute("MatchState")
 	local golden = workspace:GetAttribute("GoldenGoal")
@@ -224,7 +224,7 @@ local function updateScoreboard()
 	scoreLabels.Status.TextColor3 = if golden then C.Gold else C.Lime
 	local team = player:GetAttribute("Team")
 	scoreLabels.YouTag.Visible = team ~= nil
-	scoreLabels.YouTag.Position = if team == "Bolt" then UDim2.new(0, 40, 1, 2) else UDim2.new(1, -100, 1, 2)
+	scoreLabels.YouTag.Position = if team == "Blue" then UDim2.new(0, 40, 1, 2) else UDim2.new(1, -100, 1, 2)
 	scoreLabels.YouTag.TextColor3 = if team then Config.Teams[team].Color else C.Lime
 end
 
@@ -270,7 +270,7 @@ local function buildMenu()
 		b.MouseButton1Click:Connect(onClick)
 		return b
 	end
-	local skills = item("SKILLS", C.Lime, 1, function()
+	local skills = item("UPGRADE", C.Lime, 1, function()
 		UI.Open("Skills")
 	end)
 	skills.TextColor3 = C.Navy
@@ -288,9 +288,17 @@ local function buildMenu()
 	adButton.Visible = false
 
 	table.insert(refreshers, function()
-		local points = player:GetAttribute("SkillPoints") or 0
-		skillBadge.Text = tostring(points)
-		skillBadge.Visible = points > 0
+		-- Rotes Abzeichen, sobald man sich ein Upgrade leisten kann
+		local exp = player:GetAttribute("EXP") or 0
+		local affordable = false
+		for _, skill in Config.Skills do
+			local base = player:GetAttribute("Base_" .. skill.Id) or 0
+			if base < Config.MaxSkill and exp >= Config.UpgradeCost(base) then
+				affordable = true
+			end
+		end
+		skillBadge.Text = "!"
+		skillBadge.Visible = affordable
 	end)
 	-- Werbe-Button nur zeigen, wenn wirklich eine Video-Werbung verfuegbar ist
 	task.spawn(function()
@@ -324,7 +332,7 @@ local function buildBars()
 			AnchorPoint = Vector2.new(0, 1),
 			Position = UDim2.new(0, 10, 1, -8),
 			Size = UDim2.fromOffset(420, 18),
-			Text = "Hold CLICK: shoot  |  E: pass  |  F or CLICK: tackle  |  SHIFT: sprint",
+			Text = "Hold CLICK: kick (run sideways to curve)  |  E: pass  |  F: disarm  |  SHIFT/R: turbo",
 			Font = BODY,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextColor3 = Color3.fromRGB(220, 230, 255),
@@ -358,7 +366,7 @@ local function buildTouch()
 		then { Shoot = { 110, 14, 84 }, Tackle = { 24, 98, 64 }, Pass = { 120, 104, 60 }, Sprint = { 204, 16, 60 } }
 		else { Shoot = { 180, 26, 128 }, Tackle = { 48, 222, 100 }, Pass = { 200, 166, 92 }, Sprint = { 320, 26, 96 } }
 	local colors = { Shoot = C.Lime, Tackle = C.Orange, Pass = C.Cyan, Sprint = Color3.fromRGB(170, 120, 255) }
-	local texts = { Shoot = "SHOOT", Tackle = "TACKLE", Pass = "PASS", Sprint = "SPRINT" }
+	local texts = { Shoot = "KICK", Tackle = "DISARM", Pass = "PASS", Sprint = "TURBO" }
 	for name, spec in layout do
 		local b = create("TextButton", {
 			Name = name,
@@ -427,7 +435,7 @@ end
 ---------------------------------------------------------------- Skills
 
 local function buildSkills()
-	local _, body = window("Skills", "SKILLS", Vector2.new(600, 470))
+	local _, body = window("Skills", "UPGRADES", Vector2.new(600, 470))
 	local pointsLabel = label({ Size = UDim2.new(1, 0, 0, 28), Text = "", TextColor3 = C.Lime, TextXAlignment = Enum.TextXAlignment.Left, Parent = body })
 	local list = create("Frame", { Position = UDim2.fromOffset(0, 34), Size = UDim2.new(1, 0, 0, 290), BackgroundTransparency = 1, Parent = body }, {
 		create("UIListLayout", { Padding = UDim.new(0, 6) }),
@@ -436,12 +444,12 @@ local function buildSkills()
 	for index, skill in Config.Skills do
 		local row = create("Frame", { Size = UDim2.new(1, 0, 0, 52), BackgroundColor3 = C.NavyLight, LayoutOrder = index, Parent = list }, { corner(10) })
 		label({ Position = UDim2.fromOffset(10, 4), Size = UDim2.fromOffset(150, 26), Text = string.upper(skill.Name), TextColor3 = skill.Color, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
-		label({ Position = UDim2.fromOffset(10, 30), Size = UDim2.fromOffset(230, 16), Text = skill.Description, Font = BODY, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(200, 210, 240), StrokeThickness = 0, Parent = row })
+		label({ Position = UDim2.fromOffset(10, 30), Size = UDim2.fromOffset(250, 16), Text = skill.Description, Font = BODY, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(200, 210, 240), StrokeThickness = 0, Parent = row })
 		local pips = {}
 		for i = 1, Config.MaxSkill + 1 do
-			pips[i] = create("Frame", { Position = UDim2.fromOffset(250 + (i - 1) * 21, 16), Size = UDim2.fromOffset(17, 20), BackgroundColor3 = C.Navy, Visible = i <= Config.MaxSkill, Parent = row }, { corner(5) })
+			pips[i] = create("Frame", { Position = UDim2.fromOffset(268 + (i - 1) * 26, 14), Size = UDim2.fromOffset(22, 24), BackgroundColor3 = C.Navy, Visible = i <= Config.MaxSkill, Parent = row }, { corner(6) })
 		end
-		local plus = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(46, 40), Text = "+" }, GREEN)
+		local plus = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(110, 40), Text = "+" }, GREEN)
 		plus.Parent = row
 		plus.MouseButton1Click:Connect(function()
 			remotes.Upgrade:FireServer(skill.Id)
@@ -451,27 +459,27 @@ local function buildSkills()
 	local actions = create("Frame", { Position = UDim2.new(0, 0, 1, -48), Size = UDim2.new(1, 0, 0, 46), BackgroundTransparency = 1, Parent = body }, {
 		create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8) }),
 	})
-	local buyPoint = button({ Size = UDim2.fromOffset(200, 44), Text = "" }, C.Gold)
-	buyPoint.TextColor3 = C.Navy
-	buyPoint.Parent = actions
-	buyPoint.MouseButton1Click:Connect(function()
+	local buyEXP = button({ Size = UDim2.fromOffset(200, 44), Text = "" }, C.Gold)
+	buyEXP.TextColor3 = C.Navy
+	buyEXP.Parent = actions
+	buyEXP.MouseButton1Click:Connect(function()
 		remotes.BuyPoint:FireServer()
 	end)
-	local buyThree = button({ Size = UDim2.fromOffset(170, 44), Text = "" }, C.Orange)
-	buyThree.Parent = actions
-	buyThree.MouseButton1Click:Connect(function()
-		UI.Buy("Product", "SkillPoints3")
+	local buyMore = button({ Size = UDim2.fromOffset(170, 44), Text = "" }, C.Orange)
+	buyMore.Parent = actions
+	buyMore.MouseButton1Click:Connect(function()
+		UI.Buy("Product", "MatchEXP")
 	end)
-	local reset = button({ Size = UDim2.fromOffset(170, 44), Text = "" }, C.NavyLight)
-	reset.Parent = actions
-	reset.MouseButton1Click:Connect(function()
-		UI.Buy("Product", "SkillReset")
+	local maxAll = button({ Size = UDim2.fromOffset(170, 44), Text = "" }, Color3.fromRGB(170, 90, 255))
+	maxAll.Parent = actions
+	maxAll.MouseButton1Click:Connect(function()
+		UI.Buy("Product", "MaxUpgrades")
 	end)
 
 	table.insert(refreshers, function()
-		local points = player:GetAttribute("SkillPoints") or 0
+		local exp = player:GetAttribute("EXP") or 0
 		local boots = player:GetAttribute("Pass_ProBoots") == true
-		pointsLabel.Text = `SKILL POINTS: {points}` .. (if boots then "   (PRO BOOTS +1)" else "   Level up to earn more!")
+		pointsLabel.Text = `EXP: {Format.Number(exp)}` .. (if boots then "   (PRO BOOTS +1)" else "   Upgrades reset every match")
 		for id, row in rows do
 			local base = player:GetAttribute("Base_" .. id) or 0
 			for i, pip in row.Pips do
@@ -482,13 +490,21 @@ local function buildSkills()
 					pip.BackgroundColor3 = C.Gold
 				end
 			end
-			row.Plus.Visible = base < Config.MaxSkill
+			local maxed = base >= Config.MaxSkill
+			local cost = Config.UpgradeCost(base)
+			row.Plus.Text = if maxed then "MAX" else `+ {cost} EXP`
+			row.Plus.BackgroundColor3 = if maxed then C.NavyLight elseif exp >= cost then GREEN else Color3.fromRGB(90, 100, 130)
 		end
-		local bought = player:GetAttribute("BoughtPoints") or 0
-		buyPoint.Text = `+1 POINT: {Format.Number(Config.BuyPointBase + Config.BuyPointStep * bought)} COINS`
-		buyThree.Text = `+3 POINTS  R$ {price("SkillPoints3", Config.DevProducts.SkillPoints3.PriceHint)}`
-		reset.Text = `RESET  R$ {price("SkillReset", Config.DevProducts.SkillReset.PriceHint)}`
+		local bought = player:GetAttribute("BoughtEXP") or 0
+		buyEXP.Text = `+{Config.BuyEXPAmount} EXP: {Format.Number(Config.BuyEXPBase + Config.BuyEXPStep * bought)} COINS`
+		buyMore.Text = `+600 EXP  R$ {price("MatchEXP", Config.DevProducts.MatchEXP.PriceHint)}`
+		maxAll.Text = `MAX ALL  R$ {price("MaxUpgrades", Config.DevProducts.MaxUpgrades.PriceHint)}`
 	end)
+end
+
+-- Kleine "+300 EXP"-Einblendung
+function UI.EXPPopup(amount: number, kind: string)
+	UI.Toast(`+{amount} EXP  ({string.upper(kind)})`, C.Lime)
 end
 
 ---------------------------------------------------------------- Shop
@@ -560,7 +576,7 @@ local function buildShop()
 	local productButtons = {}
 	for key, product in Config.DevProducts do
 		if not product.Hidden then
-			local description = product.Description or (if product.Kind == "Coins" then "Buy trails and extra skill points" elseif product.Kind == "SkillPoints" then "Upgrade your skills right now" elseif product.Kind == "XPBoost" then "Stacks with Double XP" else "")
+			local description = product.Description or (if product.Kind == "Coins" then "Buy trails and extra EXP" elseif product.Kind == "XPBoost" then "Stacks with Double XP" else "")
 			local _, buy = card(shopTabs.Coins.Page, product.Order or 99, string.upper(product.Name), description, if product.Kind == "Coins" then C.Gold else C.Orange)
 			buy.MouseButton1Click:Connect(function()
 				UI.Buy("Product", key)
@@ -656,6 +672,9 @@ function UI.ShowGoal(info)
 	goalTitle.Text = if info.OwnGoal then "OWN GOAL!" else "GOAL!"
 	goalTitle.TextColor3 = team.Color
 	local text = if info.Scorer then `{info.Scorer} scores for {string.upper(team.Name)}` else `{string.upper(team.Name)} score!`
+	if info.Distance and not info.OwnGoal then
+		text ..= ` from {info.Distance} studs!`
+	end
 	if info.Assist then
 		text ..= `  (assist: {info.Assist})`
 	end
@@ -670,22 +689,18 @@ end
 local resultsFrame: Frame
 
 local function buildResults()
-	local frame, body = window("Results", "FULL TIME", Vector2.new(460, 380))
+	local frame, body = window("Results", "FULL TIME", Vector2.new(500, 440))
 	resultsFrame = frame
 	local title = label({ Name = "Title", Size = UDim2.new(1, 0, 0, 60), Text = "VICTORY", Parent = body })
 	local stats = label({ Name = "Stats", Position = UDim2.fromOffset(0, 66), Size = UDim2.new(1, 0, 0, 90), Text = "", Font = BODY, TextWrapped = true, Parent = body })
-	local earned = label({ Name = "Earned", Position = UDim2.fromOffset(0, 162), Size = UDim2.new(1, 0, 0, 40), Text = "", TextColor3 = C.Gold, Parent = body })
-	local skills = button({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -4), Size = UDim2.fromOffset(260, 50), Text = "UPGRADE SKILLS" }, C.Lime)
-	skills.TextColor3 = C.Navy
-	skills.Parent = body
-	skills.MouseButton1Click:Connect(function()
-		UI.Open("Skills")
-	end)
+	local earned = label({ Name = "Earned", Position = UDim2.fromOffset(0, 160), Size = UDim2.new(1, 0, 0, 34), Text = "", TextColor3 = C.Gold, Parent = body })
+	local awards = label({ Name = "Awards", Position = UDim2.fromOffset(0, 200), Size = UDim2.new(1, 0, 0, 110), Text = "", Font = BODY, TextWrapped = true, TextColor3 = C.Lime, Parent = body })
 	UI.FillResults = function(info)
 		title.Text = if info.Result == "Win" then "VICTORY!" elseif info.Result == "Loss" then "DEFEAT" else "DRAW"
 		title.TextColor3 = if info.Result == "Win" then C.Lime elseif info.Result == "Loss" then C.Orange else C.White
-		stats.Text = `Goals {info.Goals}   Assists {info.Assists}\nTackles {info.Tackles}   Saves {info.Saves}`
-		earned.Text = `+{Format.Number(info.XP)} XP    +{Format.Number(info.Coins)} COINS`
+		stats.Text = `Goals {info.Goals}   Assists {info.Assists}   Steals {info.Steals}\nSaves {info.Saves}   Smacks {info.Smacks or 0}   Match EXP {Format.Number(info.EXP or 0)}`
+		earned.Text = `+{Format.Number(info.XP)} ACCOUNT XP    +{Format.Number(info.Coins)} COINS`
+		awards.Text = table.concat(info.Awards or {}, "\n")
 	end
 end
 
@@ -728,7 +743,7 @@ local function buildOffer()
 	end)
 end
 
--- kind: "StarterPack", "XPBoost", "SkillPoints", "Coins" oder ein Pass-Schluessel
+-- kind: "StarterPack", "XPBoost", "MatchEXP", "Coins" oder ein Pass-Schluessel
 function UI.ShowOffer(kind: string)
 	if kind == "Coins" then
 		UI.Toast("Not enough coins!", C.Orange)
@@ -753,17 +768,15 @@ function UI.ShowOffer(kind: string)
 		end
 		offerTitle.Text = string.upper(product.Name)
 		offerText.Text = product.Description
-			or (if kind == "XPBoost" then "Lost this one? Double all XP for the next 30 minutes and come back stronger!"
-				elseif kind == "SkillPoints3" or kind == "SkillPoints" then "Out of skill points! Get 3 more and upgrade right now."
-				else "")
-		local key = if kind == "SkillPoints" then "SkillPoints3" else kind
+			or (if kind == "XPBoost" then "Lost this one? Double all XP for the next 30 minutes and come back stronger!" else "")
+		if kind == "MatchEXP" then
+			offerText.Text = "Not enough EXP! Get 600 EXP and upgrade right now."
+		end
+		local key = kind
 		offerBuy.Text = `GET IT  R$ {price(key, Config.DevProducts[key].PriceHint)}`
 		offerAction = function()
 			UI.Buy("Product", key)
 		end
-	elseif kind == "SkillPoints" then
-		UI.ShowOffer("SkillPoints3")
-		return
 	else
 		return
 	end
@@ -804,7 +817,7 @@ function UI.Start()
 	buildResults()
 	buildOffer()
 
-	for _, name in { "Level", "XP", "XPNeeded", "Coins", "SkillPoints", "BoughtPoints", "Trail", "OwnedTrails", "Team" } do
+	for _, name in { "Level", "XP", "XPNeeded", "Coins", "EXP", "BoughtEXP", "Trail", "OwnedTrails", "Team" } do
 		player:GetAttributeChangedSignal(name):Connect(refreshAll)
 	end
 	player.AttributeChanged:Connect(function(name)

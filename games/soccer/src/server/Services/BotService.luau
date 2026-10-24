@@ -14,8 +14,8 @@ local NAMES = {
 local SKIN = { Color3.fromRGB(255, 220, 190), Color3.fromRGB(230, 180, 140), Color3.fromRGB(180, 120, 80), Color3.fromRGB(110, 70, 45) }
 
 local folder: Folder
-local bots = { Bolt = {}, Blaze = {} } -- [team] = { bot }
-local pending = { Bolt = 0, Blaze = 0 } -- Bots, die gerade erstellt werden
+local bots = { Blue = {}, Red = {} } -- [team] = { bot }
+local pending = { Blue = 0, Red = 0 } -- Bots, die gerade erstellt werden
 local nameIndex = 0
 
 local function now(): number
@@ -23,7 +23,7 @@ local function now(): number
 end
 
 local function otherTeam(teamName: string): string
-	return if teamName == "Bolt" then "Blaze" else "Bolt"
+	return if teamName == "Blue" then "Red" else "Blue"
 end
 
 local function botLevel(): number
@@ -34,7 +34,7 @@ local function botLevel(): number
 		count += 1
 	end
 	local average = if count > 0 then total / count else 1
-	return math.clamp(math.floor(1 + average / 6), 1, 6)
+	return math.clamp(math.floor(1 + average / 8), 1, 4)
 end
 
 -- Standard-R15-Animationen von Roblox (Lokale Animate-Skripte laufen bei NPCs nicht)
@@ -217,9 +217,9 @@ local function think(bot)
 		local toGoal = theirGoal - position
 		if role == "Keeper" and held > 0.6 then
 			ballService:Kick(actor, (theirGoal - position).Unit + Vector3.new(0, 0.3, 0), 1)
-		elseif toGoal.Magnitude < 60 and held > 0.4 then
-			local aim = theirGoal + Vector3.new(0, 3, (math.random() - 0.5) * Config.GoalWidth * 0.7)
-			ballService:Kick(actor, (aim - position).Unit, 0.7 + math.random() * 0.3)
+		elseif toGoal.Magnitude < 85 and held > 0.4 then
+			local aim = theirGoal + Vector3.new(0, 4, (math.random() - 0.5) * Config.GoalWidth * 0.7)
+			ballService:Kick(actor, (aim - position).Unit, 0.75 + math.random() * 0.25, (math.random() - 0.5) * 0.4)
 		elseif held > 0.8 and nearestOpponentDistance(actor) < 9 and math.random() < 0.35 then
 			ballService:Pass(actor)
 		else
@@ -251,7 +251,7 @@ local function think(bot)
 				target = carrier.Root.Position + carrier.Root.AssemblyLinearVelocity * 0.2
 				sprint = true
 				local distance = (carrier.Root.Position - position).Magnitude
-				if distance < Config.TackleRange(actor.Skills.Tackle) - 0.5 and (actor.TackleReadyAt or 0) < now() and math.random() < 0.6 then
+				if distance < Config.TackleRange(actor.Skills.Disarm) - 0.5 and (actor.TackleReadyAt or 0) < now() and math.random() < 0.6 then
 					if ballService:Tackle(actor) then
 						bot.DashUntil = os.clock() + 0.25
 						humanoid.WalkSpeed = Config.DashSpeed

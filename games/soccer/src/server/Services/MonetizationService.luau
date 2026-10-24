@@ -161,14 +161,13 @@ local function grantProduct(player: Player, key: string): boolean
 		services.ProgressService:AddCoins(player, coins, true)
 		services.Net.SendNotify(player, `+{coins} coins!`, C.Gold)
 		return true
-	elseif product.Kind == "SkillPoints" then
-		data.SkillPoints += product.Points
-		services.ProgressService:Refresh(player)
-		services.Net.SendNotify(player, `+{product.Points} skill points! Spend them in SKILLS`, C.Lime)
+	elseif product.Kind == "MatchEXP" then
+		services.ProgressService:AddEXP(player, product.EXP, true)
+		services.Net.SendNotify(player, `+{product.EXP} EXP! Spend it in UPGRADES`, C.Lime)
 		return true
-	elseif product.Kind == "SkillReset" then
-		services.ProgressService:ResetSkills(player)
-		services.Net.SendNotify(player, "All skill points refunded!", C.Lime)
+	elseif product.Kind == "MaxUpgrades" then
+		services.ProgressService:MaxUpgrades(player)
+		services.Net.SendAnnounce(`{player.DisplayName} maxed ALL upgrades!`, C.Gold)
 		return true
 	elseif product.Kind == "XPBoost" then
 		data.BoostUntil = math.max(os.time(), data.BoostUntil) + Config.XPBoostMinutes * 60
@@ -180,12 +179,12 @@ local function grantProduct(player: Player, key: string): boolean
 		return true
 	elseif product.Kind == "StarterPack" then
 		services.ProgressService:AddCoins(player, product.Coins, true)
-		data.SkillPoints += product.Points
+		services.ProgressService:AddEXP(player, product.EXP, true)
 		data.Trails.turbo = true
 		data.Trail = "turbo"
 		player:SetAttribute("Pass_StarterPack", true)
 		services.ProgressService:Refresh(player)
-		services.Net.SendNotify(player, "Starter Pack: +2,500 coins, +5 skill points, Turbo trail!", C.Gold)
+		services.Net.SendNotify(player, "Starter Pack: +2,500 coins, +1,000 EXP, Starter Flame trail!", C.Gold)
 		return true
 	end
 	warn("[Monetization] Unbekannter Produkttyp", product.Kind)

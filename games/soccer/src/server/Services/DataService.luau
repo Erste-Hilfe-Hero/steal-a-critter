@@ -12,20 +12,14 @@ local profiles = {} -- [Player] = { Data = table, CanSave = boolean }
 local MAX_RECEIPTS = 100
 
 local function defaultData()
-	local skills = {}
-	for _, skill in Config.Skills do
-		skills[skill.Id] = 0
-	end
 	return {
 		Level = 1,
 		XP = 0,
 		Coins = 0,
-		SkillPoints = 2, -- zwei Punkte zum Start, damit man das Upgrade-Menue sofort ausprobiert
-		Skills = skills,
-		BoughtPoints = 0, -- fuer Coins gekaufte Skillpunkte (Preis steigt)
 		Goals = 0,
 		Assists = 0,
-		Tackles = 0,
+		Steals = 0,
+		Smacks = 0,
 		Wins = 0,
 		Matches = 0,
 		Trail = "white",
@@ -46,9 +40,6 @@ local function reconcile(data)
 		if data[key] == nil then
 			data[key] = value
 		end
-	end
-	for _, skill in Config.Skills do
-		data.Skills[skill.Id] = data.Skills[skill.Id] or 0
 	end
 	return data
 end

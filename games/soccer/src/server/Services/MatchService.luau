@@ -12,11 +12,11 @@ local MatchService = { Services = nil :: any }
 local actors = {} -- [Model] = actor
 local actorList = {} -- Liste fuer schnelle Schleifen
 local teamObjects = {} -- [teamName] = Team
-local score = { Bolt = 0, Blaze = 0 }
+local score = { Blue = 0, Red = 0 }
 local state = "Waiting"
 local timeLeft = Config.MatchSeconds
 local goldenGoal = false
-local matchStats = {} -- [Player] = { Goals, Assists, Tackles, Saves, XP, Coins, Team }
+local matchStats = {} -- [Player] = { Goals, Assists, Steals, Saves, XP, Coins, Team }
 
 local GOLD = Config.Colors.Gold
 
@@ -42,14 +42,14 @@ local function setState(newState: string, duration: number?)
 end
 
 local function updateScore()
-	workspace:SetAttribute("ScoreBolt", score.Bolt)
-	workspace:SetAttribute("ScoreBlaze", score.Blaze)
+	workspace:SetAttribute("ScoreBlue", score.Blue)
+	workspace:SetAttribute("ScoreRed", score.Red)
 	workspace:SetAttribute("TimeLeft", math.ceil(timeLeft))
 	workspace:SetAttribute("GoldenGoal", goldenGoal)
 	local board = MatchService.Services.ArenaService.Scoreboard
-	if board.Bolt then
-		board.Bolt.Text = tostring(score.Bolt)
-		board.Blaze.Text = tostring(score.Blaze)
+	if board.Blue then
+		board.Blue.Text = tostring(score.Blue)
+		board.Red.Text = tostring(score.Red)
 		local t = math.max(0, math.ceil(timeLeft))
 		board.Time.Text = string.format("%d:%02d", t // 60, t % 60)
 	end
@@ -58,20 +58,21 @@ end
 local function statsFor(player: Player)
 	local stats = matchStats[player]
 	if not stats then
-		stats = { Goals = 0, Assists = 0, Tackles = 0, Saves = 0, XP = 0, Coins = 0 }
+		stats = { Goals = 0, Assists = 0, Steals = 0, Saves = 0, Smacks = 0, XP = 0, Coins = 0, EXP = 0, Name = player.DisplayName }
 		matchStats[player] = stats
 	end
 	return stats
 end
 
-local function reward(actor, kind: string)
+local function reward(actor, kind: string, bonusEXP: number?)
 	if not actor or not actor.Player then
 		return
 	end
-	local xp, coins = MatchService.Services.ProgressService:Reward(actor.Player, kind)
+	local xp, coins, exp = MatchService.Services.ProgressService:Reward(actor.Player, kind, bonusEXP)
 	local stats = statsFor(actor.Player)
 	stats.XP += xp
 	stats.Coins += coins
+	stats.EXP += exp
 end
 
 ---------------------------------------------------------------- Actors
@@ -205,15 +206,15 @@ local function humanCount(teamName: string): number
 end
 
 function MatchService:AssignTeam(player: Player)
-	local bolt, blaze = humanCount("Bolt"), humanCount("Blaze")
-	local teamName = if bolt < blaze then "Bolt" elseif blaze < bolt then "Blaze" elseif math.random() < 0.5 then "Bolt" else "Blaze"
+	local bolt, blaze = humanCount("Blue"), humanCount("Red")
+	local teamName = if bolt < blaze then "Blue" elseif blaze < bolt then "Red" elseif math.random() < 0.5 then "Blue" else "Red"
 	player.Team = teamObjects[teamName]
 	player:SetAttribute("Team", teamName)
 end
 
 function MatchService:Rebalance()
-	local humans = { Bolt = humanCount("Bolt"), Blaze = humanCount("Blaze") }
-	local size = math.clamp(math.max(humans.Bolt, humans.Blaze), Config.MinTeamSize, Config.MaxTeamSize)
+	local humans = { Blue = humanCount("Blue"), Red = humanCount("Red") }
+	local size = math.clamp(math.max(humans.Blue, humans.Red), Config.MinTeamSize, Config.MaxTeamSize)
 	if #Players:GetPlayers() == 0 then
 		size = 0
 	end
@@ -224,7 +225,7 @@ end
 
 ---------------------------------------------------------------- Ereignisse aus dem BallService
 
-function MatchService:OnGoal(scoringTeam: string, scorer, assist)
+function MatchService:OnGoal(scoringTeam: string, scorer, assist, distance: number?)
 	if state ~= "Playing" then
 		return
 	end
@@ -233,8 +234,10 @@ function MatchService:OnGoal(scoringTeam: string, scorer, assist)
 	local team = Config.Teams[scoringTeam]
 	local scorerName = if scorer then scorer.Name else nil
 	local assistName = if assist then assist.Name else nil
+	-- Fernschuss-Bonus wie im Original ("GOAL from 85 studs!")
+	local bonus = if distance then math.max(0, math.floor(distance) - 40) * Config.GoalDistanceBonus else 0
 	if scorer then
-		reward(scorer, "Goal")
+		reward(scorer, "Goal", bonus)
 		if scorer.Player then
 			statsFor(scorer.Player).Goals += 1
 			self.Services.ProgressService:AddStat(scorer.Player, "Goals", 1)
@@ -250,22 +253,26 @@ function MatchService:OnGoal(scoringTeam: string, scorer, assist)
 	local colors = if scorer and scorer.Player
 		then (Config.TrailsById[scorer.Player:GetAttribute("Trail") or "white"] or Config.Trails[1]).Colors
 		else { team.Color, Color3.new(1, 1, 1) }
-	local conceding = if scoringTeam == "Bolt" then "Blaze" else "Bolt"
+	local conceding = if scoringTeam == "Blue" then "Red" else "Blue"
 	self.Services.ArenaService:Burst(conceding, colors)
 	self.Services.Net.MatchEvent:FireAllClients("Goal", {
 		Team = scoringTeam,
 		Scorer = scorerName,
 		Assist = assistName,
 		OwnGoal = scorer == nil,
+		Distance = if distance then math.floor(distance) else nil,
 	})
+	if score[scoringTeam] >= Config.ScoreLimit then
+		self.ScoreLimitReached = true
+	end
 	self.GoalScored = true
 end
 
 function MatchService:OnTackle(actor, victim)
-	reward(actor, "Tackle")
+	reward(actor, "Steal")
 	if actor.Player then
-		statsFor(actor.Player).Tackles += 1
-		self.Services.ProgressService:AddStat(actor.Player, "Tackles", 1)
+		statsFor(actor.Player).Steals += 1
+		self.Services.ProgressService:AddStat(actor.Player, "Steals", 1)
 		self.Services.Net.SendNotify(actor.Player, "Ball stolen!", Config.Colors.Lime)
 	end
 	if victim.Player then
@@ -278,8 +285,23 @@ function MatchService:OnTackleMissed(actor, victim)
 		self.Services.Net.SendNotify(actor.Player, "Dodged!", Config.Colors.Orange)
 	end
 	if victim.Player then
-		reward(victim, "Save")
+		reward(victim, "Dodge")
 		self.Services.Net.SendNotify(victim.Player, "Nice dodge!", Config.Colors.Lime)
+	end
+end
+
+-- Ein harter gegnerischer Schuss hat jemanden umgehauen
+function MatchService:OnSmack(kicker, victim)
+	if kicker then
+		reward(kicker, "Smack")
+		if kicker.Player then
+			statsFor(kicker.Player).Smacks += 1
+			self.Services.ProgressService:AddStat(kicker.Player, "Smacks", 1)
+			self.Services.Net.SendNotify(kicker.Player, `SMACK! You knocked down {victim.Name}`, Config.Colors.Orange)
+		end
+	end
+	if victim.Player then
+		self.Services.Net.SendNotify(victim.Player, "SMACKED by the ball!", Config.Colors.Red)
 	end
 end
 
@@ -319,9 +341,22 @@ end
 local function finishMatch()
 	local ball = MatchService.Services.BallService
 	ball.GoalsEnabled = false
-	local winner = if score.Bolt > score.Blaze then "Bolt" elseif score.Blaze > score.Bolt then "Blaze" else nil
+	local winner = if score.Blue > score.Red then "Blue" elseif score.Red > score.Blue then "Red" else nil
 	setState("Ended", Config.ResultsSeconds)
-	MatchService.Services.Net.MatchEvent:FireAllClients("Ended", { Winner = winner, Bolt = score.Bolt, Blaze = score.Blaze })
+	-- Auszeichnungen wie die Endstatistik im Original
+	local awards = {}
+	for _, award in { { "Goals", "TOP SCORER" }, { "Assists", "PLAYMAKER" }, { "Steals", "THIEF" }, { "Saves", "WALL" }, { "Smacks", "SMACKER" } } do
+		local bestName, best = nil, 0
+		for _, stats in matchStats do
+			if stats[award[1]] > best then
+				bestName, best = stats.Name, stats[award[1]]
+			end
+		end
+		if bestName then
+			table.insert(awards, `{award[2]}: {bestName} ({best})`)
+		end
+	end
+	MatchService.Services.Net.MatchEvent:FireAllClients("Ended", { Winner = winner, Blue = score.Blue, Red = score.Red })
 	for _, player in Players:GetPlayers() do
 		local teamName = player:GetAttribute("Team")
 		if teamName then
@@ -340,10 +375,13 @@ local function finishMatch()
 				Result = kind,
 				Goals = stats.Goals,
 				Assists = stats.Assists,
-				Tackles = stats.Tackles,
+				Steals = stats.Steals,
 				Saves = stats.Saves,
+				Smacks = stats.Smacks,
 				XP = stats.XP,
 				Coins = stats.Coins,
+				EXP = stats.EXP,
+				Awards = awards,
 			})
 			MatchService.Services.MonetizationService:AfterMatch(player, kind)
 		end
@@ -352,10 +390,14 @@ local function finishMatch()
 end
 
 local function runMatch()
-	score.Bolt, score.Blaze = 0, 0
+	score.Blue, score.Red = 0, 0
 	timeLeft = Config.MatchSeconds
 	goldenGoal = false
+	MatchService.ScoreLimitReached = false
 	table.clear(matchStats)
+	for _, player in Players:GetPlayers() do
+		MatchService.Services.ProgressService:ResetMatch(player)
+	end
 	updateScore()
 	kickoff()
 	local lastTick = os.clock()
@@ -371,7 +413,7 @@ local function runMatch()
 			MatchService.GoalScored = false
 			setState("Goal", Config.GoalCelebrationSeconds)
 			task.wait(Config.GoalCelebrationSeconds)
-			if goldenGoal then
+			if goldenGoal or MatchService.ScoreLimitReached then
 				break
 			end
 			kickoff()
@@ -379,7 +421,7 @@ local function runMatch()
 		else
 			timeLeft -= dt
 			if timeLeft <= 0 then
-				if score.Bolt == score.Blaze and not goldenGoal then
+				if score.Blue == score.Red and not goldenGoal then
 					goldenGoal = true
 					timeLeft = Config.GoldenGoalSeconds
 					MatchService.Services.Net.SendAnnounce("GOLDEN GOAL! Next goal wins!", GOLD)
@@ -428,6 +470,40 @@ function MatchService:Start()
 				setState("Waiting")
 				self:Rebalance()
 				task.wait(1)
+			end
+		end
+	end)
+	-- Maskottchen: Gegner ohne Ball, die zu lange im eigenen Strafraum stehen, werden weggeschleudert
+	task.spawn(function()
+		local camping = {} -- [actor] = Sekunden im gegnerischen Strafraum
+		while true do
+			task.wait(0.25)
+			if state ~= "Playing" then
+				table.clear(camping)
+				continue
+			end
+			local carrier = self.Services.BallService.Carrier
+			local seen = {}
+			for _, actor in actorList do
+				local enemyGoal = if actor.Team == "Blue" then "Red" else "Blue"
+				if actor ~= carrier and self.Services.ArenaService:InGoalZone(enemyGoal, actor.Root.Position) then
+					seen[actor] = true
+					camping[actor] = (camping[actor] or 0) + 0.25
+					if camping[actor] >= Config.MascotPatience then
+						camping[actor] = 0
+						local side = Config.Teams[enemyGoal].Side
+						self.Services.ArenaService:MascotStomp(enemyGoal, actor.Root.Position)
+						self.Services.BallService:Knock(actor, Vector3.new(-side * 80, 45, 0), 1.2)
+						if actor.Player then
+							self.Services.Net.SendNotify(actor.Player, "The mascot doesn't like goal campers!", Config.Colors.Orange)
+						end
+					end
+				end
+			end
+			for actor in camping do
+				if not seen[actor] then
+					camping[actor] = nil
+				end
 			end
 		end
 	end)
@@ -483,6 +559,7 @@ function MatchService:OnPlayerRemoving(player: Player)
 		self:RemoveActor(player.Character)
 	end
 	matchStats[player] = nil
+	self.Services.ProgressService:OnPlayerRemoving(player)
 	task.defer(function()
 		self:Rebalance()
 	end)
