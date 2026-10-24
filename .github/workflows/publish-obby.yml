@@ -23,12 +23,20 @@ jobs:
         run: |
           UNIVERSE_ID=$(jq -r '.universeId' roblox.json); PLACE_ID=$(jq -r '.placeId' roblox.json)
           if [ -z "$UNIVERSE_ID" ] && [ -n "$ROBLOX_API_KEY" ]; then
-            CANDIDATES=$(curl -sS -X POST https://apis.roblox.com/api-keys/v1/introspect -H "Content-Type: application/json" \
-              -d "{\"apiKey\":\"$ROBLOX_API_KEY\"}" | jq -r '[.scopes[]?.targetParts[]?] | map(select(. != "*")) | unique | .[]')
-            TAKEN=$(cat ../../roblox.json ../*/roblox.json 2>/dev/null | jq -r '.universeId // empty' | sort -u)
+            curl -sS -X POST https://apis.roblox.com/api-keys/v1/introspect -H "Content-Type: application/json" \
+              -d "{\"apiKey\":\"$ROBLOX_API_KEY\"}" -o introspect.json
+            CANDIDATES=$(jq -r '[.scopes[]? | (.universeIds // []), (.targetParts // []) | .[]] | map(select(. != "*")) | unique | .[]' introspect.json)
+            # Gilt der Schluessel fuer alle Experiences ("*"): die Places des Besitzers durchsuchen
+            USER_ID=$(jq -r '.ownerUserId // empty' roblox.json)
+            for P in $(curl -sS "https://inventory.roblox.com/v2/users/$USER_ID/inventory/9?limit=100&sortOrder=Desc" | jq -r '.data[]?.assetId'); do
+              U=$(curl -sS "https://apis.roblox.com/universes/v1/places/$P/universe" | jq -r '.universeId // empty')
+              [ -n "$U" ] && CANDIDATES="$CANDIDATES $U"
+            done
+            CANDIDATES=$(echo $CANDIDATES | tr ' ' '\n' | sort -u)
             LIST=""
             for U in $CANDIDATES; do
               NAME=$(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -r '.displayName // empty')
+              [ -z "$NAME" ] && NAME=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -r '.data[0].name // empty')
               LIST="$LIST $U=$NAME;"
               if echo "$NAME" | grep -qi "obby"; then UNIVERSE_ID=$U; fi
             done
