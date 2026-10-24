@@ -54,6 +54,7 @@ local function onPlayerAdded(player: Player)
 	Services.CommunityService:OnPlayerReady(player)
 	Services.EventService:OnPlayerReady(player)
 	Services.SocialService:OnPlayerReady(player)
+	Services.MonetizationService:OnPlayerReady(player)
 
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)

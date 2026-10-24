@@ -327,6 +327,20 @@ function MonetizationService:Start()
 	end)
 end
 
+-- Neue Spieler sehen einmal (nach kurzer Spielzeit) das Starter Pack, mit "No thanks"
+function MonetizationService:OnPlayerReady(player: Player)
+	local data = self.Services.DataService:Get(player)
+	if not data or data.StarterPack or data.StarterOfferShown then
+		return
+	end
+	task.delay(60, function()
+		if player.Parent and not data.StarterPack then
+			data.StarterOfferShown = true
+			self.Services.Net.SendOffer(player, "Product", "StarterPack", "Welcome! Best value for new players")
+		end
+	end)
+end
+
 function MonetizationService:OnPlayerRemoving(player: Player)
 	pendingInstant[player] = nil
 end

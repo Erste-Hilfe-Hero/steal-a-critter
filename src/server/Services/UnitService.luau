@@ -34,6 +34,12 @@ function UnitService:Init(services)
 	self.Services = services
 end
 
+local function offerSlots(player: Player)
+	if not UnitService.Services.MonetizationService:HasPass(player, "ExtraSlots") then
+		UnitService.Services.Net.SendOffer(player, "Pass", "ExtraSlots", "Your base is full!")
+	end
+end
+
 local function notify(player: Player, text: string, color: Color3?)
 	UnitService.Services.Net.SendNotify(player, text, color)
 end
@@ -129,6 +135,7 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	end
 	if not UnitService:FindFreeSlot(thief) then
 		notify(thief, "Your base is full!", RED)
+		offerSlots(thief)
 		return
 	end
 	local ownerData = services.DataService:Get(owner)
@@ -298,6 +305,7 @@ endSteal = function(thief: Player, success: boolean)
 			owner:SetAttribute("RevengeUntil", workspace:GetServerTimeNow() + Config.RevengeDuration)
 			notify(thief, `You stole {def.Name}!`, GREEN)
 			notify(owner, `{thief.DisplayName} stole your {def.Name}! Insurance paid {Format.Cash(payout)}. REVENGE: steal back instantly for {Config.RevengeDuration}s!`, RED)
+			services.Net.SendOffer(owner, "Product", "LockBase", "Protect your base from thieves!")
 			if Config.RaritiesByName[def.Rarity].Announce then
 				services.Net.SendAnnounce(`{thief.DisplayName} stole a {def.Rarity} {def.Name} from {owner.DisplayName}!`, Config.RaritiesByName[def.Rarity].Color)
 			end
@@ -370,6 +378,7 @@ local function tryBuy(player: Player, model: Model)
 	local slot = UnitService:FindFreeSlot(player)
 	if not slot then
 		notify(player, "Your base is full! Get +4 slots in the shop or rebirth.", RED)
+		offerSlots(player)
 		return
 	end
 	entry.Sold = true
@@ -463,6 +472,9 @@ function UnitService:Fuse(player: Player, slotKey: string)
 	local useCatalyst = #partners == 1 and (data.Catalysts or 0) > 0
 	if (#partners < 2 and not useCatalyst) or (models[slotKey] and models[slotKey]:GetAttribute("BeingStolen")) then
 		notify(player, `You need 3x {info.Name} to fuse!` .. (if #partners == 1 then " (or 2x with a Fusion Catalyst from the shop)" else ""), RED)
+		if #partners == 1 then
+			self.Services.Net.SendOffer(player, "Product", "FusionCatalyst", `Fuse your 2x {info.Name} right now!`)
+		end
 		return
 	end
 	if useCatalyst then

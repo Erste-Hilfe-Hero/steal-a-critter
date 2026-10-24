@@ -106,6 +106,23 @@ local function sortedEntries(source)
 	return list
 end
 
+local function promptBuy(kind: string, key: string, entry)
+	-- Pass ohne Gamepass-ID wird als dauerhaftes Developer Product verkauft
+	local productId = if kind == "Pass" and entry.Id == 0 then entry.ProductId else nil
+	if productId then
+		MarketplaceService:PromptProductPurchase(player, productId)
+	elseif entry.Id ~= 0 then
+		if kind == "Pass" then
+			MarketplaceService:PromptGamePassPurchase(player, entry.Id)
+		else
+			MarketplaceService:PromptProductPurchase(player, entry.Id)
+		end
+	else
+		-- Nur in Studio wirksam (Server prueft das)
+		remotes.FakePurchase:FireServer(kind, key)
+	end
+end
+
 local function buildShopRow(parent: Instance, kind: string, key: string, entry, color: Color3)
 	local row = create("Frame", {
 		Size = UDim2.new(1, -10, 0, 70),
@@ -159,17 +176,44 @@ local function buildShopRow(parent: Instance, kind: string, key: string, entry, 
 		if ownedAttribute and player:GetAttribute(ownedAttribute) then
 			return
 		end
-		if productId then
-			MarketplaceService:PromptProductPurchase(player, productId)
-		elseif entry.Id ~= 0 then
-			if kind == "Pass" then
-				MarketplaceService:PromptGamePassPurchase(player, entry.Id)
-			else
-				MarketplaceService:PromptProductPurchase(player, entry.Id)
-			end
-		else
-			-- Nur in Studio wirksam (Server prueft das)
-			remotes.FakePurchase:FireServer(kind, key)
+		promptBuy(kind, key, entry)
+	end)
+end
+
+-- Angebot im passenden Moment: kleine Karte mit Kaufen und "No thanks", verschwindet nach 12 Sekunden
+local offerCard: Frame? = nil
+local function showOffer(kind: string, key: string, reason: string)
+	local entry = if kind == "Pass" then Config.GamePasses[key] else Config.DevProducts[key]
+	if not entry or not toastContainer then
+		return
+	end
+	if offerCard then
+		offerCard:Destroy()
+	end
+	local gui = (toastContainer :: Instance).Parent
+	local card = create("Frame", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -12, 1, -12),
+		Size = UDim2.fromOffset(300, 150),
+		BackgroundColor3 = Color3.fromRGB(30, 28, 45),
+		Parent = gui,
+	}, { corner(12), stroke(3) })
+	offerCard = card
+	label({ Position = UDim2.fromOffset(10, 6), Size = UDim2.new(1, -20, 0, 22), Text = reason, TextColor3 = Color3.fromRGB(255, 200, 40), Parent = card })
+	label({ Position = UDim2.fromOffset(10, 30), Size = UDim2.new(1, -20, 0, 30), Text = entry.Name, Parent = card })
+	label({ Position = UDim2.fromOffset(10, 62), Size = UDim2.new(1, -20, 0, 22), Text = entry.Description, TextColor3 = Color3.fromRGB(210, 210, 220), Parent = card })
+	local buy = button({ Position = UDim2.fromOffset(10, 96), Size = UDim2.new(0.55, -10, 0, 44), Text = "R$ " .. entry.PriceHint, Parent = card }, Color3.fromRGB(60, 200, 90))
+	local no = button({ Position = UDim2.new(0.55, 6, 0, 96), Size = UDim2.new(0.45, -16, 0, 44), Text = "No thanks", Parent = card }, Color3.fromRGB(90, 90, 105))
+	buy.Activated:Connect(function()
+		card:Destroy()
+		promptBuy(kind, key, entry)
+	end)
+	no.Activated:Connect(function()
+		card:Destroy()
+	end)
+	task.delay(12, function()
+		if card.Parent then
+			card:Destroy()
 		end
 	end)
 end
@@ -323,6 +367,7 @@ function UI.Start()
 
 	remotes.Notify.OnClientEvent:Connect(showToast)
 	remotes.Announce.OnClientEvent:Connect(showAnnouncement)
+	remotes.Offer.OnClientEvent:Connect(showOffer)
 
 	-- Anzeige laufend aktualisieren
 	task.spawn(function()
