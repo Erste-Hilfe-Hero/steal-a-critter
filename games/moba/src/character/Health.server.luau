@@ -1,0 +1,1 @@
+-- Ersetzt das Standard-Script "Health": Lebenspunkte steuert der Server (HeroService), keine automatische Heilung.

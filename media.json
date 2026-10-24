@@ -43,6 +43,14 @@
         "games/city/assets/thumbnail.png",
         "games/city/assets/thumbnail_heist.png"
       ]
+    },
+    {
+      "name": "Lanebreakers",
+      "universeId": "10772779235",
+      "icon": "games/moba/assets/icon.png",
+      "thumbnails": [
+        "games/moba/assets/thumbnail.png"
+      ]
     }
   ],
   "languages": [

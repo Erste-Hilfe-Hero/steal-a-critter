@@ -1,0 +1,20 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "+50% crystals, golden name and VIP chat tag forever", "price": 299},
+  {"key": "Pass_DoubleCrystals", "name": "2x Crystals", "description": "Double crystals from every match forever", "price": 249},
+  {"key": "AllHeroes", "name": "All Heroes", "description": "Unlock every hero now and every future hero", "price": 399},
+  {"key": "StarterPack", "name": "Starter Pack", "description": "One time: Volt + Inferno skin + 500 crystals", "price": 79},
+  {"key": "Hero_Vexa", "name": "Hero: Vexa", "description": "Unlock Vexa, the Shadow Blade", "price": 99},
+  {"key": "Hero_Tundra", "name": "Hero: Tundra", "description": "Unlock Tundra, the Frost Warden", "price": 99},
+  {"key": "Hero_Thorne", "name": "Hero: Thorne", "description": "Unlock Thorne, the Grove Keeper", "price": 99},
+  {"key": "Hero_Zephyr", "name": "Hero: Zephyr", "description": "Unlock Zephyr, the Wind Ranger", "price": 149},
+  {"key": "Hero_Volt", "name": "Hero: Volt", "description": "Unlock Volt, the Storm Duelist", "price": 149},
+  {"key": "Skin_Inferno", "name": "Inferno Skin", "description": "Burning weapon and aura for all heroes", "price": 149},
+  {"key": "Skin_Frost", "name": "Frost Crystal Skin", "description": "Icy weapon and aura for all heroes", "price": 149},
+  {"key": "Skin_Gold", "name": "Royal Gold Skin", "description": "Shining gold weapon and aura for all heroes", "price": 249},
+  {"key": "Skin_Galaxy", "name": "Galaxy Skin", "description": "Starry weapon and aura for all heroes", "price": 349},
+  {"key": "Crystals_S", "name": "Crystal Pouch", "description": "250 crystals", "price": 49},
+  {"key": "Crystals_M", "name": "Crystal Chest", "description": "900 crystals", "price": 149},
+  {"key": "Crystals_L", "name": "Crystal Vault", "description": "2800 crystals", "price": 399},
+  {"key": "Respawn", "name": "Instant Respawn", "description": "Respawn right now", "price": 15},
+  {"key": "AdReward", "name": "Free Crystals (Video Ad)", "description": "Reward for watching a video ad: 40 crystals", "price": 5}
+]
