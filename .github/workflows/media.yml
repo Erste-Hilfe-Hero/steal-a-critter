@@ -2,8 +2,10 @@ name: Upload icons and thumbnails
 
 # Laedt Icons und Thumbnails aller Spiele aus media.json hoch, nur mit dem API-Key:
 # - Startseiten-Kacheln (thumbnail-personalization-api, Scope universe.thumbnail:write)
-# - Icon + Thumbnails fuer jede Sprache ausser der Ausgangssprache (Lokalisierungs-API)
-# Das Haupt-Icon der Ausgangssprache (en) kann Roblox nur im Creator Hub setzen.
+# - Icon + Thumbnails fuer jede Sprache (Lokalisierungs-API)
+# Die Ausgangssprache selbst nimmt per API-Key keine Bilder an. Deshalb stellen wir sie auf eine
+# kaum genutzte Sprache (sourceLanguage in media.json, von Ali freigegeben), dann sind en und de
+# normale Uebersetzungen und bekommen ihre Bilder.
 
 on:
   workflow_dispatch:
@@ -67,7 +69,12 @@ jobs:
             fi
 
             # 2) Sprachen: als unterstuetzt eintragen, dann Icon + Thumbnails je Sprache
+            WANT=$(jq -r '.sourceLanguage' media.json)
             SRC=$(curl -sS "https://gameinternationalization.roblox.com/v1/source-language/games/$U" | jq -r '.languageCode // "en"')
+            if [ "$SRC" != "$WANT" ]; then
+              note "$NAME source $SRC -> $WANT" "$(curl -sS -X PATCH "$I18N/source-language/games/$U?languageCode=$WANT" -H "$K" -H 'Content-Length: 0' -w ' HTTP %{http_code}')"
+              SRC=$(curl -sS "https://gameinternationalization.roblox.com/v1/source-language/games/$U" | jq -r '.languageCode // "en"')
+            fi
             LANGS=$(jq -r --arg src "$SRC" '.languages[] | select(. != $src)' media.json)
             # Einzeln eintragen, damit ein unbekannter Code nicht alle anderen blockiert
             for L in $LANGS; do
