@@ -117,7 +117,7 @@ local function stab()
 	if (player:GetAttribute("KnifeReadyAt") or 0) > serverNow() then
 		return
 	end
-	player:SetAttribute("KnifeReadyAt", serverNow() + Config.Knife.Stab.Cooldown)
+	player:SetAttribute("KnifeReadyAt", serverNow() + Config.Knife.Stab.Cooldown * (if Config.Has(player, "Ninja") then Config.NinjaStabCooldown else 1))
 	remotes.Stab:FireServer(camera.CFrame.LookVector)
 	Viewmodel.Swing("Stab")
 end
@@ -197,7 +197,8 @@ local baseFov = 70
 
 RunService.RenderStepped:Connect(function(dt)
 	local character, humanoid = getCharacter()
-	local maxStamina = Config.MaxStamina(skill("Stamina"))
+	local lungs = if Config.Has(player, "TurboLungs") then Config.TurboLungsFactor else 1
+	local maxStamina = Config.MaxStamina(skill("Stamina")) * lungs
 	if charging then
 		local power = math.clamp((os.clock() - chargeStart) / Config.ChargeTime, 0, 1)
 		UI.SetPower(power)
@@ -221,7 +222,7 @@ RunService.RenderStepped:Connect(function(dt)
 			exhausted = true
 		end
 	else
-		stamina = math.min(maxStamina, stamina + Config.StaminaRegen(skill("Stamina")) * dt)
+		stamina = math.min(maxStamina, stamina + Config.StaminaRegen(skill("Stamina")) * lungs * dt)
 		if exhausted and stamina > maxStamina * 0.25 then
 			exhausted = false
 		end
@@ -229,6 +230,12 @@ RunService.RenderStepped:Connect(function(dt)
 	UI.SetStamina(stamina / maxStamina, exhausted)
 
 	local speed = Config.WalkSpeed(skill("Agility"))
+	if Config.Has(player, "SpeedDemon") then
+		speed *= Config.SpeedDemonFactor
+	end
+	if Config.Active(player, "RageUntil") then
+		speed *= Config.RageFactor
+	end
 	if wantsSprint then
 		speed *= Config.SprintFactor
 	end
@@ -439,7 +446,7 @@ remotes.MatchEvent.OnClientEvent:Connect(function(kind, info)
 	elseif kind == "KO" then
 		UI.KillFeed(info)
 		if info.VictimModel == player.Character then
-			UI.Announce(`KNOCKED OUT{if info.Attacker then " by " .. info.Attacker else ""}! Back in {Config.KOSeconds}s`, Config.Colors.Red, Config.KOSeconds)
+			UI.Announce(`KNOCKED OUT{if info.Attacker then " by " .. info.Attacker else ""}! Back in {if Config.Has(player, "QuickRespawn") then Config.QuickRespawnSeconds else Config.KOSeconds}s`, Config.Colors.Red, Config.KOSeconds)
 		end
 	elseif kind == "EXP" then
 		UI.EXPPopup(info.Amount, info.Kind)

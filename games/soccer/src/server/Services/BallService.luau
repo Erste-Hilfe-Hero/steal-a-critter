@@ -299,7 +299,7 @@ local function checkPickup()
 			local feet = actor.Root.Position - Vector3.new(0, 2, 0)
 			local offset = ball.Position - feet
 			local horizontal = Vector3.new(offset.X, 0, offset.Z).Magnitude
-			local range = Config.PickupRange(BallService.Services.MatchService:Skill(actor, "Dexterity"))
+			local range = Config.PickupRange(BallService.Services.MatchService:Skill(actor, "Dexterity")) * (if Config.Has(actor.Player, "MagnetFeet") then Config.MagnetFeetRange else 1)
 			if horizontal < range and offset.Y < 5.5 and offset.Y > -2 and horizontal < bestDistance then
 				bestActor, bestDistance = actor, horizontal
 			end
@@ -309,7 +309,7 @@ local function checkPickup()
 		return
 	end
 	local relative = (velocity - bestActor.Root.AssemblyLinearVelocity).Magnitude
-	local catchSpeed = Config.CatchSpeed(BallService.Services.MatchService:Skill(bestActor, "Dexterity"))
+	local catchSpeed = Config.CatchSpeed(BallService.Services.MatchService:Skill(bestActor, "Dexterity")) * (if Config.Has(bestActor.Player, "SteelKeeper") then Config.SteelKeeperFactor else 1)
 	local save = isSaveFor(bestActor, velocity)
 	if relative > catchSpeed then
 		-- Zu schnell zum Annehmen: Ball prallt ab (Block). Harte gegnerische Schuesse hauen um (Smack).

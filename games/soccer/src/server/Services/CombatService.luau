@@ -132,15 +132,16 @@ end
 
 local function knockOut(victim, attacker, kind: string)
 	local services = CombatService.Services
-	victim.KOUntil = now() + Config.KOSeconds
+	local koSeconds = if hasPass(victim, "QuickRespawn") then Config.QuickRespawnSeconds else Config.KOSeconds
+	victim.KOUntil = now() + koSeconds
 	victim.Model:SetAttribute("KOUntil", victim.KOUntil)
 	swings[victim] = nil
 	local push = if attacker then flat(victim.Root.Position - attacker.Root.Position) else Vector3.zero
-	services.BallService:Knock(victim, push * 20 + Vector3.new(0, 18, 0), Config.KOSeconds)
+	services.BallService:Knock(victim, push * 20 + Vector3.new(0, 18, 0), koSeconds)
 	victim.Humanoid.PlatformStand = true
 	services.MatchService:OnKO(attacker, victim, kind)
 	local koUntil = victim.KOUntil
-	task.delay(Config.KOSeconds, function()
+	task.delay(koSeconds, function()
 		if victim.KOUntil ~= koUntil or not services.MatchService:IsActor(victim) then
 			return
 		end
@@ -165,6 +166,10 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 	if not playing() or self:IsKO(victim) or (victim.SpawnProtectUntil or 0) > now() then
 		return
 	end
+	-- Bubble Shield (Produkt): kein Schaden
+	if Config.Active(victim.Player, "ShieldUntil") then
+		return
+	end
 	if attacker and attacker.Team == victim.Team then
 		return
 	end
@@ -179,18 +184,30 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 			return
 		end
 		-- Treffer am Ballfuehrer: Chance, dass er den Ball verliert
-		if self.Services.BallService.Carrier == victim and math.random() < Config.DisarmChance(self.Services.MatchService:Skill(attacker, "Disarm")) then
+		local disarm = Config.DisarmChance(self.Services.MatchService:Skill(attacker, "Disarm")) * (if hasPass(victim, "IronGrip") then Config.IronGripFactor else 1)
+		if self.Services.BallService.Carrier == victim and math.random() < disarm then
 			if self.Services.BallService:Disarm(attacker, victim) then
 				self.Services.MatchService:OnDisarm(attacker, victim)
 			end
 		end
 	end
 	-- Golden Knife (Pass): mehr Messerschaden
-	if attacker and (kind == "Slash" or kind == "Stab") and hasPass(attacker, "GoldenKnife") then
-		amount = math.floor(amount * Config.GoldenKnifeDamage + 0.5)
+	if attacker and (kind == "Slash" or kind == "Stab") then
+		if hasPass(attacker, "GoldenKnife") then
+			amount *= Config.GoldenKnifeDamage
+		end
+		if Config.Active(attacker.Player, "RageUntil") then
+			amount *= Config.RageFactor
+		end
+		amount = math.floor(amount + 0.5)
 	end
+	local dealt = math.min(victim.HP, amount)
 	local hp = math.max(0, victim.HP - amount)
 	setHP(victim, hp)
+	-- Vampire Knife (Pass): Angreifer heilt sich
+	if attacker and (kind == "Slash" or kind == "Stab") and hasPass(attacker, "VampireKnife") and not self:IsKO(attacker) then
+		setHP(attacker, math.min(attacker.MaxHP or Config.MaxHP, attacker.HP + math.floor(dealt * Config.VampireHeal)))
+	end
 	self.Services.Net.MatchEvent:FireAllClients("Damage", { Model = victim.Model, Amount = amount, Backstab = backstab == true })
 	if hp <= 0 then
 		knockOut(victim, attacker, kind)
@@ -232,7 +249,7 @@ function CombatService:Swing(actor, kind: string, aim: Vector3?): boolean
 	if actor.KnifeReadyAt > now() then
 		return false
 	end
-	actor.KnifeReadyAt = now() + def.Cooldown
+	actor.KnifeReadyAt = now() + def.Cooldown * (if kind == "Stab" and hasPass(actor, "Ninja") then Config.NinjaStabCooldown else 1)
 	if actor.Player then
 		actor.Player:SetAttribute("KnifeReadyAt", actor.KnifeReadyAt)
 	end
@@ -246,7 +263,7 @@ end
 -- Von hinten: das Opfer schaut vom Angreifer weg
 local function isBehind(attacker, victim): boolean
 	local toVictim = flat(victim.Root.Position - attacker.Root.Position)
-	return flat(victim.Root.CFrame.LookVector):Dot(toVictim) > Config.BackstabDot
+	return flat(victim.Root.CFrame.LookVector):Dot(toVictim) > (if hasPass(attacker, "Ninja") then Config.NinjaBackstabDot else Config.BackstabDot)
 end
 
 -- Alien-Maskottchen: jede Sekunde einen Gegner im Kreis vor dem eigenen Tor zappen,

@@ -177,6 +177,19 @@ local function grantProduct(player: Player, key: string): boolean
 	elseif product.Kind == "Fireworks" then
 		fireworks(player)
 		return true
+	elseif product.Kind == "Shield" or product.Kind == "Rage" then
+		local attribute = product.Kind .. "Until"
+		local now = workspace:GetServerTimeNow()
+		player:SetAttribute(attribute, math.max(now, player:GetAttribute(attribute) or 0) + product.Seconds)
+		if product.Kind == "Shield" and player.Character then
+			local field = Instance.new("ForceField")
+			field.Parent = player.Character
+			task.delay(product.Seconds, function()
+				field:Destroy()
+			end)
+		end
+		services.Net.SendAnnounce(`{player.DisplayName} activated {string.upper(product.Name)}!`, if product.Kind == "Rage" then C.Red else C.Cyan)
+		return true
 	elseif product.Kind == "StarterPack" then
 		services.ProgressService:AddCoins(player, product.Coins, true)
 		services.ProgressService:AddEXP(player, product.EXP, true)
