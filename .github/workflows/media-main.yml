@@ -1,0 +1,70 @@
+name: Upload main icons and thumbnails
+
+# Haupt-Icon und Haupt-Thumbnails (die, die Roblox wirklich anzeigt) fuer alle Spiele aus media.json.
+# Roblox nimmt die nur mit Login-Cookie an (wie Creator Hub und Mantle). Ali hat den Cookie selbst als
+# Secret ROBLOSECURITY hinterlegt. Der Cookie wird nie ausgegeben; dieser Workflow fasst nur Bilder an.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["media.json", "assets/**.png", "games/*/assets/**.png", ".github/workflows/media-main.yml"]
+
+concurrency: media-main
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      COOKIE: ${{ secrets.ROBLOSECURITY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload
+        run: |
+          set +e
+          if [ -z "$COOKIE" ]; then echo "::warning::Secret ROBLOSECURITY fehlt, nichts zu tun"; exit 0; fi
+          note() { echo "::notice::$1: $(echo "$2" | tr -d '\n' | head -c 300)"; }
+          CSRF=""
+          # Roblox-Schreibaufruf mit Cookie; holt bei 403 einmal das CSRF-Token und wiederholt
+          call() { # method url [curl args...]
+            M=$1; URL=$2; shift 2
+            for TRY in 1 2; do
+              R=$(curl -sS -X "$M" "$URL" -H "Cookie: .ROBLOSECURITY=$COOKIE" -H "x-csrf-token: $CSRF" \
+                -D headers.txt "$@" -w ' HTTP %{http_code}')
+              T=$(grep -i '^x-csrf-token:' headers.txt | tr -d '\r' | awk '{print $2}')
+              rm -f headers.txt
+              if echo "$R" | grep -q 'HTTP 403' && [ -n "$T" ]; then CSRF=$T; continue; fi
+              break
+            done
+            echo "$R"
+          }
+
+          jq -c '.games[]' media.json | while read -r G; do
+            NAME=$(echo "$G" | jq -r .name); U=$(echo "$G" | jq -r .universeId)
+            ICON=$(echo "$G" | jq -r .icon); mapfile -t THUMBS < <(echo "$G" | jq -r '.thumbnails[]')
+            echo "::group::$NAME ($U)"
+            note "$NAME icon" "$(call POST "https://publish.roblox.com/v1/games/$U/icon" -F "request.files=@$ICON;type=image/png")"
+
+            # Alte Bilder merken (Videos bleiben), neue hochladen, dann alte loeschen und neue sortieren
+            OLD=$(curl -sS "https://games.roblox.com/v2/games/$U/media" | jq -r '.data[]? | select(.assetType == "Image") | .imageId // .id')
+            NEW=()
+            for T in "${THUMBS[@]}"; do
+              R=$(call POST "https://publish.roblox.com/v1/games/$U/thumbnail/image" -F "request.files=@$T;type=image/png")
+              note "$NAME thumb $(basename "$T")" "$R"
+              ID=$(echo "${R% HTTP *}" | jq -r '.targetId // .mediaAssetId // empty' 2>/dev/null)
+              [ -n "$ID" ] && NEW+=("$ID")
+            done
+            if [ "${#NEW[@]}" -eq "${#THUMBS[@]}" ]; then
+              for ID in $OLD; do
+                note "$NAME delete old $ID" "$(call DELETE "https://develop.roblox.com/v1/universes/$U/thumbnails/$ID")"
+              done
+              note "$NAME order" "$(call POST "https://develop.roblox.com/v1/universes/$U/thumbnails/order" \
+                -H 'Content-Type: application/json' -d "$(printf '%s\n' "${NEW[@]}" | jq -sc '{thumbnailIds: map(tonumber)}')")"
+            fi
+            note "$NAME now" "$(curl -sS "https://games.roblox.com/v2/games/$U/media" | jq -c '[.data[]? | {id: (.imageId // .id), s: .approved}]')"
+            echo "::endgroup::"
+          done
