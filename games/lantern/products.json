@@ -1,0 +1,18 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "+25% gold and XP forever, golden name and VIP chat tag", "price": 299},
+  {"key": "Pass_DoubleXP", "name": "2x XP", "description": "Level up twice as fast forever", "price": 249},
+  {"key": "Pass_Luck", "name": "Lucky Lantern", "description": "+50% chance for Rare, Epic and Legendary loot forever", "price": 349},
+  {"key": "Pass_Sprite", "name": "Lantern Sprite", "description": "A loyal light sprite fights by your side forever", "price": 249},
+  {"key": "Pass_Backpack", "name": "Big Backpack", "description": "+100 inventory slots forever", "price": 149},
+  {"key": "Pass_Lightbringer", "name": "Lightbringer Class", "description": "Unlock the healing Lightbringer class now", "price": 199},
+  {"key": "Revive", "name": "Revive", "description": "Get back up right where you fell with full health", "price": 25},
+  {"key": "GoldSmall", "name": "Gold Pouch", "description": "Gold worth about one dungeon run", "price": 49},
+  {"key": "GoldMedium", "name": "Gold Chest", "description": "Gold worth about five dungeon runs", "price": 149},
+  {"key": "GoldLarge", "name": "Gold Vault", "description": "Gold worth about twenty dungeon runs", "price": 449},
+  {"key": "Shards", "name": "Shard Bundle", "description": "400 forge shards to enhance your gear", "price": 99},
+  {"key": "XPBoost", "name": "XP Boost", "description": "30 minutes of double XP", "price": 79},
+  {"key": "BossBlessing", "name": "Boss Blessing", "description": "The next boss drops a Legendary for everyone in your party", "price": 149},
+  {"key": "StarterPack", "name": "Starter Pack", "description": "One time only: Epic Lantern weapon, 2,500 gold, 300 shards, 30 min 2x XP", "price": 79},
+  {"key": "AdRevive", "name": "Free Revive (Video Ad)", "description": "Reward for watching a video ad: revive", "price": 5},
+  {"key": "AdGold", "name": "Free Gold (Video Ad)", "description": "Reward for watching a video ad: gold", "price": 5}
+]
