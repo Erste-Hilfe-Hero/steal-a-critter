@@ -1,0 +1,16 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "x1.5 coins forever, golden name, VIP chat tag and the Golden VIP kick trail", "price": 199},
+  {"key": "Pass_DoubleXP", "name": "Double XP", "description": "Earn twice the XP forever", "price": 249},
+  {"key": "Pass_DoubleCoins", "name": "Double Coins", "description": "Earn twice the coins forever", "price": 199},
+  {"key": "Pass_ProBoots", "name": "Pro Boots", "description": "+1 on all 5 skills forever, even above the max", "price": 299},
+  {"key": "Pass_EffectsPack", "name": "Effects Pack", "description": "3 animated kick trails forever: Rainbow, Galaxy and Lightning", "price": 149},
+  {"key": "Coins1", "name": "Coin Pouch", "description": "600 coins", "price": 49},
+  {"key": "Coins2", "name": "Coin Bag", "description": "1,800 coins", "price": 129},
+  {"key": "Coins3", "name": "Coin Chest", "description": "5,500 coins", "price": 349},
+  {"key": "SkillPoints3", "name": "+3 Skill Points", "description": "3 extra skill points to upgrade right now", "price": 59},
+  {"key": "SkillReset", "name": "Skill Reset", "description": "Get all your skill points back to spend again", "price": 25},
+  {"key": "XPBoost", "name": "XP Boost 30 min", "description": "Double XP for 30 minutes (stacks with Double XP)", "price": 39},
+  {"key": "Fireworks", "name": "Stadium Fireworks", "description": "Launch a fireworks show over the whole stadium", "price": 29},
+  {"key": "StarterPack", "name": "Starter Pack", "description": "One time only: 2,500 coins + 5 skill points + Turbo kick trail", "price": 79},
+  {"key": "AdCoins", "name": "Free Coins (Video Ad)", "description": "Reward for watching a video ad: free coins", "price": 5}
+]
