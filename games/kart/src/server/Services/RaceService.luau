@@ -819,6 +819,12 @@ function RaceService:StartRace(trackId: string)
 	local current = services.TrackService.Current
 	local geo = current.Geometry
 	local tickAt = 0
+	local hadHumans = false
+	for _, racer in self.Racers do
+		if racer.Player then
+			hadHumans = true
+		end
+	end
 	local heartbeat = RunService.Heartbeat:Connect(function(dt)
 		local leaderHuman = nil
 		for _, racer in self.Racers do
@@ -868,7 +874,8 @@ function RaceService:StartRace(trackId: string)
 			end
 		end
 		local t = now()
-		if humansLeft == 0 then
+		-- Reine CPU-Rennen (Smoke-Test) laufen bis zum Sieger + Gnadenfrist
+		if humansLeft == 0 and hadHumans then
 			task.wait(1.5)
 			break
 		end
