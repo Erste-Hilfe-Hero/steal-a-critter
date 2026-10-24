@@ -132,6 +132,8 @@ end
 
 local round = services.RoundService
 round.Testing = true
+-- Runde 1 und 2 sind gestellte Szenen: Bots duerfen dabei nicht selbst laufen oder schiessen
+services.BotService.Paused = true
 local started, startErr = pcall(round.StartRound, round)
 check("start round with bots", started and round.State == "Reveal", if started then round.State else startErr)
 
@@ -224,6 +226,16 @@ if started and round.State == "Reveal" then
 
 	-- Messer: Opfer direkt vor den Murderer stellen
 	local spot = round.Map.Spawns[1]
+	-- Unbeteiligte weit weg stellen, sonst trifft Stich oder Schuss zufaellig einen Bot, der am selben Spawn steht
+	local function park(...)
+		local keep = { ... }
+		for i, actor in round.Actors do
+			if actor.Alive and not table.find(keep, actor) then
+				actor.Model:PivotTo(CFrame.new(spot.Position + Vector3.new(80 + i * 15, 3, 80)))
+			end
+		end
+	end
+	park(murderer, innocents[3])
 	murderer.Model:PivotTo(spot + Vector3.new(0, 3, 0))
 	local victim = innocents[3]
 	victim.Model:PivotTo(murderer.Root.CFrame * CFrame.new(0, 0, -3))
@@ -232,6 +244,7 @@ if started and round.State == "Reveal" then
 
 	-- Sheriff trifft einen Unschuldigen: beide raus, Blaster faellt
 	local wrong = innocents[1]
+	park(sheriff, wrong)
 	sheriff.Model:PivotTo(spot * CFrame.new(10, 11, 0))
 	wrong.Model:PivotTo(sheriff.Root.CFrame * CFrame.new(0, 0, -6))
 	task.wait(0.1)
@@ -247,6 +260,7 @@ if started and round.State == "Reveal" then
 	check("hero picks up blaster", hero.Role == "Hero" and hero.Bot.Weapon ~= nil, hero.Role)
 
 	-- Hero stoppt den Murderer
+	park(hero, murderer)
 	hero.Model:PivotTo(spot * CFrame.new(-10, 11, 0))
 	murderer.Model:PivotTo(hero.Root.CFrame * CFrame.new(0, 0, -8))
 	murderer.Hidden = false
@@ -268,21 +282,31 @@ if started2 and round.State == "Reveal" then
 	round:BeginPlay()
 	local murderer = byRole("Murderer")[1]
 	local spot = round.Map.Spawns[1]
-	for _, actor in round.Actors do
-		if actor ~= murderer and actor.Alive then
-			murderer.Model:PivotTo(spot + Vector3.new(0, 3, 0))
-			actor.Model:PivotTo(murderer.Root.CFrame * CFrame.new(0, 0, -2.5))
-			task.wait(Config.Knife.Cooldown + 0.05)
-			services.CombatService:Stab(murderer)
+	-- Ein Stich trifft den Naechsten, das kann auch ein anderer Bot am Spawn sein: so lange stechen, bis alle raus sind
+	for _ = 1, 12 do
+		local target
+		for _, actor in round.Actors do
+			if actor ~= murderer and actor.Alive then
+				target = actor
+				break
+			end
 		end
+		if not target or round.State ~= "Playing" then
+			break
+		end
+		murderer.Model:PivotTo(spot + Vector3.new(0, 3, 0))
+		target.Model:PivotTo(murderer.Root.CFrame * CFrame.new(0, 0, -2.5))
+		task.wait(Config.Knife.Cooldown + 0.05)
+		services.CombatService:Stab(murderer)
 	end
-	check("murderer wins", round.Winner == "Murderer", round.Winner)
+	check("murderer wins", round.Winner == "Murderer", `{round.Winner} {round.State}`)
 	pcall(round.Cleanup, round)
 else
 	check("start round 2", false)
 end
 
 -- Bots laufen eine Weile ohne Fehler (Denk-Schleife, Pathfinding)
+services.BotService.Paused = false
 local started3 = pcall(round.StartRound, round)
 if started3 and round.State == "Reveal" then
 	round:BeginPlay()

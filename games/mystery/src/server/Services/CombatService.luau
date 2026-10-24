@@ -1,6 +1,5 @@
 -- Messer (Stich + Wurf), Blaster (ein Schuss, Abklingzeit), Cartoon-K.O. ohne Blut,
 -- fallengelassener Blaster (Unschuldige heben ihn auf und werden zum Hero).
-local Debris = game:GetService("Debris")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -485,7 +484,6 @@ function CombatService:Start()
 			end
 		end
 	end)
-	Debris.MaxItems = 2000
 end
 
 return CombatService
