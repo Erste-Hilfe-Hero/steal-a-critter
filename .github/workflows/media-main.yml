@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["media.json", "assets/**.png", "games/*/assets/**.png", ".github/workflows/media-main.yml"]
+    paths: ["media.json", "assets/**.png", "games/*/assets/**.png"]
 
 concurrency: media-main
 
@@ -51,11 +51,12 @@ jobs:
 
             # Alte Bilder merken (Videos bleiben), neue hochladen, dann alte loeschen und neue sortieren
             OLD=$(curl -sS "https://games.roblox.com/v2/games/$U/media" | jq -r '.data[]? | select(.assetType == "Image") | .imageId // .id')
+            # IDs als Text weiterreichen: sie sind groesser als 2^53, jq wuerde sie runden
             NEW=()
             for T in "${THUMBS[@]}"; do
               R=$(call POST "https://publish.roblox.com/v1/games/$U/thumbnail/image" -F "request.files=@$T;type=image/png")
               note "$NAME thumb $(basename "$T")" "$R"
-              ID=$(echo "${R% HTTP *}" | jq -r '.targetId // .mediaAssetId // empty' 2>/dev/null)
+              ID=$(echo "$R" | grep -oE '"(targetId|mediaAssetId)":"?[0-9]+' | grep -oE '[0-9]+$' | head -1)
               [ -n "$ID" ] && NEW+=("$ID")
             done
             if [ "${#NEW[@]}" -eq "${#THUMBS[@]}" ]; then
@@ -63,7 +64,7 @@ jobs:
                 note "$NAME delete old $ID" "$(call DELETE "https://develop.roblox.com/v1/universes/$U/thumbnails/$ID")"
               done
               note "$NAME order" "$(call POST "https://develop.roblox.com/v1/universes/$U/thumbnails/order" \
-                -H 'Content-Type: application/json' -d "$(printf '%s\n' "${NEW[@]}" | jq -sc '{thumbnailIds: map(tonumber)}')")"
+                -H 'Content-Type: application/json' -d "{\"thumbnailIds\":[$(IFS=,; echo "${NEW[*]}")]}")"
             fi
             note "$NAME now" "$(curl -sS "https://games.roblox.com/v2/games/$U/media" | jq -c '[.data[]? | {id: (.imageId // .id), s: .approved}]')"
             echo "::endgroup::"
