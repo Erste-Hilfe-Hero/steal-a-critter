@@ -1,4 +1,5 @@
-# Soccer Jam: Stuermer schiesst einen brennenden Ball aufs Tor, Torwart fliegt, Flutlicht-Stadion.
+# Soccer Jam: Logo = Fussball vor gekreuzten CS-Messern; Vorschaubild = Messerangriff auf den Ballfuehrer
+# in der dreckigen soccerjam-Arena.
 import math
 import os
 import random
@@ -82,35 +83,92 @@ def striker(loc, rot, scale=1.0):
     return R.noob(loc, rot, shirt="#2f7cff", pants="#ffffff", mood="grin", pose=pose, hair="#2a1a10", scale=scale)
 
 
+def knife(loc, rot, s=1.0, golden=False):
+    """CS-Messer entlang +Z (Griff unten bei 0): schwarzer Gummigriff, Parierstange, Klinge mit Spitze."""
+    root = R.empty(loc, rot)
+    bm = R.mat("#ffc21a", rough=0.15, metal=0.95, coat=0.6) if golden else R.mat("#d8dee8", rough=0.12, metal=0.95, coat=0.7)
+    R.box((0.62 * s, 0.1 * s, 3.0 * s), (0, 0, 2.15 * s), m=bm, parent=root, bevel=0.035 * s)
+    tip = R.cone(0.44 * s, 0.0, 0.9 * s, (0.0, 0, 4.1 * s), m=bm, parent=root, verts=4)
+    tip.rotation_euler = (0, 0, math.radians(45))
+    tip.scale = (1, 0.16, 1)
+    # Blutrinne
+    R.box((0.08 * s, 0.12 * s, 2.2 * s), (-0.12 * s, 0, 2.0 * s), m=R.mat("#8a929e", rough=0.2, metal=0.9), parent=root, bevel=0.02 * s)
+    R.box((1.15 * s, 0.32 * s, 0.22 * s), (0, 0, 0.6 * s), m=R.mat("#2a2c30", rough=0.4, metal=0.7), parent=root, bevel=0.06 * s)
+    grip = R.mat("#141416", rough=0.8)
+    R.box((0.5 * s, 0.38 * s, 1.5 * s), (0, 0, -0.25 * s), m=grip, parent=root, bevel=0.15 * s)
+    for i in range(4):
+        R.box((0.56 * s, 0.42 * s, 0.08 * s), (0, 0, (-0.8 + i * 0.35) * s), m=R.mat("#24262a", rough=0.7), parent=root, bevel=0.03 * s)
+    R.box((0.58 * s, 0.44 * s, 0.2 * s), (0, 0, -1.05 * s), m=R.mat("#2a2c30", rough=0.4, metal=0.7), parent=root, bevel=0.06 * s)
+    return root
+
+
+def dirty_arena():
+    """Dreckige soccerjam-Map: abgenutzter Rasen mit Erde, Betonmauer mit Graffiti-Flecken, Natriumlicht."""
+    random.seed(7)
+    R.ground(m=R.mat("#4f6b2e", rough=0.9, coat=0), size=140)
+    for i in range(-10, 11):
+        R.box((5.0, 140, 0.02), (i * 10, 0, 0.01), m=R.mat("#587636", rough=0.9, coat=0), bevel=0)
+    dirts = [R.mat(c, rough=1.0, coat=0) for c in ("#6a5a36", "#5f5634", "#72603a")]
+    for _ in range(22):
+        R.cyl(random.uniform(0.8, 2.4), 0.01, (random.uniform(-25, 25), random.uniform(-4, 30), 0.022 + random.random() * 0.004),
+              m=random.choice(dirts), scale=(1, random.uniform(0.4, 0.9), 1), verts=9)
+    R.box((0.25, 80, 0.04), (-2, 0, 0.04), m=R.mat("#cfcab4", rough=0.8, coat=0), bevel=0)
+    concrete = [R.mat(c, rough=0.95, coat=0) for c in ("#7d786c", "#736e62", "#86806f")]
+    for i in range(-8, 9):
+        R.box((6.0, 1.5, 10), (i * 6.05, 34, 5), m=random.choice(concrete), bevel=0.04)
+        R.box((6.0, 0.1, random.uniform(1.0, 2.2)), (i * 6.05, 33.2, 0.8), m=R.mat("#3e3a32", rough=1, coat=0), bevel=0)
+        if random.random() < 0.6:
+            R.box((random.uniform(0.3, 1.2), 0.1, random.uniform(2, 6)), (i * 6.05 + random.uniform(-2, 2), 33.2, 7), m=R.mat("#6b3d22", rough=1, coat=0), bevel=0)
+    for x, c in ((-14, "#e0463a"), (6, "#3a8ce0"), (20, "#e8d04a")):
+        R.box((5, 0.1, 1.6), (x, 33.15, 4.5), (0, random.uniform(-8, 8), 0), m=R.mat(c, rough=0.9, emit=0.15, coat=0), bevel=0)
+    R.cyl(0.6, 100, (0, 33.0, 9.0), (0, 90, 0), m=R.mat("#7a4626", rough=0.6, metal=0.6))
+    crate = R.mat("#9a7442", rough=0.85, coat=0)
+    for x, z, sz in ((-22, 0, 4), (-22, 4, 3), (-17.5, 0, 3.2), (24, 0, 4.2)):
+        R.box((sz, sz, sz), (x, 30, z + sz / 2), (0, 0, random.uniform(-10, 10)), m=crate, bevel=0.08)
+    for x in (-30, 32):
+        R.cyl(0.5, 26, (x, 40, 13), m=R.mat("#6b4126", rough=0.6, metal=0.5))
+        R.box((7, 1, 4), (x, 39.5, 26), m=R.emit_mat("#ffc06a", 30), bevel=0.2)
+        R.area((x, 34, 26), (0, 0, 0), 9000, "#ffcf8a", 6)
+
+
 def scene(kind):
     w, h = (1920, 1080) if kind == "thumb" else (1024, 1024)
     R.reset(w // (2 if FAST else 1), h // (2 if FAST else 1), samples=16 if FAST else 64)
-    R.world("#0a1030", 0.4, top="#1a2a6a")
-    stadium()
-    R.sun((50, 0, -30), 1.6, "#cfe0ff")
+    R.world("#1a1612", 0.35, top="#3a2c22")
+    R.sun((50, 0, -30), 1.4, "#ffe2b8")
     if kind == "thumb":
+        dirty_arena()
         cam = R.camera((0, -22, 4.0), (2.5, 0, 3.6), lens=30)
-        goal(15, 4)
-        striker((-5.0, -1.0, 0.0), (0, 0, 55))
-        soccer_ball((4.2, -3.2, 3.4), 1.15)
-        fire_trail((3.4, -2.9, 3.3), (-3.0, -0.8, 1.0), 1.05)
-        R.noob((16.0, 3.0, 2.6), (0, -72, 0), shirt="#eb3737", pants="#1e1b2e", mood="shock",
-               pose={"la": (0, 0, -150), "ra": (0, 0, 150)}, scale=0.95)
-        R.area((-10, -14, 12), (0, 0, 3), 6000, "#ffffff", 10)
-        R.area((10, -8, 6), (0, 0, 3), 5000, "#5ad8ff", 6)
-        R.place_title(cam, "SOCCER", -0.46, 0.74, 6, 0.13, tilt=8, italic_shear=0.18, colors=(("0", "#ffffff"), ("1", "#e6f0ff")),
-                      outline="#0a1640", emit=0.35)
+        # Blauer Spieler mit Messer greift den roten Ballfuehrer von hinten an
+        R.noob((8.0, 2.0, 0.0), (0, 0, 120), shirt="#eb3737", pants="#1e1b2e", mood="shock",
+               pose={"rl": (-40, 0, 0), "ll": (30, 0, 0), "la": (-40, 0, 20), "ra": (40, 0, -20)})
+        soccer_ball((5.6, -0.6, 0.75), 0.75)
+        striker((-0.8, -2.0, 0.0), (0, 0, 70))
+        knife((1.0, -4.2, 3.3), (0, 62, -15), s=0.85)
+        R.area((-10, -14, 12), (0, 0, 3), 6000, "#fff0d8", 10)
+        R.area((10, -8, 6), (0, 0, 3), 3000, "#ff9a4a", 6)
+        R.place_title(cam, "SOCCER", -0.46, 0.74, 6, 0.13, tilt=8, italic_shear=0.18, colors=(("0", "#ffffff"), ("1", "#d8dce6")),
+                      outline="#141414", emit=0.3)
         R.place_title(cam, "JAM!", -0.44, 0.38, 6, 0.22, tilt=8, italic_shear=0.18, colors=(("0.05", "#ff4a1a"), ("0.6", "#ff9a1a"), ("1", "#ffe08a")),
                       outline="#1a0802")
         R.render(os.path.join(OUT, "thumbnail.png"))
     else:
-        cam = R.camera((-1.2, -15, 4.4), (-0.5, 0, 4.4), lens=32)
-        goal(15, 4)
-        striker((-4.0, -0.5, 0.0), (0, 0, 55))
-        soccer_ball((2.6, -2.6, 5.0), 1.5)
-        fire_trail((1.6, -2.3, 4.8), (-4.0, -0.5, 2.0), 1.35)
-        R.area((-10, -14, 12), (0, 0, 3), 6000, "#ffffff", 10)
-        R.place_title(cam, "SOCCER", 0.0, -0.68, 6, 0.16, tilt=6, italic_shear=0.18, colors=(("0.05", "#ff4a1a"), ("0.6", "#ff9a1a"), ("1", "#ffe08a")),
+        # Logo: Fussball vor zwei gekreuzten CS-Messern, darunter SOCCER JAM
+        cam = R.camera((0, -16, 0), (0, 0, 0), lens=40)
+        R.backdrop(cam, 22, [(0.0, "#e0601c"), (0.4, "#6a240c"), (1.0, "#100a06")], rays=14, ray_color="#ffb060", ray_strength=0.08, center=(0.0, 0.25))
+        # zwei grosse Messer als X, Kreuzung hinter dem Ball
+        for side in (-1, 1):
+            a = math.radians(48)
+            ks = 1.8
+            mid = 2.4 * ks
+            knife((side * mid * math.sin(a), 1.0 + side * 0.15, 1.9 - mid * math.cos(a)), (0, -side * 48, 0), s=ks)
+        soccer_ball((0, -1.5, 1.9), 1.7)
+        R.area((-6, -12, 8), (0, 0, 1), 5000, "#ffffff", 8)
+        R.area((7, -8, -2), (0, 0, 1), 2500, "#ffb070", 6)
+        R.point((0, 3, 4), 2500, "#ff8a2a", 2.0)
+        R.place_title(cam, "SOCCER", 0.0, -0.5, 6, 0.15, tilt=5, italic_shear=0.15, colors=(("0", "#ffffff"), ("1", "#d8dce6")),
+                      outline="#141414", emit=0.3)
+        R.place_title(cam, "JAM!", 0.0, -0.8, 6, 0.17, tilt=5, italic_shear=0.15, colors=(("0.05", "#ff4a1a"), ("0.6", "#ff9a1a"), ("1", "#ffe08a")),
                       outline="#1a0802")
         R.render(os.path.join(OUT, "icon.png"))
 

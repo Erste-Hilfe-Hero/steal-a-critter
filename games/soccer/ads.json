@@ -4,5 +4,6 @@
   "paymentType": "CREDIT_CARD",
   "budgetMicros": "11000000",
   "durationInDays": 1,
-  "idempotencyKey": "b3e9d2c4-7a15-4f86-9c2e-1d5a8f4b6e27"
+  "idempotencyKey": "b3e9d2c4-7a15-4f86-9c2e-1d5a8f4b6e27",
+  "campaignId": "dd9a747e-783e-4d79-acb0-75a2146148e2"
 }

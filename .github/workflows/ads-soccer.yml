@@ -9,6 +9,10 @@ on:
         description: "Create the 1-day campaign (otherwise only check options and upload creative)"
         type: boolean
         default: false
+      update_creative:
+        description: "Swap the running campaign's creative to the fresh thumbnail (budget unchanged)"
+        type: boolean
+        default: false
 
 jobs:
   ads:
@@ -58,3 +62,12 @@ jobs:
           R=$(curl -sS -X POST "$ADS/campaigns" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
             -H "x-idempotency-key: $(jq -r '.idempotencyKey' ads.json)" -d "$BODY" -w " HTTP %{http_code}")
           echo "::notice::campaign: $(echo "$R" | head -c 800)"
+
+      # Werbebild der laufenden Kampagne austauschen (Budget und Laufzeit bleiben gleich)
+      - name: Update creative
+        if: inputs.update_creative && env.ASSET != ''
+        run: |
+          C=$(jq -r '.campaignId' ads.json)
+          R=$(curl -sS -X PATCH "$ADS/campaigns/$C?updateMask=creativeAssetIds" -H "x-api-key: $ROBLOX_API_KEY" \
+            -H "Content-Type: application/json" -d "$(jq -nc --arg a "$ASSET" '{creativeAssetIds: [$a]}')" -w " HTTP %{http_code}")
+          echo "::notice::update creative: $(echo "$R" | head -c 600)"

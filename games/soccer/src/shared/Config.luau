@@ -193,6 +193,24 @@ Config.XPBoostMinutes = 30
 Config.GoldenKnifeDamage = 1.35
 Config.IronBodyHP = 50
 Config.CannonShotPower = 1.2
+Config.SpeedDemonFactor = 1.12
+Config.TurboLungsFactor = 1.5
+Config.MagnetFeetRange = 1.4
+Config.IronGripFactor = 0.5
+Config.SteelKeeperFactor = 1.25
+Config.QuickRespawnSeconds = 1
+Config.VampireHeal = 0.5
+Config.NinjaBackstabDot = 0.15
+Config.NinjaStabCooldown = 0.7
+Config.RageFactor = 1.25
+
+-- Pass oder zeitlicher Boost (Attribut am Spieler)
+function Config.Has(player: Player?, key: string): boolean
+	return player ~= nil and player:GetAttribute("Pass_" .. key) == true
+end
+function Config.Active(player: Player?, attribute: string): boolean
+	return player ~= nil and (player:GetAttribute(attribute) or 0) > workspace:GetServerTimeNow()
+end
 Config.AdCooldown = 300
 Config.StarterPackDelay = 90
 
@@ -231,6 +249,14 @@ Config.GamePasses = {
 	GoldenKnife = { ProductName = "Golden Knife", Name = "Golden Knife", Description = "+35% knife damage and a glowing golden blade", PriceHint = 349, Order = 6 },
 	IronBody = { ProductName = "Iron Body", Name = "Iron Body", Description = "+50 max health in every match", PriceHint = 249, Order = 7 },
 	CannonShot = { ProductName = "Cannon Shot", Name = "Cannon Shot", Description = "All your kicks are 20% harder", PriceHint = 249, Order = 8 },
+	SpeedDemon = { ProductName = "Speed Demon", Name = "Speed Demon", Description = "Run 12% faster in every match", PriceHint = 249, Order = 9 },
+	TurboLungs = { ProductName = "Turbo Lungs", Name = "Turbo Lungs", Description = "+50% turbo stamina and faster recovery", PriceHint = 199, Order = 10 },
+	MagnetFeet = { ProductName = "Magnet Feet", Name = "Magnet Feet", Description = "Grab loose balls from 40% farther away", PriceHint = 249, Order = 11 },
+	IronGrip = { ProductName = "Iron Grip", Name = "Iron Grip", Description = "Knife hits make you drop the ball half as often", PriceHint = 249, Order = 12 },
+	SteelKeeper = { ProductName = "Steel Keeper", Name = "Steel Keeper", Description = "Catch shots that are 25% harder", PriceHint = 199, Order = 13 },
+	QuickRespawn = { ProductName = "Quick Respawn", Name = "Quick Respawn", Description = "Back up after a knockout in 1 second instead of 2", PriceHint = 149, Order = 14 },
+	VampireKnife = { ProductName = "Vampire Knife", Name = "Vampire Knife", Description = "Heal 50% of the knife damage you deal", PriceHint = 299, Order = 15 },
+	Ninja = { ProductName = "Ninja", Name = "Ninja", Description = "Backstabs from a wider angle and 30% faster stab", PriceHint = 249, Order = 16 },
 }
 
 Config.DevProducts = {
@@ -240,6 +266,8 @@ Config.DevProducts = {
 	MatchEXP = { ProductName = "+600 Match EXP", Kind = "MatchEXP", EXP = 600, Name = "+600 EXP", Description = "Upgrade your skills right now (this match)", PriceHint = 39, Order = 4 },
 	MaxUpgrades = { ProductName = "Max All Upgrades", Kind = "MaxUpgrades", Name = "MAX ALL", Description = "All 5 upgrades to max level for this match", PriceHint = 149, Order = 5 },
 	XPBoost = { ProductName = "XP Boost 30 min", Kind = "XPBoost", Name = "2x XP for 30 min", PriceHint = 39, Order = 6 },
+	Shield = { ProductName = "Bubble Shield", Kind = "Shield", Seconds = 30, Name = "Bubble Shield", Description = "No damage for 30 seconds", PriceHint = 49, Order = 8 },
+	Rage = { ProductName = "Rage Mode", Kind = "Rage", Seconds = 60, Name = "Rage Mode", Description = "60 seconds: +25% speed and +25% knife damage", PriceHint = 49, Order = 9 },
 	Fireworks = { ProductName = "Stadium Fireworks", Kind = "Fireworks", Name = "Stadium Fireworks", Description = "Light up the whole stadium", PriceHint = 29, Order = 7 },
 	StarterPack = { ProductName = "Starter Pack", Kind = "StarterPack", Coins = 2500, EXP = 1000, Name = "Starter Pack", Description = "One time: 2,500 coins + 1,000 match EXP + Starter trail", PriceHint = 79, Hidden = true },
 	AdCoins = { ProductName = "Free Coins (Video Ad)", Kind = "AdCoins", Coins = 150, Name = "Free Coins", PriceHint = 5, Hidden = true },
