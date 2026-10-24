@@ -20,4 +20,12 @@ jobs:
           echo "::notice::thumbs: $(curl -sS "https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=$U&size=768x432&format=Png" | jq -c '[.data[0].thumbnails[] | {targetId, state}]')"
           C=$(jq -r '.campaignId // empty' ads.json)
           [ -n "$C" ] && echo "::notice::campaign: $(curl -sS "https://apis.roblox.com/ads-management/v1/campaigns/$C" -H "x-api-key: $ROBLOX_API_KEY" | head -c 600)"
+          echo "::notice::universe: $(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{visibility, ageRating, privateServerPriceRobux, desktopEnabled, mobileEnabled, tabletEnabled, consoleEnabled, vrEnabled}')"
+          P=$(jq -r '.placeId' roblox.json)
+          echo "::notice::place-details: $(curl -sS "https://games.roblox.com/v1/games/multiget-place-details?placeIds=$P" | head -c 300)"
+          echo "::notice::servers: $(curl -sS "https://games.roblox.com/v1/games/$P/servers/Public?limit=10" | jq -c '[.data[]? | {playing, maxPlayers}]' 2>/dev/null)"
+          for EP in "campaigns/$C/insights" "campaigns/$C/reports" "campaigns/$C/metrics" "reports?campaignId=$C"; do
+            echo "::notice::ads $EP: $(curl -sS "https://apis.roblox.com/ads-management/v1/$EP" -H "x-api-key: $ROBLOX_API_KEY" -w " HTTP %{http_code}" | head -c 400)"
+          done
+          echo "::notice::campaign-full: $(curl -sS "https://apis.roblox.com/ads-management/v1/campaigns/$C" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{status, deliveryStatus, deliveryStatusReasons, budget, bid, targeting, spend, metrics}' 2>/dev/null)"
           true
