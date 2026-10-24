@@ -90,6 +90,17 @@ check("tier 2 protected", (function()
 	return true
 end)())
 
+-- Laeuft hier ueberhaupt Physik? Ohne Physik laufen Humanoids nicht: dann nur die Bot-Ziele pruefen.
+local probe = Instance.new("Part")
+probe.Position = Vector3.new(0, 900, 0)
+probe.Parent = workspace
+task.wait(1)
+local physics = probe.Position.Y < 899
+probe:Destroy()
+if not physics then
+	table.insert(results, "INFO physics not simulated here, movement checks use bot walk targets")
+end
+
 -- Runde nur mit Bots
 ok, err = pcall(function()
 	match.StartedAt = workspace:GetServerTimeNow()
@@ -156,23 +167,48 @@ for _, hero in heroes.Heroes do
 		rich += 1
 	end
 end
-check("heroes gained xp", leveled >= 4, leveled)
-check("heroes last-hit minions", rich >= 2, rich)
-check("minions alive", #lane.Minions > 0, #lane.Minions)
-local positions = {}
-for _, hero in heroes.Heroes do
-	if combat.Alive(hero) then
-		table.insert(positions, math.floor(math.abs(combat.Position(hero).X)))
+local minionMoved = 0
+for _, minion in lane.Minions do
+	local home = Config.Map.Fountain[minion.Team]
+	if math.abs(combat.Position(minion).X) < math.abs(home.X) - 40 then
+		minionMoved += 1
 	end
 end
-check("bots left the fountain", (function()
-	for _, x in positions do
-		if x < 170 then
-			return true
+check("minions alive", #lane.Minions > 0, #lane.Minions)
+check("minions march", minionMoved > 0, minionMoved)
+if physics then
+	check("heroes gained xp", leveled >= 4, leveled)
+	check("heroes last-hit minions", rich >= 2, rich)
+	local positions = {}
+	for _, hero in heroes.Heroes do
+		if combat.Alive(hero) then
+			table.insert(positions, math.floor(math.abs(combat.Position(hero).X)))
 		end
 	end
-	return false
-end)(), table.concat(positions, ","))
+	check("bots left the fountain", (function()
+		for _, x in positions do
+			if x < 170 then
+				return true
+			end
+		end
+		return false
+	end)(), table.concat(positions, ","))
+else
+	-- Ohne Physik: die Bots muessen wenigstens ein Ziel ausserhalb des Brunnens ansteuern
+	local targets = {}
+	local outward = false
+	for _, hero in heroes.Heroes do
+		if hero.Humanoid then
+			local x = math.floor(math.abs(hero.Humanoid.WalkToPoint.X))
+			table.insert(targets, x)
+			if x < 170 then
+				outward = true
+			end
+		end
+	end
+	check("bots head out of the fountain", outward, table.concat(targets, ","))
+	table.insert(results, `INFO xp {leveled}, last-hits {rich}`)
+end
 local hurt = 0
 for _, tower in lane.Towers do
 	if tower.HP < tower.MaxHP then

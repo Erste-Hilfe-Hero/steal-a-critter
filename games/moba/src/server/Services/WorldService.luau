@@ -413,8 +413,10 @@ end
 local function attach(model: Model, root: BasePart, props): BasePart
 	props.Parent = model
 	props.CanCollide = false
+	local welded = props.Weld
+	props.Weld = nil
 	local p = part(props)
-	if not root.Anchored or props.Weld then
+	if not root.Anchored or welded then
 		p.Anchored = false
 		p.Massless = true
 		weld(root, p)
