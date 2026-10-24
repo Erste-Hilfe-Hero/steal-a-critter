@@ -173,9 +173,10 @@ local function finishStage(player: Player, stage: number, clientStage: any, clie
 	run.Ranked = false
 	setStage(player, 0)
 	services.Net.Result:FireClient(player, result)
+	-- Nach dem Ziel gleich die naechste Runde ab Stage 1
 	task.delay(3, function()
 		if player.Parent and runs[player] and runs[player].Stage == 0 then
-			teleport(player, services.WorldService:GetLobbySpawn(), 0)
+			TimerService:Begin(player, 1, true)
 		end
 	end)
 	task.spawn(services.DataService.Save, services.DataService, player)
@@ -231,9 +232,10 @@ function TimerService:Start()
 	end)
 end
 
+-- Direkt auf Stage 1 starten (die Lobby erreicht man ueber den Lobby-Knopf); der Respawn bringt einen hin
 function TimerService:OnPlayerReady(player: Player)
-	runs[player] = { Stage = 0, Ranked = false, StageClean = true }
-	setStage(player, 0)
+	runs[player] = { Stage = 1, Ranked = not lowGravity(), StageClean = not lowGravity() }
+	setStage(player, 1)
 end
 
 -- Nach einem Respawn (z. B. Reset im Menue) in der aktuellen Stage weitermachen
