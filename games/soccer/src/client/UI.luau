@@ -189,24 +189,42 @@ end
 
 local scoreLabels = {} :: any
 
+-- TV-Einblendung oben rechts wie beim echten Fussball: RED 2 : 1 BLUE | Zeit,
+-- darunter Ballbesitz-Balken und Team-Statistik (antippen klappt sie ein/aus)
+local STAT_ROWS = { { "Possession", "POSSESSION", "%" }, { "Shots", "SHOTS", "" }, { "Steals", "STEALS", "" }, { "Saves", "SAVES", "" }, { "Smacks", "SMACKS", "" } }
+
 local function buildScoreboard()
-	local board = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 6), Size = UDim2.fromOffset(380, 58), BackgroundColor3 = PANEL, Parent = root }, { corner(14), stroke(C.Navy, 3) })
+	local holder = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 8), Size = UDim2.fromOffset(330, 160), BackgroundTransparency = 1, Parent = root })
+	local bug = create("TextButton", { Size = UDim2.fromOffset(330, 44), BackgroundColor3 = PANEL, Text = "", AutoButtonColor = false, Parent = holder }, { corner(10), stroke(C.Navy, 3) })
+	local x = { Red = { Block = 0, Score = 72 }, Blue = { Block = 164, Score = 118 } }
 	for index, teamName in Config.TeamOrder do
 		local team = Config.Teams[teamName]
-		local left = index == 1
-		local block = create("Frame", {
-			Position = if left then UDim2.fromOffset(0, 0) else UDim2.new(1, -140, 0, 0),
-			Size = UDim2.new(0, 140, 1, 0),
-			BackgroundColor3 = team.Color,
-			Parent = board,
-		}, { corner(14) })
-		label({ Position = UDim2.fromOffset(if left then 10 else 62, 10), Size = UDim2.fromOffset(68, 38), Text = string.upper(team.Name), TextXAlignment = if left then Enum.TextXAlignment.Left else Enum.TextXAlignment.Right, Parent = block })
-		scoreLabels[teamName] = label({ Position = UDim2.fromOffset(if left then 84 else 8, 4), Size = UDim2.fromOffset(48, 50), Text = "0", Parent = block })
+		local pos = x[teamName] or (if index == 1 then x.Red else x.Blue)
+		local block = create("Frame", { Position = UDim2.fromOffset(pos.Block, 0), Size = UDim2.fromOffset(72, 44), BackgroundColor3 = team.Color, Parent = bug }, { corner(10) })
+		scoreLabels[teamName .. "Mark"] = create("UIStroke", { Thickness = 3, Color = C.Lime, Enabled = false, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = block })
+		label({ Position = UDim2.fromOffset(6, 8), Size = UDim2.new(1, -12, 0, 28), Text = string.upper(team.Name), Parent = block })
+		local box = create("Frame", { Position = UDim2.fromOffset(pos.Score, 4), Size = UDim2.fromOffset(46, 36), BackgroundColor3 = C.White, Parent = bug }, { corner(6) })
+		scoreLabels[teamName] = label({ Position = UDim2.fromOffset(2, 2), Size = UDim2.new(1, -4, 1, -4), Text = "0", TextColor3 = C.Navy, StrokeThickness = 0, Parent = box })
 	end
-	scoreLabels.Time = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 6), Size = UDim2.fromOffset(96, 46), Text = "4:00", Parent = board })
-	scoreLabels.Status = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 1, 4), Size = UDim2.fromOffset(300, 26), Text = "", TextColor3 = C.Lime, Parent = board })
-	-- Eigenes Team markieren
-	scoreLabels.YouTag = label({ Size = UDim2.fromOffset(60, 18), Text = "YOU", TextColor3 = C.Lime, Visible = false, Parent = board })
+	local clock = create("Frame", { Position = UDim2.fromOffset(240, 4), Size = UDim2.fromOffset(86, 36), BackgroundColor3 = C.Navy, Parent = bug }, { corner(6) })
+	scoreLabels.Time = label({ Position = UDim2.fromOffset(4, 3), Size = UDim2.new(1, -8, 1, -6), Text = "8:00", TextColor3 = C.Lime, Parent = clock })
+
+	local stats = create("Frame", { Position = UDim2.fromOffset(6, 46), Size = UDim2.fromOffset(318, 4 + 18 + #STAT_ROWS * 20), BackgroundColor3 = PANEL, BackgroundTransparency = 0.15, Parent = holder }, { corner(8) })
+	local barBack = create("Frame", { Position = UDim2.fromOffset(8, 6), Size = UDim2.new(1, -16, 0, 10), BackgroundColor3 = Config.Teams.Blue.Color, Parent = stats }, { corner(5) })
+	scoreLabels.PossessionBar = create("Frame", { Size = UDim2.fromScale(0.5, 1), BackgroundColor3 = Config.Teams.Red.Color, Parent = barBack }, { corner(5) })
+	for row, def in STAT_ROWS do
+		local y = 4 + 18 + (row - 1) * 20
+		scoreLabels["Red" .. def[1]] = label({ Position = UDim2.fromOffset(10, y), Size = UDim2.fromOffset(60, 18), Text = "0", Font = BODY, TextColor3 = Config.Teams.Red.Color, TextXAlignment = Enum.TextXAlignment.Left, Parent = stats })
+		label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, y + 1), Size = UDim2.fromOffset(150, 16), Text = def[2], Font = BODY, TextColor3 = Color3.fromRGB(200, 210, 240), StrokeThickness = 1, Parent = stats })
+		scoreLabels["Blue" .. def[1]] = label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, y), Size = UDim2.fromOffset(60, 18), Text = "0", Font = BODY, TextColor3 = Config.Teams.Blue.Color, TextXAlignment = Enum.TextXAlignment.Right, Parent = stats })
+	end
+	scoreLabels.Stats = stats
+	bug.MouseButton1Click:Connect(function()
+		stats.Visible = not stats.Visible
+	end)
+
+	-- Status (Anstoss-Countdown, Golden Goal ...) oben in der Mitte
+	scoreLabels.Status = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 10), Size = UDim2.fromOffset(420, 32), Text = "", TextColor3 = C.Lime, StrokeThickness = 3, Parent = root })
 end
 
 local function updateScoreboard()
@@ -222,10 +240,16 @@ local function updateScoreboard()
 		elseif state == "Waiting" then "WAITING FOR PLAYERS"
 		else ""
 	scoreLabels.Status.TextColor3 = if golden then C.Gold else C.Lime
+	scoreLabels.Time.TextColor3 = if golden then C.Gold else C.Lime
 	local team = player:GetAttribute("Team")
-	scoreLabels.YouTag.Visible = team ~= nil
-	scoreLabels.YouTag.Position = if team == "Blue" then UDim2.new(0, 40, 1, 2) else UDim2.new(1, -100, 1, 2)
-	scoreLabels.YouTag.TextColor3 = if team then Config.Teams[team].Color else C.Lime
+	for _, teamName in Config.TeamOrder do
+		scoreLabels[teamName .. "Mark"].Enabled = team == teamName
+		for _, def in STAT_ROWS do
+			scoreLabels[teamName .. def[1]].Text = tostring(workspace:GetAttribute(`Stat{teamName}{def[1]}`) or (if def[1] == "Possession" then 50 else 0)) .. def[3]
+		end
+	end
+	local share = (workspace:GetAttribute("StatRedPossession") or 50) / 100
+	scoreLabels.PossessionBar.Size = UDim2.fromScale(math.clamp(share, 0.02, 0.98), 1)
 end
 
 ---------------------------------------------------------------- Profil (Level, XP, Coins, Boost)
@@ -787,6 +811,10 @@ end
 ---------------------------------------------------------------- Start
 
 function UI.Start()
+	-- Die Spielerliste oben rechts weicht der TV-Anzeige
+	pcall(function()
+		game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+	end)
 	gui = create("ScreenGui", { Name = "TurboHUD", ResetOnSpawn = false, IgnoreGuiInset = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Parent = player:WaitForChild("PlayerGui") })
 	root = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = gui })
 	-- Alles fuer 1280x720 entworfen und passend skaliert (Handy bis Monitor)

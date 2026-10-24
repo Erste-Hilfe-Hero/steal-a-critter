@@ -8,6 +8,7 @@ local TextChatService = game:GetService("TextChatService")
 local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Sounds = require(script.Sounds)
 local UI = require(script.UI)
 
 local player = Players.LocalPlayer
@@ -114,6 +115,19 @@ local function tackle()
 	player:SetAttribute("TackleReadyAt", serverNow() + Config.TackleCooldown(skill("Disarm")))
 	remotes.Tackle:FireServer()
 	local direction = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z).Unit
+	local dashTime = 0.25
+	-- Zielhilfe: steht ein gegnerischer Ballfuehrer in der Naehe, sprintet man direkt auf ihn zu
+	local target = carrierValue.Value
+	local targetRoot = target and target:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if targetRoot and target:GetAttribute("Team") ~= player:GetAttribute("Team") then
+		local offset = targetRoot.Position + targetRoot.AssemblyLinearVelocity * 0.15 - root.Position
+		local flatOffset = Vector3.new(offset.X, 0, offset.Z)
+		if flatOffset.Magnitude < Config.TackleAssistRange and flatOffset.Magnitude > 0.5 then
+			direction = flatOffset.Unit
+			dashTime = math.clamp((flatOffset.Magnitude - 2) / Config.DashSpeed, 0.08, 0.3)
+			root.CFrame = CFrame.lookAt(root.Position, root.Position + direction)
+		end
+	end
 	local attachment = root:FindFirstChild("RootAttachment") :: Attachment?
 	if attachment then
 		local velocity = Instance.new("LinearVelocity")
@@ -126,8 +140,8 @@ local function tackle()
 		velocity.MaxForce = 1e6
 		velocity.Parent = root
 		dashVelocity = velocity
-		dashUntil = os.clock() + 0.25
-		task.delay(0.25, function()
+		dashUntil = os.clock() + dashTime
+		task.delay(dashTime, function()
 			velocity:Destroy()
 			if dashVelocity == velocity then
 				dashVelocity = nil
@@ -287,6 +301,8 @@ remotes.MatchEvent.OnClientEvent:Connect(function(kind, info)
 	if kind == "Goal" then
 		UI.ShowGoal(info)
 		shake(1.2, 0.6)
+		Sounds.Play("Horn")
+		Sounds.Play("Cheer")
 	elseif kind == "Ended" then
 		local text = if info.Winner then `{string.upper(info.Winner)} WIN {math.max(info.Blue, info.Red)}-{math.min(info.Blue, info.Red)}!` else `DRAW {info.Blue}-{info.Red}`
 		UI.Announce(text, if info.Winner then Config.Teams[info.Winner].Color else Config.Colors.White, 5)
@@ -300,10 +316,41 @@ remotes.MatchEvent.OnClientEvent:Connect(function(kind, info)
 end)
 
 workspace:GetAttributeChangedSignal("MatchState"):Connect(function()
-	if workspace:GetAttribute("MatchState") == "Kickoff" then
+	local state = workspace:GetAttribute("MatchState")
+	if state == "Kickoff" then
 		UI.HideResults()
+	elseif state == "Playing" then
+		Sounds.Play("Whistle")
+	elseif state == "Ended" then
+		Sounds.Play("WhistleEnd")
 	end
 end)
+
+-- Soundeffekte vom Server; ein Smack laesst das Publikum aufstoehnen
+remotes.Sound.OnClientEvent:Connect(function(name: string, position: Vector3?, pitch: number?, volume: number?)
+	Sounds.Play(name, position, pitch, volume)
+	if name == "Smack" then
+		Sounds.Play("Ooh")
+	end
+end)
+
+-- Countdown-Piepen vor dem Anstoss (3, 2, 1)
+task.spawn(function()
+	local lastBeep = 0
+	while true do
+		task.wait(0.1)
+		if workspace:GetAttribute("MatchState") == "Kickoff" then
+			local remaining = math.ceil((workspace:GetAttribute("StateEnds") or 0) - serverNow())
+			if remaining >= 1 and remaining <= 3 and remaining ~= lastBeep then
+				lastBeep = remaining
+				Sounds.Play("Beep")
+			end
+		else
+			lastBeep = 0
+		end
+	end
+end)
+Sounds.StartCrowd()
 
 -- Wer den Ball hat, bekommt einen leuchtenden Rahmen in der Teamfarbe
 local carrierHighlight = Instance.new("Highlight")
