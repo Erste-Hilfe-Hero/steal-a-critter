@@ -314,6 +314,11 @@ function GardenService:Harvest(player: Player, index: number, silent: boolean?):
 	local weight = 0.8 + math.random() * 0.7
 	local value = math.floor(seed.Value * weight * (if mutation then mutation.Multiplier else 1))
 	table.insert(data.Fruits, { Id = seed.Id, Value = value, Mutation = if mutation then mutation.Name else nil })
+	local plot = playerPlots[player]
+	if plot and plot.Tiles[index] then
+		local label = (if mutation then mutation.Name .. " " else "") .. seed.Name
+		self.Services.Net.Effect:FireClient(player, "Harvest", plot.Tiles[index].Part.Position, label, if mutation then mutation.Color else seed.Color)
+	end
 	if seed.Regrow then
 		plant.Grown = 0
 		plant.Need = seed.Regrow
@@ -419,6 +424,7 @@ function GardenService:SellAll(player: Player)
 	data.Fruits = {}
 	self.Services.DataService:AddCoins(player, total)
 	notify(player, `Sold {count} fruits for {Format.Cash(total)}!`, GREEN)
+	self.Services.Net.Effect:FireClient(player, "Sell", nil, "+" .. Format.Cash(total), GOLD)
 end
 
 local function isNearSell(player: Player): boolean

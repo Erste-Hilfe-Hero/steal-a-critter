@@ -97,6 +97,27 @@ function WorldService:Build()
 	Lighting.ClockTime = 14
 	Lighting.Brightness = 2.5
 	Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
+	Lighting.GlobalShadows = true
+	-- Warmer, satter Look
+	local atmosphere = Instance.new("Atmosphere")
+	atmosphere.Density = 0.28
+	atmosphere.Haze = 1
+	atmosphere.Color = Color3.fromRGB(200, 230, 255)
+	atmosphere.Decay = Color3.fromRGB(120, 170, 220)
+	atmosphere.Parent = Lighting
+	local color = Instance.new("ColorCorrectionEffect")
+	color.Saturation = 0.15
+	color.Contrast = 0.05
+	color.TintColor = Color3.fromRGB(255, 250, 240)
+	color.Parent = Lighting
+	local bloom = Instance.new("BloomEffect")
+	bloom.Intensity = 0.4
+	bloom.Size = 24
+	bloom.Threshold = 1.6
+	bloom.Parent = Lighting
+	local sunRays = Instance.new("SunRaysEffect")
+	sunRays.Intensity = 0.06
+	sunRays.Parent = Lighting
 
 	-- So viele Gaerten wie die Servergroesse erlaubt (in den Spieleinstellungen festgelegt)
 	local plotsPerSide = math.ceil(math.clamp(Players.MaxPlayers, MIN_PLOTS, MAX_PLOTS) / 2)
@@ -237,7 +258,78 @@ function WorldService:Build()
 		end
 	end
 
+	self:Decorate(world, groundX)
 	world.Parent = workspace
+end
+
+-- Baeume am Rand, Blumen am Weg, Laternen und ein Brunnen in der Mitte
+function WorldService:Decorate(world: Instance, groundX: number)
+	local deco = Instance.new("Folder")
+	deco.Name = "Decoration"
+	deco.Parent = world
+	local rng = Random.new(42)
+
+	local function tree(position: Vector3, scale: number)
+		makePart({ Name = "Trunk", Shape = Enum.PartType.Cylinder, Size = Vector3.new(8 * scale, 2 * scale, 2 * scale), CFrame = CFrame.new(position + Vector3.new(0, 4 * scale, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(120, 80, 50), Material = Enum.Material.Wood, Parent = deco })
+		for _, offset in { Vector3.new(0, 10, 0), Vector3.new(2.5, 8.5, 1), Vector3.new(-2.5, 8.5, -1) } do
+			makePart({ Name = "Leaves", Shape = Enum.PartType.Ball, Size = Vector3.one * 7 * scale, Position = position + offset * scale, Color = Color3.fromRGB(60 + rng:NextInteger(0, 30), 160 + rng:NextInteger(0, 40), 60), Material = Enum.Material.Grass, CastShadow = true, Parent = deco })
+		end
+	end
+
+	-- Baumreihe hinter den Gaerten und an den Seiten
+	local half = groundX / 2
+	for x = -half + 12, half - 12, 18 do
+		for _, z in { 138, -138 } do
+			tree(Vector3.new(x + rng:NextNumber(-4, 4), 0, z + rng:NextNumber(-4, 4)), rng:NextNumber(0.9, 1.3))
+		end
+	end
+	for z = -110, 110, 22 do
+		for _, x in { half - 10, -half + 10 } do
+			tree(Vector3.new(x, 0, z + rng:NextNumber(-4, 4)), rng:NextNumber(0.9, 1.3))
+		end
+	end
+
+	-- Blumen entlang des Weges
+	local flowerColors = { Color3.fromRGB(255, 90, 120), Color3.fromRGB(255, 220, 60), Color3.fromRGB(180, 110, 255), Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 150, 40) }
+	for x = -half + 14, half - 14, 5 do
+		for _, z in { 10.5, -10.5 } do
+			if math.abs(x) > 34 then
+				local base = Vector3.new(x + rng:NextNumber(-1.5, 1.5), 0, z + rng:NextNumber(-0.8, 0.8))
+				makePart({ Name = "Stem", Size = Vector3.new(0.2, 1.4, 0.2), Position = base + Vector3.new(0, 0.7, 0), Color = Color3.fromRGB(60, 150, 60), CanCollide = false, Parent = deco })
+				makePart({ Name = "Bloom", Shape = Enum.PartType.Ball, Size = Vector3.one * 0.9, Position = base + Vector3.new(0, 1.5, 0), Color = flowerColors[rng:NextInteger(1, #flowerColors)], CanCollide = false, Parent = deco })
+			end
+		end
+	end
+
+	-- Laternen mit warmem Licht
+	for x = -half + 30, half - 30, 60 do
+		for _, z in { 12.5, -12.5 } do
+			makePart({ Name = "LampPost", Size = Vector3.new(0.6, 9, 0.6), Position = Vector3.new(x, 4.5, z), Color = Color3.fromRGB(50, 55, 60), Material = Enum.Material.Metal, Parent = deco })
+			local lamp = makePart({ Name = "Lamp", Shape = Enum.PartType.Ball, Size = Vector3.one * 1.6, Position = Vector3.new(x, 9.4, z), Color = Color3.fromRGB(255, 230, 160), Material = Enum.Material.Neon, CanCollide = false, Parent = deco })
+			local light = Instance.new("PointLight")
+			light.Range = 18
+			light.Brightness = 1.2
+			light.Color = Color3.fromRGB(255, 220, 160)
+			light.Parent = lamp
+		end
+	end
+
+	-- Brunnen in der Mitte des Marktplatzes (hinter dem Spawn)
+	local center = Vector3.new(0, 0, 14)
+	makePart({ Name = "FountainBase", Shape = Enum.PartType.Cylinder, Size = Vector3.new(2, 12, 12), CFrame = CFrame.new(center + Vector3.new(0, 1, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(200, 200, 210), Material = Enum.Material.Marble, Parent = deco })
+	makePart({ Name = "FountainWater", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, 10.4, 10.4), CFrame = CFrame.new(center + Vector3.new(0, 2, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(80, 170, 255), Material = Enum.Material.Glass, Transparency = 0.3, CanCollide = false, Parent = deco })
+	local spout = makePart({ Name = "FountainSpout", Size = Vector3.new(1.4, 5, 1.4), Position = center + Vector3.new(0, 4, 0), Color = Color3.fromRGB(200, 200, 210), Material = Enum.Material.Marble, Parent = deco })
+	local water = Instance.new("ParticleEmitter")
+	water.Rate = 60
+	water.Lifetime = NumberRange.new(1, 1.4)
+	water.Speed = NumberRange.new(10, 12)
+	water.SpreadAngle = Vector2.new(18, 18)
+	water.Acceleration = Vector3.new(0, -25, 0)
+	water.Size = NumberSequence.new(0.35, 0.1)
+	water.Color = ColorSequence.new(Color3.fromRGB(170, 220, 255))
+	water.Transparency = NumberSequence.new(0.2, 0.8)
+	water.EmissionDirection = Enum.NormalId.Top
+	water.Parent = spout
 end
 
 return WorldService

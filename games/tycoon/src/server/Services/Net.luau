@@ -15,6 +15,7 @@ end
 
 Net.Notify = remote("Notify") -- Server -> ein Spieler
 Net.Announce = remote("Announce") -- Server -> alle
+Net.Effect = remote("Effect") -- Server -> ein Spieler (Art, Position, Text, Farbe) fuer Ernte-/Verkaufseffekte
 Net.SelectSeed = remote("SelectSeed") -- Client -> Server (Samen-Id oder nil)
 Net.BuySeed = remote("BuySeed") -- Client -> Server (Samen-Id)
 Net.BuyUpgrade = remote("BuyUpgrade") -- Client -> Server ("Tile", "Sprinkler", "Fertilizer")
