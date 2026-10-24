@@ -24,10 +24,13 @@ local weld: Weld?
 local touches = {} -- { { Actor = actor, Time = number } }
 local immune = {} -- [actor] = Zeitpunkt, bis zu dem dieser Actor den Ball nicht annehmen kann
 local blockCooldown = {} -- [actor] = Zeitpunkt
-local tackles = {} -- [actor] = Ende des Tackle-Fensters
 local lastKick = { Actor = nil :: any, Time = -math.huge, Position = Vector3.zero }
 local curve = { Value = 0, Until = 0 } -- Kurvenball nach dem Schuss
 local lastActivity = 0 -- letzte Beruehrung (fuer die automatische Rueckkehr zur Mitte)
+-- Powerplay wie im Original: Paesse zu immer neuen Mitspielern machen die Schuesse staerker (bis 5)
+local powerPlay = { Team = nil :: string?, Count = 0 }
+local lastHolder = nil :: any
+local lastHolderLost = 0
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -72,6 +75,9 @@ local function addTouch(actor)
 end
 
 local function detach()
+	if BallService.Carrier then
+		lastHolderLost = now()
+	end
 	if weld then
 		weld:Destroy()
 		weld = nil
@@ -114,6 +120,35 @@ local function possess(actor)
 	addTouch(actor)
 end
 
+
+local function setPowerPlay(team: string?, count: number)
+	powerPlay.Team = team
+	powerPlay.Count = count
+	workspace:SetAttribute("PowerPlayTeam", team)
+	workspace:SetAttribute("PowerPlay", count)
+end
+
+-- Ball angenommen: Powerplay weiterzaehlen oder zuruecksetzen; Ball vom Gegner geholt = Steal
+local function onReceive(actor)
+	local previous = lastHolder
+	if previous and previous ~= actor then
+		if previous.Team == actor.Team then
+			if now() - lastHolderLost < 6 then
+				setPowerPlay(actor.Team, math.min(Config.MaxPowerPlay, (if powerPlay.Team == actor.Team then powerPlay.Count else 0) + 1))
+			end
+		else
+			setPowerPlay(actor.Team, 0)
+			if now() - lastHolderLost < 4 then
+				BallService.Services.MatchService:OnTackle(actor, previous)
+			end
+		end
+	elseif not previous then
+		setPowerPlay(actor.Team, 0)
+	end
+	lastHolder = actor
+	BallService.Services.Net.PlaySound("GotBall", ball.Position)
+end
+
 local function canAct(actor): boolean
 	return actor.Humanoid.Health > 0 and (actor.StunnedUntil or 0) < now() and actor.Root.Parent ~= nil
 end
@@ -133,6 +168,8 @@ end
 
 function BallService:Reset(position: Vector3?)
 	detach()
+	lastHolder = nil
+	setPowerPlay(nil, 0)
 	table.clear(touches)
 	table.clear(immune)
 	lastKick.Actor = nil
@@ -162,6 +199,9 @@ function BallService:Kick(actor, dir: Vector3, power: number, spin: number?)
 	local lift = math.clamp(dir.Y, 0, 0.5) * 0.6
 	local angle = math.rad(5 + 18 * power) + lift
 	local speed = Config.KickSpeed(self.Services.MatchService:Skill(actor, "Strength")) * (0.35 + 0.65 * power)
+	if powerPlay.Team == actor.Team then
+		speed *= 1 + Config.PowerPlayBonus * powerPlay.Count
+	end
 	local velocity = (forward * math.cos(angle) + Vector3.yAxis * math.sin(angle)) * speed
 	local position = actor.Root.Position + forward * 3 + Vector3.new(0, -3 + RADIUS + 0.3, 0)
 	immune[actor] = now() + Config.PickupCooldown
@@ -216,23 +256,6 @@ function BallService:Pass(actor)
 	self.Services.Net.PlaySound("Kick", actor.Root.Position, 1.15, 0.4)
 end
 
--- Startet ein Tackle-Fenster; true, wenn das Tackling erlaubt war (Client darf dann sprinten)
-function BallService:Tackle(actor): boolean
-	if not canAct(actor) or self.Carrier == actor then
-		return false
-	end
-	local level = self.Services.MatchService:Skill(actor, "Disarm")
-	if (actor.TackleReadyAt or 0) > now() then
-		return false
-	end
-	actor.TackleReadyAt = now() + Config.TackleCooldown(level)
-	tackles[actor] = now() + Config.TackleWindow
-	if actor.Player then
-		actor.Player:SetAttribute("TackleReadyAt", actor.TackleReadyAt)
-	end
-	return true
-end
-
 local function stun(actor, seconds: number)
 	actor.StunnedUntil = now() + seconds
 	actor.Model:SetAttribute("StunnedUntil", actor.StunnedUntil)
@@ -250,41 +273,16 @@ function BallService:Knock(actor, velocity: Vector3, seconds: number)
 	end
 end
 
--- Disarm: wer im Tackle-Fenster nah genug an den gegnerischen Ballfuehrer kommt, nimmt ihm den Ball
--- direkt ab (der Ball klebt sofort am eigenen Fuss). Gemessen wird nur waagerecht.
-local stealProtectUntil = 0
-local function resolveSteals()
-	local carrier = BallService.Carrier
-	local t = now()
-	for actor, ends in tackles do
-		if t > ends or not actor.Root.Parent then
-			tackles[actor] = nil
-		elseif carrier and carrier.Team ~= actor.Team and canAct(actor) and t >= stealProtectUntil then
-			local match = BallService.Services.MatchService
-			local range = Config.TackleRange(match:Skill(actor, "Disarm"))
-			local offset = carrier.Root.Position - actor.Root.Position
-			if Vector3.new(offset.X, 0, offset.Z).Magnitude <= range and math.abs(offset.Y) < 6 then
-				tackles[actor] = nil
-				local chance = Config.TackleChance(match:Skill(actor, "Disarm"), match:Skill(carrier, "Dexterity"))
-				if not actor.Player and carrier.Player then
-					chance -= 0.2 -- Bots sollen echten Spielern den Ball nicht staendig abnehmen
-				end
-				if math.random() < chance then
-					stun(carrier, Config.StunTime)
-					immune[carrier] = t + Config.StunTime + 0.3
-					possess(actor)
-					stealProtectUntil = t + Config.StealProtect
-					match:OnTackle(actor, carrier)
-					BallService.Services.Net.PlaySound("Steal", actor.Root.Position)
-				else
-					stun(actor, 0.4)
-					match:OnTackleMissed(actor, carrier)
-					BallService.Services.Net.PlaySound("Dodge", carrier.Root.Position)
-				end
-				carrier = BallService.Carrier
-			end
-		end
+-- Disarm wie im Original: ein Messertreffer am Ballfuehrer laesst ihn den Ball verlieren (er rollt nach vorne weg)
+function BallService:Disarm(attacker, victim): boolean
+	if self.Carrier ~= victim then
+		return false
 	end
+	local push = flat(victim.Root.Position - attacker.Root.Position)
+	immune[victim] = now() + 1
+	launch(victim.Root.Position + push * 2 + Vector3.new(0, -3 + RADIUS + 0.5, 0), push * 24 + Vector3.new(0, 14, 0))
+	self.Services.Net.PlaySound("Steal", victim.Root.Position)
+	return true
 end
 
 ---------------------------------------------------------------- Laufende Pruefungen
@@ -332,6 +330,7 @@ local function checkPickup()
 		end
 		return
 	end
+	onReceive(bestActor)
 	possess(bestActor)
 	if save then
 		BallService.Services.MatchService:OnSave(bestActor)
@@ -403,14 +402,11 @@ local function step(dt: number)
 			BallService:Reset()
 			BallService:Unfreeze()
 			BallService.Services.Net.SendAnnounce("Ball returned to the center!", Config.Colors.Lime)
-			BallService.Services.Net.PlaySound("Whistle")
+			BallService.Services.Net.PlaySound("Returned")
 		end
 		if BallService.PickupEnabled then
 			checkPickup()
 		end
-	end
-	if BallService.PickupEnabled then
-		resolveSteals()
 	end
 	if BallService.GoalsEnabled then
 		checkGoal()
@@ -474,6 +470,20 @@ function BallService:Start()
 
 	RunService.Heartbeat:Connect(step)
 
+	-- Aufprall-Geraeusch wie im Original ("bounce"), gedrosselt
+	local lastBounce = 0
+	ball.Touched:Connect(function(part)
+		local t = now()
+		if t - lastBounce < 0.25 or part:FindFirstAncestorOfClass("Model") and part:FindFirstAncestorOfClass("Model"):FindFirstChildOfClass("Humanoid") then
+			return
+		end
+		local speed = ball.AssemblyLinearVelocity.Magnitude
+		if speed > 18 then
+			lastBounce = t
+			BallService.Services.Net.PlaySound("Bounce", ball.Position, 0.9 + math.random() * 0.2, math.clamp(speed / 90, 0.2, 0.8))
+		end
+	end)
+
 	local net = self.Services.Net
 	net.Kick.OnServerEvent:Connect(function(player, dir, power, spin)
 		if typeof(dir) ~= "Vector3" or typeof(power) ~= "number" or dir.Magnitude ~= dir.Magnitude or power ~= power then
@@ -496,11 +506,7 @@ function BallService:Start()
 	net.Tackle.OnServerEvent:Connect(function(player)
 		local actor = self.Services.MatchService:ActorForPlayer(player)
 		if actor then
-			-- KNIFE: Messer-Slash; steht ein gegnerischer Ballfuehrer nah genug, ist es zugleich ein Disarm
 			self.Services.CombatService:Swing(actor, "Slash")
-			if self.PickupEnabled then
-				self:Tackle(actor)
-			end
 		end
 	end)
 end
@@ -508,7 +514,6 @@ end
 function BallService:Forget(actor)
 	immune[actor] = nil
 	blockCooldown[actor] = nil
-	tackles[actor] = nil
 	if self.Carrier == actor then
 		launch(ball.Position, Vector3.new(0, 5, 0))
 	end

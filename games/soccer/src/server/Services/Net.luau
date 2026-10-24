@@ -24,6 +24,7 @@ Net.Kick = remote("Kick") -- Client -> Server (power 0..1, Richtung)
 Net.Pass = remote("Pass") -- Client -> Server
 Net.Tackle = remote("Tackle") -- Client -> Server (KNIFE: Slash + Disarm)
 Net.Stab = remote("Stab") -- Client -> Server (starker Messerstich)
+Net.CallPass = remote("CallPass") -- Client -> Server ("!" ueber dem Kopf: Pass fordern)
 Net.Upgrade = remote("Upgrade") -- Client -> Server (Skill)
 Net.BuyPoint = remote("BuyPoint") -- Client -> Server (Skillpunkt fuer Coins)
 Net.Trail = remote("Trail") -- Client -> Server (kaufen oder ausruesten)

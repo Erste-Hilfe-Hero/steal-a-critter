@@ -135,3 +135,107 @@ save("smack", norm(np.tanh((body + 0.8 * norm(crack)) * 2)))
 x = t(0.16)
 save("beep", norm(np.sin(2 * np.pi * 880 * x) * env(len(x), 0.005, 0.06, 0.16), 0.6))
 print("sounds:", sorted(os.listdir(OUT)))
+
+
+# ---------------------------------------------------------------- Soccer-Jam-Stil, Teil 2
+# Stadionsprecher (Sprachausgabe mit flite, als Lautsprecher-Durchsage nachbearbeitet), alle Saetze
+# in einer Datei hintereinander; die Startzeiten landen in src/shared/VoiceLines.luau.
+import ctypes
+
+FLITE = "/usr/lib/x86_64-linux-gnu/"
+
+
+def speak(text, voice):
+    for lib in ("libflite.so.1", "libflite_usenglish.so.1", "libflite_cmulex.so.1"):
+        ctypes.CDLL(FLITE + lib, mode=ctypes.RTLD_GLOBAL)
+    flite = ctypes.CDLL(FLITE + "libflite.so.1")
+    flite.flite_init()
+    module = ctypes.CDLL(FLITE + f"libflite_cmu_us_{voice}.so.1")
+    register = getattr(module, f"register_cmu_us_{voice}")
+    register.restype = ctypes.c_void_p
+    handle = register(None)
+    flite.flite_text_to_speech.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_char_p]
+    path = os.path.join(OUT, "_tmp_voice.wav")
+    flite.flite_text_to_speech(text.encode(), handle, path.encode())
+    with wave.open(path, "rb") as f:
+        rate = f.getframerate()
+        data = np.frombuffer(f.readframes(f.getnframes()), dtype=np.int16).astype(float) / 32768
+    os.remove(path)
+    # auf 44,1 kHz bringen, etwas tiefer (pitch) fuer eine kraeftige Sprecherstimme
+    pitch = 0.9
+    n = int(len(data) * RATE / rate / pitch)
+    data = np.interp(np.linspace(0, len(data) - 1, n), np.arange(len(data)), data)
+    return data
+
+
+def announcer(x):
+    # Stadion-Lautsprecher: Bandpass, leichte Verzerrung, Hall-Echos
+    x = bandpass(x, 180, 5500)
+    x = np.tanh(norm(x) * 1.8)
+    out = np.concatenate([x, np.zeros(int(0.5 * RATE))])
+    for delay, gain in ((0.09, 0.35), (0.19, 0.22), (0.31, 0.12)):
+        d = int(delay * RATE)
+        out[d:d + len(x)] += x * gain
+    return norm(out, 0.85)
+
+
+LINES = [
+    ("Prepare", "Prepare for kick off!", "rms", 1.0),
+    ("Amazing", "Amazing!", "rms", 1.0),
+    ("Perfect", "Perfect!", "rms", 1.0),
+    ("Boom", "Boom shaka laka!", "rms", 1.0),
+    ("Goal", "Goal!", "rms", 1.0),
+    ("Laugh", "Ha ha ha ha ha!", "awb", 1.0),
+    ("Returned", "Ball returned!", "rms", 1.0),
+    ("Ouch", "Ouch!", "awb", 1.0),
+    ("Three", "Three", "kal", 1.0),
+    ("Two", "Two", "kal", 1.0),
+    ("One", "One", "kal", 1.0),
+    ("Go", "Go!", "kal", 1.0),
+    ("Halftime", "Half time!", "rms", 1.0),
+    ("Winner", "We have a winner!", "rms", 1.0),
+]
+pack = []
+offsets = []
+cursor = 0.0
+for key, text, voice, gain in LINES:
+    clip = announcer(speak(text, voice)) * gain
+    offsets.append((key, cursor, len(clip) / RATE))
+    pack.append(clip)
+    gap = np.zeros(int(0.3 * RATE))
+    pack.append(gap)
+    cursor += len(clip) / RATE + 0.3
+save("announcer", np.concatenate(pack))
+lua = ["-- Automatisch erzeugt von assets/make_sounds.py: Start und Laenge jeder Ansage in announcer.ogg (Sekunden)", "return {"]
+for key, start, length in offsets:
+    lua.append(f"\t{key} = {{ {start:.3f}, {length:.3f} }},")
+lua.append("}")
+with open(os.path.join(os.path.dirname(OUT), "..", "src", "shared", "VoiceLines.luau"), "w") as f:
+    f.write("\n".join(lua) + "\n")
+
+# Tor-Sirene (Alarm wie bei Soccer Jam): auf- und abschwellender Heulton
+x = t(2.6)
+f = 620 + 380 * (0.5 - 0.5 * np.cos(2 * np.pi * x / 1.3))
+siren = np.sign(np.sin(2 * np.pi * np.cumsum(f) / RATE)) * 0.6 + np.sin(2 * np.pi * np.cumsum(f * 2) / RATE) * 0.3
+siren = lowpass(siren, 3500) * env(len(x), 0.05, 0.4, 2.6)
+save("siren", norm(np.tanh(siren * 1.5), 0.8))
+
+# Ball angenommen: kurzes, helles "Plopp"
+x = t(0.18)
+save("gotball", norm(np.sin(2 * np.pi * (520 + 500 * np.exp(-x * 30)) * x) * np.exp(-x * 22), 0.7))
+
+# Level-Up / Upgrade gekauft: kleine aufsteigende Fanfare
+notes = [523, 659, 784, 1047]
+parts = []
+for i, freq in enumerate(notes):
+    x = t(0.13 if i < 3 else 0.45)
+    tone = (np.sign(np.sin(2 * np.pi * freq * x)) * 0.4 + np.sin(2 * np.pi * freq * 2 * x) * 0.3) * env(len(x), 0.005, 0.08 if i < 3 else 0.3, 0)
+    parts.append(lowpass(tone, 4000))
+save("levelup", norm(np.concatenate(parts), 0.7))
+
+# Alien-Zap: elektrischer Schlag
+x = t(0.4)
+buzz = np.sign(np.sin(2 * np.pi * (180 + 60 * np.sin(2 * np.pi * 37 * x)) * x)) * np.exp(-x * 6)
+crackle = bandpass(rng.standard_normal(len(x)), 2000, 8000) * (rng.random(len(x)) > 0.7) * np.exp(-x * 8)
+save("zap", norm(lowpass(buzz, 3000) + crackle * 0.8, 0.8))
+print("sounds:", sorted(os.listdir(OUT)))
