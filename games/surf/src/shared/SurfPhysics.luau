@@ -32,6 +32,36 @@ SurfPhysics.Settings = {
 local SKIN = 0.04 -- Abstand zur Wand, damit der naechste Cast nicht in der Flaeche startet
 local NON_JUMP_VELOCITY = 140 * UNIT -- schneller nach oben = nicht am Boden
 local ZERO = Vector3.new(0, 0, 0)
+local UP = Vector3.new(0, 1, 0)
+local PROBE = 1 -- so weit zurueck setzt die Rettungs-Abfrage an
+
+-- Shapecasts (workspace:Blockcast) melden nichts, wenn die Box schon beim Start eine Flaeche beruehrt
+-- oder minimal darin steckt. Dann wuerde man durch die Rampe fallen. Deshalb bei "kein Treffer"
+-- einmal von aussen (entlang der letzten Kontakt-Normale bzw. von oben) zurueck auf die Box casten:
+-- trifft das schon vor der Box, steckt sie in der Flaeche -> Kontakt mit Abstand 0 und Eindringtiefe.
+function SurfPhysics.Recovering(raw, state)
+	return function(from: Vector3, delta: Vector3)
+		local hit = raw(from, delta)
+		if hit then
+			state.ContactNormal = hit.Normal
+			return hit
+		end
+		local length = delta.Magnitude
+		if length < 1e-6 then
+			return nil
+		end
+		local dir = delta / length
+		local hint = state.ContactNormal
+		for _, k in (if hint and (hint - UP).Magnitude > 1e-3 then { hint, UP } else { UP }) do
+			local back = raw(from + k * PROBE, -k * (PROBE + 0.002))
+			if back and back.Distance <= PROBE + 0.001 and back.Normal:Dot(k) > 0.1 and dir:Dot(back.Normal) < -0.01 then
+				state.ContactNormal = back.Normal
+				return { Distance = 0, Normal = back.Normal, Depth = math.max(0, PROBE - back.Distance) }
+			end
+		end
+		return nil
+	end
+end
 
 local function flat(v: Vector3): Vector3
 	return Vector3.new(v.X, 0, v.Z)
@@ -105,6 +135,9 @@ function SurfPhysics.SlideMove(position: Vector3, velocity: Vector3, dt: number,
 		local dir = delta / length
 		local travel = math.max(0, hit.Distance - SKIN)
 		position += dir * travel
+		if hit.Depth then
+			position += hit.Normal * hit.Depth
+		end
 		-- Mindestabstand auch senkrecht zur Flaeche halten (bei flachem Winkel waere er sonst fast 0)
 		local gap = (hit.Distance - travel) * math.max(0, -dir:Dot(hit.Normal))
 		if gap < SKIN then
@@ -175,6 +208,7 @@ end
 -- Rueckgabe: "Landed" (Aufprall auf Boden aus der Luft) fuer Sounds/Effekte
 function SurfPhysics.Step(state, input, dt: number, cast, s)
 	s = s or SurfPhysics.Settings
+	cast = SurfPhysics.Recovering(cast, state)
 	local position: Vector3 = state.Position
 	local velocity: Vector3 = state.Velocity
 	local wasGrounded = state.Grounded
