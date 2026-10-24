@@ -42,9 +42,10 @@ Pässe werden wie bei Steal a Critter als dauerhafte Developer Products verkauft
 ```
 games/petsim/
   default.project.json
-  roblox.json                   ← Universe- und Place-ID (leer, bis die Experience existiert)
+  roblox.json                   ← Universe/Place-ID (leer = automatisch per Name finden)
   experience.json               ← Name, Beschreibung, Servergröße
   products.json                 ← Produkte, die per Action angelegt werden
+  src/shared/ProductIds.json    ← wird von der Action beim Veröffentlichen erzeugt
   src/shared/Config.luau        ← alle Zahlen, Zonen, Eier, Haustiere, Preise, Produkt-IDs
   src/shared/PetFactory.luau    ← Haustier-Modelle aus Parts
   src/server/Services/
@@ -62,7 +63,7 @@ games/petsim/
 
 ## Veröffentlichung (automatisch)
 
-Die Actions `publish-petsim.yml`, `products-petsim.yml` und `configure-petsim.yml` laufen bei jedem Push auf `main`, sobald in `roblox.json` die IDs stehen. Sie nutzen dasselbe Secret `ROBLOX_API_KEY` wie Steal a Critter. Der API-Schlüssel braucht dafür Zugriff auf die neue Experience.
+Die Action `publish-petsim.yml` läuft bei jedem Push auf `main` (oder per Hand unter *Actions*). Sie nutzt dasselbe Secret `ROBLOX_API_KEY` wie Steal a Critter und findet die Experience selbst: unter allen Experiences, für die der Schlüssel freigegeben ist, nimmt sie die, deren Name "Hatch" oder "Pet" enthält. Dann legt sie fehlende Produkte an, baut die IDs ins Spiel ein, setzt Name und Beschreibung und veröffentlicht. Solange keine passende Experience existiert, wird nur gebaut.
 
 ## Nächste Ausbaustufen (größter Hebel zuerst)
 

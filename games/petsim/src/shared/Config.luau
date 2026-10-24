@@ -1,5 +1,5 @@
 -- Zentrale Spiel- und Monetarisierungs-Einstellungen.
--- Produkt-IDs werden von der Action "Create pet sim products" angelegt und hier eingetragen.
+-- Produkt-IDs kommen automatisch aus ProductIds.json (wird beim Veroeffentlichen per GitHub Action erzeugt).
 -- Solange eine ID 0 ist, kann man den Kauf in Studio ueber den Shop simulieren.
 
 local Config = {}
@@ -176,6 +176,16 @@ Config.GuardianKickCooldown = 60
 
 -- In Studio Kaeufe mit ID 0 simulieren, damit alles testbar ist
 Config.StudioFakePurchases = true
+
+-- Produkt-IDs eintragen (Schluessel = Name in products.json, z. B. "Pass_VIP" oder "CoinsSmall")
+local idsModule = script.Parent:FindFirstChild("ProductIds")
+local ids = if idsModule then require(idsModule) :: any else {}
+for key, pass in Config.GamePasses do
+	pass.ProductId = tonumber(ids["Pass_" .. key]) or 0
+end
+for key, product in Config.DevProducts do
+	product.Id = tonumber(ids[key]) or 0
+end
 
 -- Lookup-Tabellen
 Config.PetsById = {}

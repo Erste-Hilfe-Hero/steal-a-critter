@@ -1,6 +1,8 @@
 -- Client: HUD, Haustiere anzeigen, Tore lokal oeffnen, Chancen an den Eiern, VIP- und Rang-Tag im Chat.
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -86,3 +88,11 @@ TextChatService.OnIncomingMessage = function(message: TextChatMessage)
 	end
 	return properties
 end
+
+-- Farbverlaeufe der Namensschilder schimmern lassen
+RunService.RenderStepped:Connect(function()
+	local offset = (os.clock() * 0.4) % 2 - 1
+	for _, ui in CollectionService:GetTagged("Shimmer") do
+		(ui :: UIGradient).Offset = Vector2.new(offset, 0)
+	end
+end)

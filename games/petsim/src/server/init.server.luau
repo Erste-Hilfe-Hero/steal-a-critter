@@ -26,6 +26,7 @@ end
 local function onCharacterAdded(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	humanoid.WalkSpeed = player:GetAttribute("BaseWalkSpeed") or 16
+	task.spawn(Services.CommunityService.AttachNameplate, Services.CommunityService, player, character)
 	-- Zurueck in die beste freigeschaltete Zone (spart Laufen nach dem Respawn)
 	local data = Services.DataService:Get(player)
 	if data and data.Zone > 1 then
