@@ -34,6 +34,14 @@
       "thumbnails": [
         "games/tycoon/assets/thumbnail.png"
       ]
+    },
+    {
+      "name": "Lanebreakers",
+      "universeId": "10772779235",
+      "icon": "games/moba/assets/icon.png",
+      "thumbnails": [
+        "games/moba/assets/thumbnail.png"
+      ]
     }
   ],
   "languages": [
