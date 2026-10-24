@@ -190,14 +190,24 @@ if ok then
 		local hitOk, hitErr = pcall(race.Debug.Hit, race.Racers[2], bot)
 		check("hit works", hitOk, hitErr)
 	end
-	task.wait(5)
-	local progressed = 0
-	for _, racer in race.Racers do
-		if racer.Progress > Tracks.Geometry("Speedway").Count then
+	-- Die Test-Items (Donner, Feuerbaelle) bremsen die Bots aus, daher Fortschritt ab jetzt messen
+	local before = {}
+	for i, racer in race.Racers do
+		before[i] = racer.Progress
+	end
+	task.wait(8)
+	local progressed, crossed = 0, 0
+	local spacing = Tracks.Geometry("Speedway").Length / Tracks.Geometry("Speedway").Count
+	for i, racer in race.Racers do
+		if (racer.Progress - before[i]) * spacing > 80 then
 			progressed += 1
 		end
+		if racer.Progress > Tracks.Geometry("Speedway").Count then
+			crossed += 1
+		end
 	end
-	check("bots crossed the start line", progressed >= 6, progressed)
+	info(`bots crossed the start line: {crossed}`)
+	check("bots keep driving", progressed >= 6, progressed)
 	deadline = os.clock() + 80
 	while workspace:GetAttribute("Phase") == "Race" and os.clock() < deadline do
 		task.wait(0.5)
