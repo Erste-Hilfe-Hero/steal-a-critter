@@ -23,6 +23,11 @@
       "$properties": {
         "CharacterAutoLoads": true
       }
+    },
+    "ReplicatedFirst": {
+      "LoadingScreen": {
+        "$path": "src/first/LoadingScreen.client.luau"
+      }
     }
   }
 }
