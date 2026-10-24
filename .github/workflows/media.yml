@@ -2,16 +2,18 @@ name: Upload icons and thumbnails
 
 # Laedt Icons und Thumbnails aller Spiele aus media.json hoch, nur mit dem API-Key:
 # - Startseiten-Kacheln (thumbnail-personalization-api, Scope universe.thumbnail:write)
-# - Icon + Thumbnails fuer jede Sprache (Lokalisierungs-API)
-# Die Ausgangssprache selbst nimmt per API-Key keine Bilder an. Deshalb stellen wir sie auf eine
-# kaum genutzte Sprache (sourceLanguage in media.json, von Ali freigegeben), dann sind en und de
-# normale Uebersetzungen und bekommen ihre Bilder.
+# - Icon + Thumbnails fuer jede Sprache ausser der Ausgangssprache (Lokalisierungs-API)
+# Die Ausgangssprache nimmt per API-Key keine Bilder an, und Roblox zeigt ueberall nur deren Bilder
+# (getestet 2026-10-24: Ausgangssprache auf Albanisch, en/de als Uebersetzung -> nirgends sichtbar).
+# Das Haupt-Icon und die Haupt-Thumbnails gehen deshalb nur im Creator Hub.
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths: ["media.json", "assets/**.png", "games/*/assets/**.png", ".github/workflows/media.yml"]
+
+concurrency: media
 
 jobs:
   media:
