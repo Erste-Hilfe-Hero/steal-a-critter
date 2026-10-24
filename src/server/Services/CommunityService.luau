@@ -357,13 +357,14 @@ local function makeLine(parent: Instance, height: number, order: number): TextLa
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, height, 0)
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
+	label.Font = Enum.Font.BuilderSansExtraBold
 	label.TextScaled = true
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.LayoutOrder = order
 	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 2
-	stroke.Color = Color3.fromRGB(20, 20, 30)
+	stroke.Thickness = 1.5
+	stroke.Transparency = 0.2
+	stroke.Color = Color3.fromRGB(10, 10, 16)
 	stroke.Parent = label
 	label.Parent = parent
 	return label
