@@ -35,7 +35,8 @@ jobs:
             OWNER=$(jq -r '.ownerUserId // empty' roblox.json)
             if [ -n "$OWNER" ]; then
               for P in $(curl -sS "https://inventory.roblox.com/v2/users/$OWNER/inventory/9?limit=100&sortOrder=Desc" | jq -r '.data[]?.assetId'); do
-                UNIVERSES="$UNIVERSES $(curl -sS "https://apis.roblox.com/universes/v1/places/$P/universe" | jq -r '.universeId // empty')"
+                U=$(curl -sS "https://apis.roblox.com/universes/v1/places/$P/universe" | jq -r '.universeId // empty')
+                [ -n "$U" ] && UNIVERSES="$UNIVERSES $U" && echo "$U $P" >> placemap.txt
               done
             fi
             for U in $(echo $UNIVERSES | tr ' ' '\n' | sort -u); do
@@ -48,7 +49,15 @@ jobs:
             done
           fi
           if [ -n "$UNIVERSE_ID" ] && [ -z "$PLACE_ID" ]; then
-            PLACE_ID=$(curl -sS "https://develop.roblox.com/v1/universes/$UNIVERSE_ID" | jq -r '.rootPlaceId // empty')
+            # Private Spiele: Place ueber das Inventar des Besitzers finden
+            OWNER=$(jq -r '.ownerUserId // empty' roblox.json)
+            if [ ! -f placemap.txt ] && [ -n "$OWNER" ]; then
+              for P in $(curl -sS "https://inventory.roblox.com/v2/users/$OWNER/inventory/9?limit=100&sortOrder=Desc" | jq -r '.data[]?.assetId'); do
+                echo "$(curl -sS "https://apis.roblox.com/universes/v1/places/$P/universe" | jq -r '.universeId // empty') $P" >> placemap.txt
+              done
+            fi
+            PLACE_ID=$(awk -v u="$UNIVERSE_ID" '$1==u{print $2; exit}' placemap.txt 2>/dev/null)
+            [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://develop.roblox.com/v1/universes/$UNIVERSE_ID" | jq -r '.rootPlaceId // empty')
             [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$UNIVERSE_ID" | jq -r '.data[0].rootPlaceId // empty')
           fi
           if [ -z "$UNIVERSE_ID" ]; then
