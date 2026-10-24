@@ -116,7 +116,7 @@ if ok then
 	check("belt spawns critters", count >= 2, count)
 	if belt and count > 0 then
 		local first = belt:GetChildren()[1]
-		check("belt critter has buy prompt", first.PrimaryPart and first.PrimaryPart:FindFirstChild("BuyPrompt") ~= nil)
+		check("belt critter has buy prompt", first.PrimaryPart and first.PrimaryPart:FindFirstChild("BuyPrompt", true) ~= nil)
 	end
 end
 

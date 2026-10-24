@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local Windows = require(script.Parent.Windows)
 
 local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -225,18 +226,19 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateScale)
 	updateScale()
 
-	------------------------------------------------ Knoepfe rechts (2 Spalten, ueber dem Sprung-Knopf)
+	------------------------------------------------ Knoepfe rechts oben (2x2, weit weg vom Sprung-Knopf)
+	-- Nur die taeglichen Sachen direkt, alles andere steckt im MORE-Menue
 
 	local grid = create("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 64),
-		Size = UDim2.fromOffset(140, 300),
+		Position = UDim2.new(1, -10, 0, 8),
+		Size = UDim2.fromOffset(126, 120),
 		BackgroundTransparency = 1,
 		Parent = root,
 	}, {
 		create("UIGridLayout", {
-			CellSize = UDim2.fromOffset(66, 62),
-			CellPadding = UDim2.fromOffset(8, 8),
+			CellSize = UDim2.fromOffset(60, 56),
+			CellPadding = UDim2.fromOffset(6, 6),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			HorizontalAlignment = Enum.HorizontalAlignment.Right,
 		}),
@@ -250,25 +252,25 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 			LayoutOrder = order,
 			Parent = grid,
 		}, { corner(14), edge(), shine() }) :: TextButton
-		text({ Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 0, 36), Text = icon, TextSize = 27, Parent = result })
+		text({ Position = UDim2.fromOffset(0, 3), Size = UDim2.new(1, 0, 0, 30), Text = icon, TextSize = 24, Parent = result })
 		text({
 			AnchorPoint = Vector2.new(0, 1),
 			Position = UDim2.new(0, 0, 1, -4),
-			Size = UDim2.new(1, 0, 0, 18),
+			Size = UDim2.new(1, 0, 0, 16),
 			Text = caption,
 			Font = TITLE_FONT,
-			TextSize = 13,
+			TextSize = 12,
 			Parent = result,
 		})
 		local badge = text({
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(1, -5, 0, 5),
-			Size = UDim2.fromOffset(22, 22),
+			Size = UDim2.fromOffset(20, 20),
 			BackgroundTransparency = 0,
 			BackgroundColor3 = THEME.Red,
 			Text = "!",
 			Font = TITLE_FONT,
-			TextSize = 16,
+			TextSize = 14,
 			Visible = false,
 			Parent = result,
 		})
@@ -326,13 +328,18 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 		window.Visible = false
 		backdrop.Visible = false
 		openPage = nil
+		Windows.Closed("Hub")
 	end
+	Windows.Register("Hub", closeWindow)
 	local function openWindow(name: string)
 		if openPage == name then
 			closeWindow()
 			return
 		end
 		local page = pages[name]
+		if not openPage then
+			Windows.Opening("Hub")
+		end
 		for key, other in pages do
 			other.Frame.Visible = key == name
 		end
@@ -747,10 +754,7 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 		{ "Quests", "📜", "QUESTS", THEME.Teal },
 		{ "Gifts", "🎁", "GIFTS", THEME.Pink },
 		{ "Spin", "🎡", "SPIN", THEME.Orange },
-		{ "Index", "📖", "INDEX", THEME.Purple },
-		{ "Base", "🏠", "BASE", THEME.Green },
-		{ "Awards", "🏆", "AWARDS", Color3.fromRGB(220, 165, 30) },
-		{ "Codes", "🎟️", "CODES", THEME.Blue },
+		{ "More", "✨", "MORE", THEME.Purple },
 	}
 	for order, entry in entries do
 		local menu, badge = menuButton(entry[2], entry[3], entry[4], order)
@@ -759,13 +763,63 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 		end)
 		buttons[entry[1]] = badge
 	end
+	Windows.OnChanged(function(open)
+		grid.Visible = not open
+	end)
 
-	------------------------------------------------ Infoleiste unten
+	------------------------------------------------ MORE: Kacheln fuer alle weiteren Fenster
+
+	local morePage = addPage("More", "✨ MORE", THEME.Purple, true)
+	create("UIGridLayout", {
+		CellSize = UDim2.fromOffset(142, 100),
+		CellPadding = UDim2.fromOffset(8, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = morePage.Frame,
+	})
+	local moreBadges = {} -- [Seite] = Badge
+	local moreChecks = {} -- [Seite] = () -> boolean (etwas abzuholen?)
+	local function addMoreTile(name: string, icon: string, caption: string, color: Color3, order: number, check: (() -> boolean)?)
+		local tile = create("TextButton", {
+			BackgroundColor3 = color,
+			AutoButtonColor = true,
+			Text = "",
+			LayoutOrder = order,
+			Parent = morePage.Frame,
+		}, { corner(14), edge(), shine() }) :: TextButton
+		text({ Position = UDim2.fromOffset(0, 8), Size = UDim2.new(1, 0, 0, 46), Text = icon, TextSize = 36, Parent = tile })
+		text({ AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 0, 1, -10), Size = UDim2.new(1, 0, 0, 24), Text = caption, Font = TITLE_FONT, TextSize = 18, Parent = tile }, 1)
+		local badge = text({
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -10, 0, 10),
+			Size = UDim2.fromOffset(24, 24),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = THEME.Red,
+			Text = "!",
+			Font = TITLE_FONT,
+			TextSize = 16,
+			Visible = false,
+			Parent = tile,
+		})
+		create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = badge })
+		pressable(tile)
+		tile.Activated:Connect(function()
+			openWindow(name)
+		end)
+		moreBadges[name] = badge
+		moreChecks[name] = check
+	end
+	addMoreTile("Index", "📖", "INDEX", THEME.Purple, 10, indexClaimable)
+	addMoreTile("Base", "🏠", "BASE", THEME.Green, 11, canUpgrade)
+	addMoreTile("Awards", "🏆", "AWARDS", Color3.fromRGB(220, 165, 30), 12, awardsClaimable)
+	addMoreTile("Codes", "🎟️", "CODES", THEME.Blue, 13)
+
+	------------------------------------------------ Infoleiste unten: immer nur EIN Hinweis, wechselt alle 4 Sekunden
+	-- (fuenf Chips nebeneinander liefen auf dem Handy unter Joystick und Sprung-Knopf)
 
 	local bar = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -6),
-		Size = UDim2.fromOffset(560, 30),
+		Size = UDim2.fromOffset(420, 30),
 		BackgroundTransparency = 1,
 		Parent = root,
 	}, { listLayout(Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Bottom) })
@@ -787,6 +841,12 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 	local happyChip, happyLabel = chip(3, Color3.fromRGB(120, 255, 120))
 	local shieldChip, shieldLabel = chip(4, Color3.fromRGB(120, 200, 255))
 	local bountyChip, bountyLabel = chip(5, THEME.Orange)
+	local eventChip, eventLabel = chip(6, THEME.Pink)
+	local luckChip, luckLabel = chip(7, Color3.fromRGB(90, 255, 140))
+	local tickerChips = { eventChip, luckChip, bountyChip, happyChip, goalChip, featuredChip, shieldChip }
+	Windows.OnChanged(function(open)
+		bar.Visible = not open
+	end)
 
 	------------------------------------------------ Laufend aktualisieren
 
@@ -819,9 +879,13 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 			buttons.Quests.Visible = questReady
 			buttons.Gifts.Visible = updateGifts()
 			buttons.Spin.Visible = spinReady()
-			buttons.Index.Visible = indexClaimable()
-			buttons.Awards.Visible = awardsClaimable()
-			buttons.Base.Visible = canUpgrade()
+			local anyMore = false
+			for name, check in moreChecks do
+				local ready = check() == true
+				moreBadges[name].Visible = ready
+				anyMore = anyMore or ready
+			end
+			buttons.More.Visible = anyMore
 			if openPage == "Spin" then
 				updateSpin()
 			elseif openPage == "Base" then
@@ -845,6 +909,24 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 			local bounty = workspace:GetAttribute("BountyName")
 			bountyChip.Visible = bounty ~= nil
 			bountyLabel.Text = if player:GetAttribute("Bounty") then "YOU have the bounty!" else `Bounty: {bounty or "?"}`
+			local eventName = workspace:GetAttribute("EventName")
+			eventChip.Visible = eventName ~= nil
+			eventLabel.Text = `EVENT  ·  {eventName or "?"}  {Format.Time(math.max(0, (workspace:GetAttribute("EventEnds") or now) - now))}`
+			local luckLeft = (workspace:GetAttribute("LuckUntil") or 0) - now
+			luckChip.Visible = luckLeft > 0
+			luckLabel.Text = `SERVER LUCK x{Config.ServerLuckMultiplier}  {Format.Time(math.max(0, luckLeft))}`
+
+			-- Nur einen der aktiven Hinweise zeigen, reihum
+			local active = {}
+			for _, tickerChip in tickerChips do
+				if tickerChip.Visible then
+					table.insert(active, tickerChip)
+				end
+				tickerChip.Visible = false
+			end
+			if #active > 0 then
+				active[math.floor(os.clock() / 4) % #active + 1].Visible = true
+			end
 			task.wait(0.5)
 		end
 	end)

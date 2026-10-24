@@ -210,7 +210,7 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 	prompt.MaxActivationDistance = 8
 	prompt.RequiresLineOfSight = false
 	prompt:SetAttribute("OwnerUserId", player.UserId)
-	prompt.Parent = model.PrimaryPart
+	prompt.Parent = UnitFactory.PromptAnchor(model, def)
 	prompt.PromptButtonHoldBegan:Connect(function(thief)
 		holdStarted[thief] = os.clock()
 	end)
@@ -230,7 +230,7 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 		fusePrompt.MaxActivationDistance = 8
 		fusePrompt.RequiresLineOfSight = false
 		fusePrompt:SetAttribute("OwnerUserId", player.UserId)
-		fusePrompt.Parent = model.PrimaryPart
+		fusePrompt.Parent = UnitFactory.PromptAnchor(model, def)
 		fusePrompt.Triggered:Connect(function(who)
 			if who == player then
 				UnitService:Fuse(player, slotKey)
@@ -250,7 +250,7 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 	sellPrompt.RequiresLineOfSight = false
 	sellPrompt.UIOffset = Vector2.new(0, 75)
 	sellPrompt:SetAttribute("OwnerUserId", player.UserId)
-	sellPrompt.Parent = model.PrimaryPart
+	sellPrompt.Parent = UnitFactory.PromptAnchor(model, def)
 	sellPrompt.Triggered:Connect(function(who)
 		if who == player then
 			UnitService:Sell(player, slotKey)
@@ -294,7 +294,7 @@ function UnitService:GiveUnit(player: Player, code: string, slotKey: string?, so
 
 	if sourceModel and sourceModel.PrimaryPart then
 		for _, child in sourceModel.PrimaryPart:GetChildren() do
-			if child:IsA("ProximityPrompt") or child.Name == "Info" then
+			if child:IsA("ProximityPrompt") or child.Name == "Info" or child.Name == "PromptAnchor" then
 				child:Destroy()
 			end
 		end
@@ -467,7 +467,7 @@ local function spawnBeltUnit(forcedRarity: string?)
 	buyPrompt.MaxActivationDistance = 12
 	buyPrompt.RequiresLineOfSight = false
 	buyPrompt.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
-	buyPrompt.Parent = model.PrimaryPart
+	buyPrompt.Parent = UnitFactory.PromptAnchor(model, def)
 	buyPrompt.Triggered:Connect(function(player)
 		tryBuy(player, model)
 	end)
@@ -484,7 +484,7 @@ local function spawnBeltUnit(forcedRarity: string?)
 		robuxPrompt.RequiresLineOfSight = false
 		robuxPrompt.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
 		robuxPrompt.UIOffset = Vector2.new(0, 75)
-		robuxPrompt.Parent = model.PrimaryPart
+		robuxPrompt.Parent = UnitFactory.PromptAnchor(model, def)
 		robuxPrompt.Triggered:Connect(function(player)
 			if conveyorUnits[model] and not conveyorUnits[model].Sold then
 				services.MonetizationService:PromptInstantBuy(player, model, def)

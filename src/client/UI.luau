@@ -9,6 +9,7 @@ local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local Windows = require(script.Parent.Windows)
 
 local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -249,20 +250,20 @@ local function showToast(message: string, color: Color3?)
 		BackgroundTransparency = 0.1,
 		LayoutOrder = toastCount,
 		Parent = toastContainer,
-	}, { corner(14), padding(16, 6), stroke, scale })
+	}, { corner(12), padding(12, 4), stroke, scale })
 	local label = text({
 		AutomaticSize = Enum.AutomaticSize.XY,
 		Size = UDim2.new(),
 		Text = message,
-		TextSize = 19,
+		TextSize = 16,
 		TextColor3 = accent,
 		TextWrapped = true,
 		Parent = toast,
 	}, 0)
-	create("UISizeConstraint", { MaxSize = Vector2.new(520, math.huge), Parent = label })
+	create("UISizeConstraint", { MaxSize = Vector2.new(440, math.huge), Parent = label })
 	TweenService:Create(scale, POP, { Scale = 1 }):Play()
 
-	-- Hoechstens 4 Meldungen gleichzeitig
+	-- Hoechstens 3 Meldungen gleichzeitig
 	local toasts = {}
 	for _, child in toastContainer:GetChildren() do
 		if child:IsA("Frame") then
@@ -272,7 +273,7 @@ local function showToast(message: string, color: Color3?)
 	table.sort(toasts, function(a, b)
 		return a.LayoutOrder < b.LayoutOrder
 	end)
-	for i = 1, #toasts - 4 do
+	for i = 1, #toasts - 3 do
 		toasts[i]:Destroy()
 	end
 
@@ -458,22 +459,23 @@ local function buildShopRow(parent: Instance, kind: string, key: string, entry, 
 	end)
 end
 
--- Angebot im passenden Moment: Karte rechts mit Kaufen und "No thanks", verschwindet nach 12 Sekunden
+-- Angebot im passenden Moment: Karte unten in der Mitte mit Kaufen und "No thanks", verschwindet nach 12 Sekunden.
+-- Unten in der Mitte liegt sie zwischen Joystick und Sprung-Knopf und verdeckt keine Menue-Knoepfe.
 local OFFER_TIME = 12
 local offerCard: Frame? = nil
 local function showOffer(kind: string, key: string, reason: string)
 	local entry = if kind == "Pass" then Config.GamePasses[key] else Config.DevProducts[key]
-	if not entry or not root then
+	if not entry or not root or Windows.IsOpen() then
 		return
 	end
 	if offerCard then
 		offerCard:Destroy()
 	end
-	local shown = UDim2.new(1, -12, 0.45, 0)
+	local shown = UDim2.new(0.5, 0, 1, -44)
 	local card = create("Frame", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, 340, 0.45, 0),
-		Size = UDim2.fromOffset(320, 176),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 220),
+		Size = UDim2.fromOffset(340, 150),
 		BackgroundColor3 = THEME.Panel,
 		ZIndex = 15,
 		Parent = root,
@@ -491,35 +493,35 @@ local function showOffer(kind: string, key: string, reason: string)
 		Parent = card,
 	})
 	create("Frame", {
-		Position = UDim2.fromOffset(14, 38),
-		Size = UDim2.fromOffset(54, 54),
+		Position = UDim2.fromOffset(14, 36),
+		Size = UDim2.fromOffset(46, 46),
 		BackgroundColor3 = THEME.Orange,
 		Parent = card,
-	}, { corner(12), shine(), text({ Size = UDim2.fromScale(1, 1), Text = ICONS[key] or "🎁", TextSize = 30 }) })
+	}, { corner(12), shine(), text({ Size = UDim2.fromScale(1, 1), Text = ICONS[key] or "🎁", TextSize = 26 }) })
 	text({
-		Position = UDim2.fromOffset(78, 36),
-		Size = UDim2.new(1, -92, 0, 26),
+		Position = UDim2.fromOffset(70, 32),
+		Size = UDim2.new(1, -84, 0, 24),
 		Text = entry.Name,
 		Font = TITLE_FONT,
-		TextSize = 22,
+		TextSize = 20,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = card,
 	})
 	text({
-		Position = UDim2.fromOffset(78, 62),
-		Size = UDim2.new(1, -92, 0, 34),
+		Position = UDim2.fromOffset(70, 56),
+		Size = UDim2.new(1, -84, 0, 30),
 		Text = entry.Description,
 		Font = Enum.Font.BuilderSansMedium,
-		TextSize = 15,
+		TextSize = 14,
 		TextColor3 = THEME.Muted,
 		TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		Parent = card,
 	})
-	local buy = button({ Position = UDim2.fromOffset(14, 106), Size = UDim2.new(0.55, -14, 0, 48), Text = "R$ " .. entry.PriceHint, Parent = card }, THEME.Green)
-	local no = button({ Position = UDim2.new(0.55, 8, 0, 106), Size = UDim2.new(0.45, -22, 0, 48), Text = "No thanks", TextSize = 18, Parent = card }, THEME.Gray)
+	local buy = button({ Position = UDim2.fromOffset(14, 92), Size = UDim2.new(0.55, -14, 0, 42), Text = "R$ " .. entry.PriceHint, TextSize = 20, Parent = card }, THEME.Green)
+	local no = button({ Position = UDim2.new(0.55, 8, 0, 92), Size = UDim2.new(0.45, -22, 0, 42), Text = "No thanks", TextSize = 17, Parent = card }, THEME.Gray)
 	loadPrice(kind, entry, buy)
 
 	-- Restzeit-Balken
@@ -603,18 +605,18 @@ function UI.Start()
 		LayoutOrder = 1,
 		Parent = top,
 	}, {
-		corner(16),
-		padding(22, 4),
+		corner(14),
+		padding(18, 3),
 		edge(),
 		cashScale,
 		listLayout(Enum.FillDirection.Vertical, 0, Enum.HorizontalAlignment.Center),
 	})
 	local cashLabel = text({
 		AutomaticSize = Enum.AutomaticSize.X,
-		Size = UDim2.fromOffset(0, 42),
+		Size = UDim2.fromOffset(0, 36),
 		Text = "$0",
 		Font = TITLE_FONT,
-		TextSize = 40,
+		TextSize = 34,
 		TextColor3 = THEME.Cash,
 		LayoutOrder = 1,
 		Parent = cashPill,
@@ -630,7 +632,7 @@ function UI.Start()
 		AutomaticSize = Enum.AutomaticSize.XY,
 		Size = UDim2.new(),
 		Text = "+$0/s",
-		TextSize = 18,
+		TextSize = 16,
 		TextColor3 = THEME.Muted,
 		LayoutOrder = 1,
 		Parent = incomeRow,
@@ -658,10 +660,10 @@ function UI.Start()
 		LayoutOrder = 2,
 		Parent = top,
 	}, { listLayout(Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Center) })
-	local rankChip, rankLabel, rankStroke = chip(infoRow, 1, THEME.Muted, 15)
-	local friendChip, friendLabel = chip(infoRow, 2, Color3.fromRGB(110, 210, 255), 15)
-	local referralChip, referralLabel = chip(infoRow, 3, Color3.fromRGB(110, 210, 255), 15)
-	local catalystChip, catalystLabel = chip(infoRow, 4, Color3.fromRGB(120, 255, 200), 15)
+	local rankChip, rankLabel, rankStroke = chip(infoRow, 1, THEME.Muted, 13)
+	local friendChip, friendLabel = chip(infoRow, 2, Color3.fromRGB(110, 210, 255), 13)
+	local referralChip, referralLabel = chip(infoRow, 3, Color3.fromRGB(110, 210, 255), 13)
+	local catalystChip, catalystLabel = chip(infoRow, 4, Color3.fromRGB(120, 255, 200), 13)
 	rankChip.Visible = true
 	friendChip.Visible = true
 	-- Antippen des Rangs erklaert den Chat-Befehl
@@ -670,11 +672,12 @@ function UI.Start()
 		showToast("Type /rank in chat to see your rank progress!", Color3.fromRGB(200, 200, 255))
 	end)
 
-	-- Status-Chips: nur sichtbar, wenn gerade etwas los ist
-	local statusChip, statusLabel, statusStroke = chip(top, 3, THEME.Gold, 19)
-	local revengeChip, revengeLabel = chip(top, 4, Color3.fromRGB(255, 80, 80), 19)
-	local luckChip, luckLabel = chip(top, 5, Color3.fromRGB(90, 255, 140), 19)
-	local eventChip, eventLabel, eventStroke = chip(top, 6, THEME.Pink, 17)
+	-- Status-Chips: nur sichtbar, wenn gerade etwas los ist, und immer nur der wichtigste
+	-- (sonst wandert ein Stapel Chips in die Bildschirmmitte ueber die Kreaturen).
+	-- Event und Server-Glueck zeigt die Infoleiste unten (Hub.luau).
+	local statusChip, statusLabel, statusStroke = chip(top, 3, THEME.Gold, 17)
+	local revengeChip, revengeLabel = chip(top, 4, Color3.fromRGB(255, 80, 80), 17)
+	local eventChip, eventLabel, eventStroke = chip(top, 6, THEME.Cash, 16)
 
 	announceScale = create("UIScale", {}) :: UIScale
 	announceLabel = text({
@@ -691,54 +694,59 @@ function UI.Start()
 	}, 2)
 	announceScale.Parent = announceLabel
 
+	-- Meldungen oben unter der Geldanzeige: weg von Joystick, Sprung-Knopf und Kreaturen
 	toastContainer = create("Frame", {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -100),
-		Size = UDim2.new(0.6, 0, 0, 200),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 132),
+		Size = UDim2.new(0.5, 0, 0, 120),
 		BackgroundTransparency = 1,
 		ZIndex = 20,
 		Parent = root,
-	}, { listLayout(Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Bottom) }) :: Frame
+	}, { listLayout(Enum.FillDirection.Vertical, 4, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Top) }) :: Frame
 
-	------------------------------------------------ Links: Menue-Knoepfe
+	------------------------------------------------ Links oben: Menue-Knoepfe (2 Spalten, weit weg vom Joystick)
 
 	local side = create("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 12, 0.44, 0),
-		Size = UDim2.fromOffset(84, 0),
+		Position = UDim2.fromOffset(10, 8),
+		Size = UDim2.fromOffset(126, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		Parent = root,
-	}, { listLayout(Enum.FillDirection.Vertical, 10) })
+	}, {
+		create("UIGridLayout", {
+			CellSize = UDim2.fromOffset(60, 56),
+			CellPadding = UDim2.fromOffset(6, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
 
 	local function menuButton(icon: string, caption: string, color: Color3, order: number): (TextButton, TextLabel)
 		local result = create("TextButton", {
-			Size = UDim2.fromOffset(84, 74),
 			BackgroundColor3 = color,
 			AutoButtonColor = true,
 			Text = "",
 			LayoutOrder = order,
 			Parent = side,
-		}, { corner(16), edge(), shine() }) :: TextButton
-		text({ Position = UDim2.fromOffset(0, 4), Size = UDim2.new(1, 0, 0, 40), Text = icon, TextSize = 32, Parent = result })
+		}, { corner(14), edge(), shine() }) :: TextButton
+		text({ Position = UDim2.fromOffset(0, 3), Size = UDim2.new(1, 0, 0, 30), Text = icon, TextSize = 24, Parent = result })
 		text({
 			AnchorPoint = Vector2.new(0, 1),
-			Position = UDim2.new(0, 0, 1, -6),
-			Size = UDim2.new(1, 0, 0, 20),
+			Position = UDim2.new(0, 0, 1, -4),
+			Size = UDim2.new(1, 0, 0, 16),
 			Text = caption,
 			Font = TITLE_FONT,
-			TextSize = 15,
+			TextSize = 12,
 			Parent = result,
 		})
 		local badge = text({
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(1, -6, 0, 6),
-			Size = UDim2.fromOffset(26, 26),
+			Position = UDim2.new(1, -5, 0, 5),
+			Size = UDim2.fromOffset(20, 20),
 			BackgroundTransparency = 0,
 			BackgroundColor3 = THEME.Red,
 			Text = "!",
 			Font = TITLE_FONT,
-			TextSize = 18,
+			TextSize = 14,
 			Visible = false,
 			Parent = result,
 		})
@@ -751,7 +759,21 @@ function UI.Start()
 	local shopButton = menuButton("🛒", "SHOP", THEME.Green, 1)
 	local rebirthButton, rebirthBadge = menuButton("♻️", "REBIRTH", THEME.Purple, 2)
 	local inviteButton, inviteBadge = menuButton("💌", "INVITE", THEME.Blue, 3)
-	local adButton, adBadge = menuButton("🎬", "FREE $", THEME.Orange, 4)
+	local homeButton = menuButton("📍", "HOME", THEME.Gray, 4)
+	local adButton, adBadge = menuButton("🎬", "FREE $", THEME.Orange, 5)
+	-- Zur eigenen Basis teleportieren (der Server verbietet es beim Tragen einer Kreatur)
+	homeButton.Activated:Connect(function()
+		local request = remotes:FindFirstChild("Request") :: RemoteFunction?
+		if not request then
+			return
+		end
+		task.spawn(function()
+			local ok, message = (request :: RemoteFunction):InvokeServer("Home")
+			if not ok and message then
+				showToast(message, Color3.fromRGB(255, 110, 110))
+			end
+		end)
+	end)
 	adButton.Visible = false
 	inviteBadge.Text = "$"
 	inviteBadge.BackgroundColor3 = THEME.Gold
@@ -805,13 +827,24 @@ function UI.Start()
 			openModal = nil
 		end
 		backdrop.Visible = false
+		Windows.Closed("UI")
 	end
+	Windows.Register("UI", closeModal)
+	-- Solange irgendein Fenster offen ist: Knoepfe und Angebote weg, damit nichts ueberlappt
+	Windows.OnChanged(function(open)
+		side.Visible = not open
+		if open and offerCard then
+			offerCard:Destroy()
+			offerCard = nil
+		end
+	end)
 	local function toggleModal(modal: Frame)
 		if openModal == modal then
 			closeModal()
 			return
 		end
 		closeModal()
+		Windows.Opening("UI")
 		openModal = modal
 		modal.Visible = true
 		backdrop.Visible = true
@@ -993,7 +1026,10 @@ function UI.Start()
 
 			local carrying = player:GetAttribute("Carrying")
 			local lockedFor = player:GetAttribute("LockedFor") or 0
-			statusChip.Visible = carrying ~= nil or lockedFor > 0
+			local revengeLeft = (player:GetAttribute("RevengeUntil") or 0) - now
+			local partyLeft = (workspace:GetAttribute("PartyEnds") or 0) - now
+			-- Wichtigster zuerst: Tragen > Rache > Basis gesperrt > Cash Party
+			statusChip.Visible = carrying ~= nil or (lockedFor > 0 and revengeLeft <= 0)
 			if carrying then
 				statusLabel.Text = `CARRYING {carrying}  ·  Run to your base!`
 				statusLabel.TextColor3 = THEME.Gold
@@ -1019,38 +1055,17 @@ function UI.Start()
 			catalystChip.Visible = catalysts > 0
 			catalystLabel.Text = `Catalysts {catalysts}`
 
-			local revengeLeft = (player:GetAttribute("RevengeUntil") or 0) - now
-			revengeChip.Visible = revengeLeft > 0
+			revengeChip.Visible = revengeLeft > 0 and carrying == nil
 			if revengeLeft > 0 then
-				revengeLabel.Text = `REVENGE  ·  {player:GetAttribute("RevengeTarget") or "?"}  {Format.Time(revengeLeft)}  ·  Steal back instantly`
+				revengeLabel.Text = `REVENGE  ·  {player:GetAttribute("RevengeTarget") or "?"}  {Format.Time(revengeLeft)}`
 			end
 
-			local luckLeft = (workspace:GetAttribute("LuckUntil") or 0) - now
-			luckChip.Visible = luckLeft > 0
-			if luckLeft > 0 then
-				luckLabel.Text = `SERVER LUCK x{Config.ServerLuckMultiplier}  {Format.Time(luckLeft)}`
-			end
-
-			local eventName = workspace:GetAttribute("EventName")
-			local partyLeft = (workspace:GetAttribute("PartyEnds") or 0) - now
-			local eventColor = THEME.Pink
-			local eventText = ""
+			eventChip.Visible = partyLeft > 0 and not statusChip.Visible and not revengeChip.Visible
 			if partyLeft > 0 then
-				eventText = `CASH PARTY  ·  2x CASH by {workspace:GetAttribute("PartyBy") or "?"}  {Format.Time(partyLeft)}`
-				eventColor = THEME.Cash
-			elseif eventName then
-				eventText = `EVENT  ·  {eventName}  {Format.Time(math.max(0, (workspace:GetAttribute("EventEnds") or now) - now))}`
-			else
-				local nextAt = workspace:GetAttribute("NextEventAt")
-				if nextAt then
-					eventText = `Next event in {Format.Time(math.max(0, nextAt - now))}`
-					eventColor = THEME.Muted
-				end
+				eventLabel.Text = `CASH PARTY 2x  ·  {Format.Time(partyLeft)}`
+				eventLabel.TextColor3 = THEME.Cash
+				eventStroke.Color = THEME.Cash
 			end
-			eventChip.Visible = eventText ~= ""
-			eventLabel.Text = eventText
-			eventLabel.TextColor3 = eventColor
-			eventStroke.Color = eventColor
 
 			local current = 1 + rebirths * Config.RebirthMultiplierPer
 			local canRebirth = cost > 0 and cash >= cost
