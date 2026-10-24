@@ -1,35 +1,581 @@
 -- Eigener Ladebildschirm: Kolosseum-Silhouette im Abendrot, Lorbeer-Logo, wackelnder Fang-Orb, Tipps.
+-- >>> LoadingKit
+-- Gemeinsamer Kern aller Ladebildschirme: Buehne fuer Handy und PC, echter Fortschritt, Tipps,
+-- SKIP-Knopf, Logo-Intro mit Glanz, sauberes Ausblenden und 15-s-Notbremse.
+-- Nicht im Spiel aendern! Quelle: tools/loading/LoadingKit.luau, verteilen mit: python3 tools/loading/sync.py
 local ContentProvider = game:GetService("ContentProvider")
 local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
 
 ReplicatedFirst:RemoveDefaultLoadingScreen()
+
+local Kit = {}
+Kit.__index = Kit
+
+local MAX_TIME = 15 -- Notbremse: spaetestens dann ist der Bildschirm weg
+local STROKE_REFERENCE = 720 -- Bildschirmhoehe, fuer die die Konturstaerken gedacht sind
+
+local function make(className: string, props: { [string]: any }, parent: Instance?): any
+	local instance = Instance.new(className)
+	for key, value in props do
+		(instance :: any)[key] = value
+	end
+	instance.Parent = parent
+	return instance
+end
+
+local function asFont(font: any): Font
+	return if typeof(font) == "EnumItem" then Font.fromEnum(font :: any) else font
+end
+
+local function shuffled(list: { string }): { string }
+	local copy = table.clone(list)
+	for i = #copy, 2, -1 do
+		local j = math.random(1, i)
+		copy[i], copy[j] = copy[j], copy[i]
+	end
+	return copy
+end
+
+function Kit.new(theme: { [string]: any })
+	local self = setmetatable({}, Kit)
+	self.Theme = theme
+	self.Start = os.clock()
+	self.Progress = 0
+	self.Shown = 0
+	self.Done = false
+	self.Skipped = false
+	self.Fading = false
+	self.Animations = {}
+	self.Logos = {}
+	self.Shines = {}
+
+	local gui = make("ScreenGui", { Name = "LoadingScreen", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 100 })
+	if theme.ZIndexBehavior then
+		gui.ZIndexBehavior = theme.ZIndexBehavior
+	end
+	self.Gui = gui
+	-- Hintergrund fuellt den ganzen Bildschirm, die Buehne bleibt 16:9 und damit auf jedem Geraet gleich
+	self.Background = make("Frame", {
+		Name = "Background",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = theme.Background or Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, gui)
+	self.Stage = make("Frame", {
+		Name = "Stage",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 2,
+	}, self.Background)
+	make("UIAspectRatioConstraint", { AspectRatio = 16 / 9 }, self.Stage)
+
+	-- Notbremse, auch falls im Spielcode etwas schiefgeht
+	task.delay(MAX_TIME + 2, function()
+		if gui.Parent then
+			gui:Destroy()
+		end
+	end)
+	return self
+end
+
+-- Jede Frame-Animation bekommt (Zeit, dt, angezeigter Fortschritt 0..1)
+function Kit:Animate(callback: (number, number, number) -> ())
+	table.insert(self.Animations, callback)
+end
+
+-- Logo: springt beim Start auf (Back-Easing); die Texte bekommen einen Glanzstreifen
+function Kit:Logo(root: GuiObject, shine: { TextLabel }?)
+	local scale = root:FindFirstChildOfClass("UIScale") or make("UIScale", {}, root)
+	scale.Scale = 0
+	table.insert(self.Logos, scale)
+	local labels: { TextLabel } = shine or {}
+	for _, label in labels do
+		local gloss = make("TextLabel", {
+			Name = "Shine",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = label.Text,
+			FontFace = label.FontFace,
+			TextScaled = label.TextScaled,
+			TextSize = label.TextSize,
+			TextWrapped = label.TextWrapped,
+			TextXAlignment = label.TextXAlignment,
+			TextYAlignment = label.TextYAlignment,
+			TextColor3 = Color3.new(1, 1, 1),
+			ZIndex = label.ZIndex + 1,
+		}, label)
+		local gradient = make("UIGradient", {
+			Rotation = 20,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.42, 1),
+				NumberSequenceKeypoint.new(0.5, 0.25),
+				NumberSequenceKeypoint.new(0.58, 1),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Offset = Vector2.new(-1, 0),
+		}, gloss)
+		table.insert(self.Shines, { Label = label, Gloss = gloss, Gradient = gradient })
+	end
+end
+
+function Kit:_buildUi()
+	local theme = self.Theme
+	local ink = theme.Ink or Color3.fromRGB(20, 16, 32)
+	local accent = theme.Accent or Color3.fromRGB(255, 220, 70)
+	local body = asFont(theme.BodyFont or Enum.Font.GothamBold)
+	local heavy = asFont(theme.TitleFont or Enum.Font.GothamBlack)
+	local stage = self.Stage
+	local tipY = theme.TipY or 0.765
+	local barY = theme.BarY or 0.865
+
+	-- Tipp-Karte (antippen = naechster Tipp)
+	local card = make("TextButton", {
+		Name = "TipCard",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, tipY + 0.02),
+		Size = UDim2.fromScale(0.74, 0.085),
+		BackgroundColor3 = theme.Panel or ink,
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		ZIndex = 20,
+	}, stage)
+	make("UICorner", { CornerRadius = UDim.new(0.3, 0) }, card)
+	local cardStroke = make("UIStroke", { Color = accent, Thickness = 2, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, card)
+	local chip = make("TextLabel", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0.012, 0.5),
+		Size = UDim2.fromScale(0.095, 0.64),
+		BackgroundColor3 = accent,
+		BackgroundTransparency = 1,
+		Text = "TIP",
+		FontFace = heavy,
+		TextScaled = true,
+		TextColor3 = theme.AccentText or ink,
+		TextTransparency = 1,
+		ZIndex = 21,
+	}, card)
+	make("UICorner", { CornerRadius = UDim.new(0.35, 0) }, chip)
+	make("UIPadding", { PaddingTop = UDim.new(0.16, 0), PaddingBottom = UDim.new(0.16, 0) }, chip)
+	local tip = make("TextLabel", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0.125, 0.5),
+		Size = UDim2.fromScale(0.86, 0.8),
+		BackgroundTransparency = 1,
+		FontFace = body,
+		TextScaled = true,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = theme.Text or Color3.new(1, 1, 1),
+		TextTransparency = 1,
+		Text = "",
+		ZIndex = 21,
+	}, card)
+	make("UITextSizeConstraint", { MaxTextSize = 30, MinTextSize = 9 }, tip)
+
+	-- Fortschrittsbalken mit Lauflicht, darunter Status links und Prozent rechts
+	local barBack = make("Frame", {
+		Name = "Bar",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, barY + 0.02),
+		Size = UDim2.fromScale(0.5, 0.024),
+		BackgroundColor3 = theme.BarBack or ink,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Visible = theme.ShowBar ~= false,
+		ZIndex = 20,
+	}, stage)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, barBack)
+	local barStroke = make("UIStroke", { Color = theme.BarStroke or ink, Thickness = 2, Transparency = 1 }, barBack)
+	local fill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 21 }, barBack)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, fill)
+	make("UIGradient", { Color = theme.Bar or ColorSequence.new(accent) }, fill)
+	local glint = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Size = UDim2.fromScale(0.35, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 22 }, fill)
+	make("UIGradient", {
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.45), NumberSequenceKeypoint.new(1, 1) }),
+	}, glint)
+
+	local row = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, barY + 0.025),
+		Size = UDim2.fromScale(0.5, 0.042),
+		BackgroundTransparency = 1,
+		ZIndex = 20,
+	}, stage)
+	local statusColor = theme.StatusColor or theme.Text or Color3.new(1, 1, 1)
+	local status = make("TextLabel", {
+		Size = UDim2.fromScale(0.8, 1),
+		BackgroundTransparency = 1,
+		FontFace = body,
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = statusColor,
+		TextTransparency = 1,
+		Text = "",
+		ZIndex = 21,
+	}, row)
+	make("UITextSizeConstraint", { MaxTextSize = 24, MinTextSize = 8 }, status)
+	local percent = make("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromScale(0.2, 1),
+		BackgroundTransparency = 1,
+		FontFace = heavy,
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = statusColor,
+		TextTransparency = 1,
+		Text = "0%",
+		ZIndex = 21,
+	}, row)
+	make("UITextSizeConstraint", { MaxTextSize = 24, MinTextSize = 8 }, percent)
+	for _, label in { status, percent } do
+		make("UIStroke", { Color = ink, Thickness = 1.5, Transparency = 1 }, label)
+	end
+
+	-- SKIP unten rechts (Daumen-Reichweite, gross genug zum Tippen)
+	local skip = make("TextButton", {
+		Name = "Skip",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.fromScale(0.985, 0.965),
+		Size = UDim2.fromScale(0.105, 0.072),
+		BackgroundColor3 = accent,
+		BackgroundTransparency = 1,
+		AutoButtonColor = true,
+		FontFace = heavy,
+		Text = "SKIP  »",
+		TextScaled = true,
+		TextColor3 = theme.AccentText or ink,
+		TextTransparency = 1,
+		Visible = false,
+		ZIndex = 23,
+	}, stage)
+	make("UICorner", { CornerRadius = UDim.new(0.3, 0) }, skip)
+	make("UIPadding", { PaddingTop = UDim.new(0.2, 0), PaddingBottom = UDim.new(0.2, 0), PaddingLeft = UDim.new(0.1, 0), PaddingRight = UDim.new(0.1, 0) }, skip)
+	make("UISizeConstraint", { MinSize = Vector2.new(84, 38) }, skip)
+	local skipStroke = make("UIStroke", { Color = ink, Thickness = 2.5, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, skip)
+
+	self.Ui = {
+		Card = card,
+		CardStroke = cardStroke,
+		Chip = chip,
+		Tip = tip,
+		BarBack = barBack,
+		BarStroke = barStroke,
+		Fill = fill,
+		Glint = glint,
+		Status = status,
+		Percent = percent,
+		Skip = skip,
+		SkipStroke = skipStroke,
+	}
+end
+
+-- Konturen wachsen mit der Bildschirmhoehe: auf dem Handy duenn und scharf, am PC kraeftig
+function Kit:_scaleStrokes()
+	local strokes = {}
+	for _, item in self.Gui:GetDescendants() do
+		if item:IsA("UIStroke") then
+			table.insert(strokes, { Stroke = item, Base = item.Thickness })
+		end
+	end
+	local function update()
+		local factor = math.clamp(self.Stage.AbsoluteSize.Y / STROKE_REFERENCE, 0.5, 2)
+		for _, entry in strokes do
+			entry.Stroke.Thickness = math.max(1, entry.Base * factor)
+		end
+	end
+	update()
+	self.Stage:GetPropertyChangedSignal("AbsoluteSize"):Connect(update)
+end
+
+function Kit:_showUi()
+	local ui = self.Ui
+	local theme = self.Theme
+	local info = TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+	local tipY = theme.TipY or 0.765
+	local barY = theme.BarY or 0.865
+	TweenService:Create(ui.Card, info, { Position = UDim2.fromScale(0.5, tipY), BackgroundTransparency = theme.PanelTransparency or 0.35 }):Play()
+	TweenService:Create(ui.CardStroke, info, { Transparency = 0.55 }):Play()
+	TweenService:Create(ui.Chip, info, { BackgroundTransparency = 0, TextTransparency = 0 }):Play()
+	TweenService:Create(ui.Tip, info, { TextTransparency = 0 }):Play()
+	TweenService:Create(ui.BarBack, info, { Position = UDim2.fromScale(0.5, barY), BackgroundTransparency = theme.BarBackTransparency or 0.15 }):Play()
+	TweenService:Create(ui.BarStroke, info, { Transparency = 0.4 }):Play()
+	TweenService:Create(ui.Fill, info, { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(ui.Glint, info, { BackgroundTransparency = 0 }):Play()
+	for _, label in { ui.Status, ui.Percent } do
+		TweenService:Create(label, info, { TextTransparency = 0 }):Play()
+		TweenService:Create(label:FindFirstChildOfClass("UIStroke"), info, { Transparency = 0.5 }):Play()
+	end
+end
+
+function Kit:_runTips()
+	local ui = self.Ui
+	local tips = self.Theme.Tips or {}
+	if #tips == 0 then
+		ui.Card.Visible = false
+		return
+	end
+	local deck, index = shuffled(tips), 1
+	ui.Tip.Text = deck[1]
+	local busy = false
+	local nextAt = os.clock() + 4.5
+	local function nextTip()
+		if busy or self.Done then
+			return
+		end
+		busy = true
+		index = index % #deck + 1
+		local out = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		TweenService:Create(ui.Tip, out, { TextTransparency = 1, Position = UDim2.fromScale(0.105, 0.5) }):Play()
+		task.wait(0.19)
+		if self.Done then
+			return
+		end
+		ui.Tip.Text = deck[index]
+		ui.Tip.Position = UDim2.fromScale(0.145, 0.5)
+		TweenService:Create(ui.Tip, TweenInfo.new(0.3, Enum.EasingStyle.Quint), { TextTransparency = 0, Position = UDim2.fromScale(0.125, 0.5) }):Play()
+		nextAt = os.clock() + 4.5
+		busy = false
+	end
+	ui.Card.Activated:Connect(function()
+		task.spawn(nextTip)
+	end)
+	task.spawn(function()
+		while not self.Done do
+			task.wait(0.25)
+			if os.clock() >= nextAt then
+				nextTip()
+			end
+		end
+	end)
+end
+
+function Kit:_runSkip()
+	local ui = self.Ui
+	local theme = self.Theme
+	local function skip()
+		if ui.Skip.Visible and not self.Done then
+			self.Skipped = true
+		end
+	end
+	ui.Skip.Activated:Connect(skip)
+	self.InputConnection = UserInputService.InputBegan:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.ButtonA then
+			skip()
+		end
+	end)
+	task.delay(theme.SkipAfter or 1.5, function()
+		if self.Done then
+			return
+		end
+		ui.Skip.Visible = true
+		local info = TweenInfo.new(0.3, Enum.EasingStyle.Quint)
+		TweenService:Create(ui.Skip, info, { BackgroundTransparency = 0, TextTransparency = 0 }):Play()
+		TweenService:Create(ui.SkipStroke, info, { Transparency = 0 }):Play()
+	end)
+end
+
+-- Echter Fortschritt: Spiel geladen, Asset-Warteschlange und spielspezifische Pruefungen
+function Kit:_track()
+	local theme = self.Theme
+	-- Immer: die Remotes des Servers sind da; optional: eigene Figur ist gespawnt
+	local checks = {
+		function()
+			return game:GetService("ReplicatedStorage"):FindFirstChild("Remotes") ~= nil
+		end,
+	}
+	if theme.WaitForCharacter then
+		table.insert(checks, function()
+			return Players.LocalPlayer.Character ~= nil
+		end)
+	end
+	for _, check in theme.Checks or {} do
+		table.insert(checks, check)
+	end
+	local statuses = theme.Status or { "Loading..." }
+	local minTime = theme.MinTime or 1.5
+	local maxQueue = 1
+	local loadedAt: number? = nil
+	while not self.Skipped do
+		local t = os.clock() - self.Start
+		local loaded = game:IsLoaded()
+		if loaded and not loadedAt then
+			loadedAt = os.clock()
+		end
+		local queue = ContentProvider.RequestQueueSize
+		maxQueue = math.max(maxQueue, queue)
+		local passed = 0
+		for _, check in checks do
+			local ok, result = pcall(check)
+			if ok and result then
+				passed += 1
+			end
+		end
+		-- Manche Spiele laden dauernd nach: 5 s nach dem Laden zaehlt die Warteschlange als fertig
+		local queueDone = queue == 0 or (loadedAt ~= nil and os.clock() - loadedAt > 5)
+		local loadPart = if loaded then 1 else 0.85 * (1 - math.exp(-t / 3))
+		local assetPart = if queueDone and loaded then 1 else math.min(1 - queue / maxQueue, if loaded then 0.95 else 0.5)
+		local checkPart = passed / #checks
+		self.Progress = math.max(self.Progress, math.min(0.99, 0.4 * loadPart + 0.35 * assetPart + 0.25 * checkPart))
+
+		local phase = if not loaded then 1 elseif not queueDone then 2 else 3
+		self.Ui.Status.Text = statuses[math.min(phase, #statuses)]
+		if (loaded and queueDone and passed == #checks and t >= minTime) or t >= MAX_TIME then
+			break
+		end
+		task.wait(0.05)
+	end
+end
+
+function Kit:_outro()
+	local theme = self.Theme
+	local quick = self.Skipped
+	self.Fading = true
+	local duration = if quick then 0.25 else 0.5
+	if theme.Outro == "slide" then
+		local tween = TweenService:Create(self.Background, TweenInfo.new(duration + 0.1, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Position = UDim2.fromScale(0, -1.1) })
+		tween:Play()
+		tween.Completed:Wait()
+		return
+	end
+	local info = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local zoom = self.Stage:FindFirstChildOfClass("UIScale") or make("UIScale", {}, self.Stage)
+	TweenService:Create(zoom, info, { Scale = 1.06 }):Play()
+	for _, item in self.Gui:GetDescendants() do
+		if item:IsA("GuiObject") then
+			TweenService:Create(item, info, { BackgroundTransparency = 1 }):Play()
+			if item:IsA("TextLabel") or item:IsA("TextButton") then
+				TweenService:Create(item, info, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+			elseif item:IsA("ImageLabel") or item:IsA("ImageButton") then
+				TweenService:Create(item, info, { ImageTransparency = 1 }):Play()
+			end
+		elseif item:IsA("UIStroke") then
+			TweenService:Create(item, info, { Transparency = 1 }):Play()
+		end
+	end
+	task.wait(duration + 0.05)
+end
+
+function Kit:Run()
+	local theme = self.Theme
+	self:_buildUi()
+	if theme.ScaleStrokes ~= false then
+		self:_scaleStrokes()
+	end
+	self.Gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	-- Schriften vorladen, damit das Logo nicht mit der Ersatzschrift aufpoppt (hoechstens 0,6 s warten)
+	local fontsReady = false
+	task.spawn(function()
+		pcall(ContentProvider.PreloadAsync, ContentProvider, { self.Gui })
+		fontsReady = true
+	end)
+	task.spawn(function()
+		local waitUntil = os.clock() + 0.6
+		while not fontsReady and os.clock() < waitUntil do
+			task.wait()
+		end
+		for i, scale in self.Logos do
+			task.delay((i - 1) * 0.12, function()
+				TweenService:Create(scale, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+			end)
+		end
+		self:_showUi()
+	end)
+
+	local animation = RunService.RenderStepped:Connect(function(dt)
+		local t = os.clock() - self.Start
+		local speed = if self.Done then 16 else 7
+		self.Shown += (self.Progress - self.Shown) * (1 - math.exp(-dt * speed))
+		local shown = self.Shown
+		local ui = self.Ui
+		ui.Fill.Size = UDim2.fromScale(math.max(shown, 0.03), 1)
+		ui.Glint.Position = UDim2.fromScale((t * 0.7) % 1.6 - 0.3, 0)
+		ui.Percent.Text = `{math.floor(shown * 100 + 0.5)}%`
+		for _, shine in self.Shines do
+			-- Glanz laeuft alle 3,2 s einmal ueber das Logo
+			shine.Gradient.Offset = Vector2.new(math.clamp(((t % 3.2) - 0.9) / 1.1, 0, 1) * 2 - 1, 0)
+			shine.Gloss.TextSize = shine.Label.TextSize
+		end
+		-- Beim Ausblenden stehen die Spiel-Animationen still, sonst setzen sie Transparenzen zurueck
+		for i = if self.Fading then 0 else #self.Animations, 1, -1 do
+			local ok, err = pcall(self.Animations[i], t, dt, shown)
+			if not ok then
+				warn("LoadingScreen animation stopped:", err)
+				table.remove(self.Animations, i)
+			end
+		end
+	end)
+
+	self:_runTips()
+	self:_runSkip()
+	self:_track()
+
+	-- Fertig: Balken voll laufen lassen, kurz "bereit" zeigen, dann ausblenden
+	self.Done = true
+	self.Progress = 1
+	self.Ui.Status.Text = theme.Ready or "Ready!"
+	self.Ui.Skip.Visible = false
+	if not self.Skipped then
+		local waitUntil = os.clock() + 0.5
+		while self.Shown < 0.995 and os.clock() < waitUntil do
+			task.wait()
+		end
+		task.wait(0.3)
+	end
+	self:_outro()
+	animation:Disconnect()
+	if self.InputConnection then
+		self.InputConnection:Disconnect()
+	end
+	self.Gui:Destroy()
+end
+-- <<< LoadingKit
 
 local GOLD = Color3.fromRGB(242, 193, 78)
 local CREAM = Color3.fromRGB(250, 238, 215)
 local CRIMSON = Color3.fromRGB(150, 28, 40)
 local INK = Color3.fromRGB(28, 14, 26)
 
-local TIPS = {
-	"Weaken a wild beast before you throw an orb - low HP means a better catch chance!",
-	"Fire beats Leaf, Leaf beats Water, Water beats Fire. Stone cracks Spark!",
-	"Beat the 8 champions of the Colosseum to unlock new zones.",
-	"PRISMATIC beasts are super rare and 20% stronger. Keep your eyes open!",
-	"Your beasts ascend into stronger forms when they level up.",
-	"How many waves can you survive in the Endless Gauntlet?",
-	"Challenge other players to a duel to earn trophies!",
-	"Claim your daily chest every day - day 7 gives a Master Orb!",
-}
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "LoadingScreen"
-gui.IgnoreGuiInset = true
-gui.ResetOnSpawn = false
-gui.DisplayOrder = 100
+local kit = Kit.new({
+	Background = Color3.new(1, 1, 1),
+	Ink = INK,
+	Accent = GOLD,
+	Panel = INK,
+	PanelTransparency = 0.2,
+	Bar = ColorSequence.new(Color3.fromRGB(255, 236, 160), GOLD),
+	BarBack = INK,
+	BarStroke = GOLD,
+	TipY = 0.745,
+	BarY = 0.85,
+	TitleFont = Enum.Font.LuckiestGuy,
+	BodyFont = Enum.Font.BuilderSansBold,
+	Text = CREAM,
+	StatusColor = CREAM,
+	Status = { "Opening the gates...", "Waking the beasts...", "Polishing the orbs..." },
+	Ready = "Enter the arena!",
+	Tips = {
+		"Weaken a wild beast before you throw an orb - low HP means a better catch chance!",
+		"Fire beats Leaf, Leaf beats Water, Water beats Fire. Stone cracks Spark!",
+		"Beat the 8 champions of the Colosseum to unlock new zones.",
+		"PRISMATIC beasts are super rare and 20% stronger. Keep your eyes open!",
+		"Your beasts ascend into stronger forms when they level up.",
+		"How many waves can you survive in the Endless Gauntlet?",
+		"Challenge other players to a duel to earn trophies!",
+		"Claim your daily chest every day - day 7 gives a Master Orb!",
+	},
+	WaitForCharacter = true,
+})
+local background, stage = kit.Background, kit.Stage
 
 local function frame(props, parent: Instance?): Frame
 	local f = Instance.new("Frame")
@@ -56,7 +602,6 @@ local function stroke(parent: Instance, color: Color3, thickness: number)
 end
 
 -- Himmel im Abendrot
-local background = frame({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) }, gui)
 local sky = Instance.new("UIGradient")
 sky.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(38, 18, 52)),
@@ -67,10 +612,19 @@ sky.Color = ColorSequence.new({
 sky.Rotation = 90
 sky.Parent = background
 
--- Sonne hinter dem Kolosseum
+-- Sonne hinter dem Kolosseum (pulsiert leicht)
 local sun = frame({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.74), Size = UDim2.fromScale(0.42, 0.42), BackgroundColor3 = Color3.fromRGB(255, 205, 120), BackgroundTransparency = 0.15 }, background)
 Instance.new("UIAspectRatioConstraint").Parent = sun
 corner(sun, UDim.new(0.5, 0))
+
+-- Schwebender Staub im Gegenlicht
+local motes = {}
+for i = 1, 16 do
+	local mote = frame({ AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromScale(0.005, 0.005), BackgroundColor3 = Color3.fromRGB(255, 225, 160), BackgroundTransparency = 0.4 }, background)
+	Instance.new("UIAspectRatioConstraint").Parent = mote
+	corner(mote, UDim.new(0.5, 0))
+	motes[i] = { Frame = mote, X = math.random(), Y = 0.2 + math.random() * 0.6, Phase = math.random() * 6 }
+end
 
 -- Kolosseum-Silhouette: zwei Reihen Boegen
 local wall = frame({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 1), Size = UDim2.fromScale(1.05, 0.3), BackgroundColor3 = INK }, background)
@@ -89,7 +643,7 @@ end
 frame({ Position = UDim2.fromScale(0, -0.04), Size = UDim2.fromScale(1, 0.05), BackgroundColor3 = INK }, wall)
 
 -- Logo: Titel mit Lorbeer
-local logo = frame({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.3), Size = UDim2.fromScale(0.8, 0.3), BackgroundTransparency = 1 }, background)
+local logo = frame({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.26), Size = UDim2.fromScale(0.8, 0.3), BackgroundTransparency = 1 }, stage)
 local title = Instance.new("TextLabel")
 title.AnchorPoint = Vector2.new(0.5, 0)
 title.Position = UDim2.fromScale(0.5, 0)
@@ -145,8 +699,8 @@ for _, side in { -1, 1 } do
 	end
 end
 
--- Crest-Orb als Ladeanzeige (wackelt wie beim Fangen): Purpur-Glas, Goldband, Stern-Juwel
-local orb = frame({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.56), Size = UDim2.fromScale(0.09, 0.09), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true }, background)
+-- Crest-Orb (wackelt wie beim Fangen): Purpur-Glas, Goldband, Stern-Juwel
+local orb = frame({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.56), Size = UDim2.fromScale(0.11, 0.11), BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true }, stage)
 Instance.new("UIAspectRatioConstraint").Parent = orb
 corner(orb, UDim.new(0.5, 0))
 stroke(orb, INK, 4)
@@ -161,76 +715,22 @@ stroke(gem, INK, 3)
 local shine = frame({ Position = UDim2.fromScale(0.2, 0.14), Size = UDim2.fromScale(0.18, 0.12), BackgroundColor3 = Color3.fromRGB(255, 215, 240) }, orb)
 corner(shine, UDim.new(0.5, 0))
 
--- Fortschritt und Tipp
-local barBack = frame({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.66), Size = UDim2.fromScale(0.4, 0.018), BackgroundColor3 = INK, BackgroundTransparency = 0.3 }, background)
-corner(barBack, UDim.new(1, 0))
-stroke(barBack, GOLD, 2)
-local bar = frame({ Size = UDim2.fromScale(0, 1), BackgroundColor3 = GOLD }, barBack)
-corner(bar, UDim.new(1, 0))
+kit:Logo(logo, { title })
+kit:Logo(orb)
 
-local tip = Instance.new("TextLabel")
-tip.AnchorPoint = Vector2.new(0.5, 0.5)
-tip.Position = UDim2.fromScale(0.5, 0.71)
-tip.Size = UDim2.fromScale(0.7, 0.04)
-tip.BackgroundTransparency = 1
-tip.Font = Enum.Font.BuilderSansBold
-tip.TextScaled = true
-tip.TextColor3 = CREAM
-tip.Text = TIPS[math.random(1, #TIPS)]
-tip.Parent = background
-stroke(tip, INK, 1.5)
-
-gui.Parent = playerGui
-
--- Animationen
-local running = true
-task.spawn(function()
-	while running do
-		for _, angle in { -25, 25, -15, 15, 0 } do
-			if not running then
-				break
-			end
-			TweenService:Create(orb, TweenInfo.new(0.16, Enum.EasingStyle.Sine), { Rotation = angle }):Play()
-			task.wait(0.17)
-		end
-		task.wait(0.5)
-	end
-end)
-task.spawn(function()
-	while running do
-		task.wait(3.5)
-		tip.Text = TIPS[math.random(1, #TIPS)]
+local gemColor = CREAM
+kit:Animate(function(t, _, shown)
+	-- Wackeln wie beim Fangen: drei Schwuenge, dann kurze Pause; das Juwel leuchtet mit dem Fortschritt
+	local cycle = t % 1.35
+	local wobble = if cycle < 0.85 then math.sin(cycle / 0.85 * math.pi * 3) * 25 * (1 - cycle / 0.85 * 0.6) else 0
+	orb.Rotation = wobble
+	gem.BackgroundColor3 = gemColor:Lerp(GOLD, shown)
+	gem.Rotation = 45 + t * 30
+	sun.Size = UDim2.fromScale(0.42 + math.sin(t * 1.2) * 0.01, 0.42)
+	logo.Rotation = math.sin(t * 1.5) * 1
+	for _, mote in motes do
+		mote.Frame.Position = UDim2.fromScale((mote.X + t * 0.01) % 1, mote.Y + math.sin(t + mote.Phase) * 0.02)
 	end
 end)
 
--- Warten, bis das Spiel geladen ist (hoechstens 12 Sekunden), dabei Fortschritt anzeigen
-local started = os.clock()
-if not game:IsLoaded() then
-	game.Loaded:Wait()
-end
-while os.clock() - started < 12 do
-	local queue = ContentProvider.RequestQueueSize
-	local progress = math.clamp((os.clock() - started) / 3, 0, 1) * (if queue > 0 then 0.85 else 1)
-	bar.Size = UDim2.fromScale(progress, 1)
-	if progress >= 1 and os.clock() - started > 2.5 then
-		break
-	end
-	task.wait(0.05)
-end
-bar.Size = UDim2.fromScale(1, 1)
-task.wait(0.3)
-running = false
-
--- Ausblenden
-local fade = TweenInfo.new(0.6)
-for _, item in gui:GetDescendants() do
-	if item:IsA("Frame") then
-		TweenService:Create(item, fade, { BackgroundTransparency = 1 }):Play()
-	elseif item:IsA("TextLabel") then
-		TweenService:Create(item, fade, { TextTransparency = 1 }):Play()
-	elseif item:IsA("UIStroke") then
-		TweenService:Create(item, fade, { Transparency = 1 }):Play()
-	end
-end
-task.wait(0.7)
-gui:Destroy()
+kit:Run()
