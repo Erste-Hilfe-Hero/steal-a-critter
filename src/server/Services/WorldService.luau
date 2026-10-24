@@ -1,6 +1,7 @@
--- Baut die Map per Code: Boden, Laufband, Spawn und 8 Basen.
+-- Baut die Map per Code: Boden, Laufband, Spawn und eine Basis pro moeglichem Spieler.
 -- So funktioniert das Projekt auch in einem leeren Place. Die Optik kann man spaeter
 -- in Studio durch gebaute Modelle ersetzen, solange die Namen gleich bleiben.
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -9,7 +10,9 @@ local WorldService = { Services = nil :: any }
 WorldService.Plots = {}
 
 local PLOT_SIZE = 44
-local PLOT_CENTERS_X = { -78, -26, 26, 78 }
+local PLOT_SPACING = 52
+local MIN_PLOTS = 8
+local MAX_PLOTS = 24
 local PLOT_Z = 40
 local MAX_PADS = Config.BaseSlots + Config.ExtraSlotsAmount
 
@@ -57,9 +60,20 @@ function WorldService:Build()
 	local world = Instance.new("Folder")
 	world.Name = "World"
 
+	-- So viele Basen wie die Servergroesse erlaubt (in den Spieleinstellungen festgelegt)
+	local plotsPerSide = math.ceil(math.clamp(Players.MaxPlayers, MIN_PLOTS, MAX_PLOTS) / 2)
+	local plotCentersX = {}
+	for index = 1, plotsPerSide do
+		table.insert(plotCentersX, (index - (plotsPerSide + 1) / 2) * PLOT_SPACING)
+	end
+	local halfLength = plotsPerSide * PLOT_SPACING / 2 + 16
+	Config.Conveyor.StartX = -halfLength
+	Config.Conveyor.EndX = halfLength
+	local groundSize = math.max(340, halfLength * 2 + 100)
+
 	makePart({
 		Name = "Ground",
-		Size = Vector3.new(340, 2, 340),
+		Size = Vector3.new(groundSize, 2, 340),
 		Position = Vector3.new(0, -1, 0),
 		Color = Color3.fromRGB(90, 170, 80),
 		Material = Enum.Material.Grass,
@@ -102,7 +116,7 @@ function WorldService:Build()
 
 	local half = PLOT_SIZE / 2
 	for _, zSign in { -1, 1 } do
-		for _, x in PLOT_CENTERS_X do
+		for _, x in plotCentersX do
 			local center = Vector3.new(x, 1, zSign * PLOT_Z)
 			local plotCF = CFrame.lookAt(center, Vector3.new(x, 1, conveyor.Z))
 			local model = Instance.new("Model")

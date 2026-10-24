@@ -1,0 +1,40 @@
+name: Create developer products
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [products.json]
+
+jobs:
+  products:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Legt fehlende Produkte an (Abgleich ueber den Namen) und gibt Key -> Produkt-ID aus
+      - name: Sync products
+        run: |
+          UNIVERSE_ID=$(jq -r '.universeId' roblox.json)
+          BASE="https://apis.roblox.com/developer-products/v2/universes/$UNIVERSE_ID/developer-products"
+          curl -sS "$BASE/creator?pageSize=100" -H "x-api-key: $ROBLOX_API_KEY" -o existing.json
+          echo "::notice::Existing: $(jq -c '[.developerProducts[]? | {name, productId}]' existing.json 2>/dev/null || head -c 300 existing.json)"
+          MAP="{}"
+          for row in $(jq -c '.[]' products.json); do
+            KEY=$(echo "$row" | jq -r '.key'); NAME=$(echo "$row" | jq -r '.name')
+            ID=$(jq -r --arg n "$NAME" '[.developerProducts[]? | select(.name == $n) | .productId][0] // empty' existing.json)
+            if [ -z "$ID" ]; then
+              RESP=$(curl -sS -X POST "$BASE" -H "x-api-key: $ROBLOX_API_KEY" \
+                -F "name=$NAME" \
+                -F "description=$(echo "$row" | jq -r '.description')" \
+                -F "price=$(echo "$row" | jq -r '.price')" \
+                -F "isForSale=true")
+              ID=$(echo "$RESP" | jq -r '.productId // empty')
+              [ -z "$ID" ] && echo "::warning::$KEY failed: $(echo "$RESP" | head -c 300)"
+              sleep 0.5
+            fi
+            MAP=$(echo "$MAP" | jq -c --arg k "$KEY" --arg v "$ID" '. + {($k): $v}')
+          done
+          echo "::notice::ProductIds: $MAP"

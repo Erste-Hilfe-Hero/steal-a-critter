@@ -1,0 +1,15 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "x1.5 income forever + VIP chat tag", "price": 249},
+  {"key": "Pass_DoubleCash", "name": "2x Cash", "description": "Double all income forever", "price": 399},
+  {"key": "Pass_ExtraSlots", "name": "+4 Base Slots", "description": "Hold 4 more critters in your base forever", "price": 299},
+  {"key": "Pass_FastSteal", "name": "Fast Steal", "description": "Steal in 1 second instead of 2.5 forever", "price": 199},
+  {"key": "Pass_SpeedCoil", "name": "Speed Coil", "description": "Run faster forever", "price": 149},
+  {"key": "CashSmall", "name": "Cash Bag", "description": "10 minutes of income", "price": 49},
+  {"key": "CashMedium", "name": "Cash Crate", "description": "1 hour of income", "price": 199},
+  {"key": "CashLarge", "name": "Cash Vault", "description": "6 hours of income", "price": 699},
+  {"key": "LockBase", "name": "5 Min Base Lock", "description": "Nobody can steal from you for 5 minutes", "price": 39},
+  {"key": "ServerLuck", "name": "Server Luck x3", "description": "15 min: rare critters spawn 3x more for everyone", "price": 199},
+  {"key": "InstantEpic", "name": "Instant Epic", "description": "Buy the Epic critter on the belt", "price": 49},
+  {"key": "InstantLegendary", "name": "Instant Legendary", "description": "Buy the Legendary critter on the belt", "price": 149},
+  {"key": "InstantMythic", "name": "Instant Mythic", "description": "Buy the Mythic critter on the belt", "price": 399}
+]
