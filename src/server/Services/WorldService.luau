@@ -20,13 +20,12 @@ local MAX_PADS = Config.BaseSlots + Config.ExtraSlotsAmount
 
 -- Jede Basis bekommt eine eigene Neonfarbe
 local ACCENTS = {
-	Color3.fromRGB(255, 70, 160),
-	Color3.fromRGB(60, 200, 255),
-	Color3.fromRGB(255, 200, 40),
-	Color3.fromRGB(120, 255, 120),
-	Color3.fromRGB(170, 90, 255),
-	Color3.fromRGB(255, 120, 50),
+	Color3.fromRGB(90, 170, 220),
+	Color3.fromRGB(220, 170, 90),
+	Color3.fromRGB(120, 190, 150),
+	Color3.fromRGB(190, 130, 170),
 }
+local LAMP_COLOR = Color3.fromRGB(255, 214, 160)
 
 local function makePart(props): Part
 	local part = Instance.new("Part")
@@ -63,10 +62,10 @@ end
 
 -- Abendstimmung mit Neon-Glow: hebt sich klar vom hellen Tageslicht der Konkurrenz ab
 local function setupLighting()
-	Lighting.ClockTime = 18.4
-	Lighting.Brightness = 2.2
-	Lighting.Ambient = Color3.fromRGB(70, 50, 110)
-	Lighting.OutdoorAmbient = Color3.fromRGB(120, 90, 160)
+	Lighting.ClockTime = 17.2
+	Lighting.Brightness = 2.6
+	Lighting.Ambient = Color3.fromRGB(80, 75, 95)
+	Lighting.OutdoorAmbient = Color3.fromRGB(140, 130, 150)
 	Lighting.EnvironmentDiffuseScale = 0.6
 	Lighting.EnvironmentSpecularScale = 0.8
 	for _, child in Lighting:GetChildren() do
@@ -79,21 +78,21 @@ local function setupLighting()
 	sky.CelestialBodiesShown = true
 	sky.Parent = Lighting
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.32
-	atmosphere.Offset = 0.15
-	atmosphere.Color = Color3.fromRGB(255, 150, 200)
-	atmosphere.Decay = Color3.fromRGB(110, 70, 170)
-	atmosphere.Glare = 0.4
-	atmosphere.Haze = 1.4
+	atmosphere.Density = 0.28
+	atmosphere.Offset = 0.1
+	atmosphere.Color = Color3.fromRGB(220, 200, 190)
+	atmosphere.Decay = Color3.fromRGB(110, 100, 130)
+	atmosphere.Glare = 0.2
+	atmosphere.Haze = 1
 	atmosphere.Parent = Lighting
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.9
-	bloom.Size = 28
-	bloom.Threshold = 1.4
+	bloom.Intensity = 0.4
+	bloom.Size = 20
+	bloom.Threshold = 2
 	bloom.Parent = Lighting
 	local color = Instance.new("ColorCorrectionEffect")
-	color.Saturation = 0.25
-	color.Contrast = 0.12
+	color.Saturation = 0.05
+	color.Contrast = 0.08
 	color.Brightness = 0.03
 	color.Parent = Lighting
 	local rays = Instance.new("SunRaysEffect")
@@ -160,7 +159,7 @@ function WorldService:Build()
 		Name = "Ground",
 		Size = Vector3.new(groundSize, 2, 340),
 		Position = Vector3.new(0, -1, 0),
-		Color = Color3.fromRGB(60, 120, 90),
+		Color = Color3.fromRGB(85, 130, 80),
 		Material = Enum.Material.Grass,
 		Parent = world,
 	})
@@ -193,7 +192,7 @@ function WorldService:Build()
 				Name = "BeltArrow",
 				Size = Vector3.new(0.5, 0.1, 2.6),
 				CFrame = CFrame.new(x, 1.02, conveyor.Z + side * 1.1) * CFrame.Angles(0, math.rad(side * 35), 0),
-				Color = Color3.fromRGB(80, 220, 255),
+				Color = Color3.fromRGB(150, 200, 230),
 				Material = Enum.Material.Neon,
 				CanCollide = false,
 				CanQuery = false,
@@ -209,7 +208,7 @@ function WorldService:Build()
 	for x = conveyor.StartX + 8, conveyor.EndX - 8, 26 do
 		lampIndex += 1
 		for _, side in { -1, 1 } do
-			lampPost(Vector3.new(x, 0, conveyor.Z + side * 12), ACCENTS[(lampIndex % #ACCENTS) + 1], world)
+			lampPost(Vector3.new(x, 0, conveyor.Z + side * 12), LAMP_COLOR, world)
 		end
 	end
 	for _, side in { -1, 1 } do
@@ -230,14 +229,14 @@ function WorldService:Build()
 	spawn.Size = Vector3.new(12, 1, 12)
 	spawn.Position = Vector3.new(conveyor.StartX - 20, 0.5, 0)
 	spawn.Duration = 0
-	spawn.Color = Color3.fromRGB(255, 70, 160)
+	spawn.Color = Color3.fromRGB(90, 170, 220)
 	spawn.Material = Enum.Material.Neon
 	spawn.Parent = world
 
 	-- Grosses Neon-Schild ueber dem Eingang
 	local gate = Vector3.new(conveyor.StartX - 20, 0, 0)
 	for _, side in { -1, 1 } do
-		makePart({ Name = "GatePillar", Size = Vector3.new(2, 22, 2), Position = gate + Vector3.new(6, 11, side * 13), Color = Color3.fromRGB(255, 70, 160), Material = Enum.Material.Neon, Parent = world })
+		makePart({ Name = "GatePillar", Size = Vector3.new(2, 22, 2), Position = gate + Vector3.new(6, 11, side * 13), Color = Color3.fromRGB(60, 55, 75), Material = Enum.Material.Slate, Parent = world })
 	end
 	local banner = makePart({ Name = "GateSign", Size = Vector3.new(1, 6, 28), Position = gate + Vector3.new(6, 20, 0), Color = Color3.fromRGB(25, 20, 40), Parent = world })
 	for _, face in { Enum.NormalId.Left, Enum.NormalId.Right } do
@@ -252,18 +251,18 @@ function WorldService:Build()
 		text.Font = Enum.Font.FredokaOne
 		text.TextScaled = true
 		text.Text = "STEAL A CRITTER"
-		text.TextColor3 = Color3.fromRGB(255, 220, 60)
-		text.TextStrokeColor3 = Color3.fromRGB(255, 70, 160)
+		text.TextColor3 = Color3.fromRGB(255, 225, 120)
+		text.TextStrokeColor3 = Color3.fromRGB(30, 25, 45)
 		text.TextStrokeTransparency = 0
 		text.Parent = gui
 	end
 
 	-- Schwebende Kristalle am Rand der Karte
 	local rng = Random.new(7)
-	for _ = 1, 14 do
+	for _ = 1, 8 do
 		local x = rng:NextNumber(-groundSize / 2 + 10, groundSize / 2 - 10)
 		local z = (if rng:NextNumber() < 0.5 then -1 else 1) * rng:NextNumber(PLOT_Z + PLOT_SIZE / 2 + 12, 160)
-		crystal(Vector3.new(x, rng:NextNumber(10, 22), z), ACCENTS[rng:NextInteger(1, #ACCENTS)], rng:NextNumber(4, 9), world)
+		crystal(Vector3.new(x, rng:NextNumber(10, 22), z), Color3.fromRGB(150, 200, 230), rng:NextNumber(4, 8), world)
 	end
 
 	local plotsFolder = Instance.new("Folder")
@@ -283,14 +282,14 @@ function WorldService:Build()
 				Name = "Floor",
 				Size = Vector3.new(PLOT_SIZE, 1, PLOT_SIZE),
 				CFrame = plotCF * CFrame.new(0, -0.5, 0),
-				Color = Color3.fromRGB(45, 40, 65),
-				Material = Enum.Material.Slate,
+				Color = Color3.fromRGB(150, 140, 125),
+				Material = Enum.Material.WoodPlanks,
 				Parent = model,
 			})
 			model.PrimaryPart = floor
 
 			-- Getoente Glaswaende mit Neon-Oberkante in der Farbe der Basis
-			local wallColor = accent:Lerp(Color3.fromRGB(30, 25, 50), 0.55)
+			local wallColor = accent:Lerp(Color3.fromRGB(200, 200, 210), 0.6)
 			local walls = {
 				{ "WallBack", Vector3.new(PLOT_SIZE, 8, 1), CFrame.new(0, 4, half) },
 				{ "WallLeft", Vector3.new(1, 8, PLOT_SIZE), CFrame.new(-half, 4, 0) },
@@ -351,9 +350,9 @@ function WorldService:Build()
 					Name = "Pad" .. index,
 					Size = Vector3.new(6, 0.2, 6),
 					CFrame = plotCF * CFrame.new(WorldService.PadOffset(index) + Vector3.new(0, 0.1, 0)),
-					Color = Color3.fromRGB(60, 55, 75),
-					Material = Enum.Material.Neon,
-					Transparency = 0.35,
+					Color = Color3.fromRGB(110, 105, 100),
+					Material = Enum.Material.SmoothPlastic,
+					Transparency = 0,
 					CanCollide = false,
 					Parent = model,
 				})

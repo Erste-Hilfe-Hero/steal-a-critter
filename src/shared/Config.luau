@@ -54,31 +54,31 @@ Config.Rarities = {
 	{ Name = "Mythic", Color = Color3.fromRGB(255, 60, 90), Weight = 0.1, Scale = 4.4, Material = Enum.Material.Neon, Lucky = true, Crown = true, Sparkles = true, Announce = true },
 }
 
--- Eigene Kreaturen (keine fremden Assets). Shape: "Ball" oder "Block".
+-- Eigene Kreaturen (keine fremden Assets). Body: Bauform (Quad, Bird, Biped, Blob, Frog, Ghost, Lizard, Dragon), Extras: Merkmale.
 Config.Units = {
-	{ Id = "blobby", Name = "Blobby", Rarity = "Common", Price = 25, Income = 1, Color = Color3.fromRGB(120, 200, 255), Shape = "Ball" },
-	{ Id = "pebble", Name = "Pebble Pal", Rarity = "Common", Price = 50, Income = 2, Color = Color3.fromRGB(140, 140, 140), Shape = "Block" },
-	{ Id = "sock", Name = "Sock Goblin", Rarity = "Common", Price = 90, Income = 3, Color = Color3.fromRGB(110, 170, 80), Shape = "Ball" },
+	{ Id = "blobby", Name = "Blobby", Rarity = "Common", Price = 25, Income = 1, Color = Color3.fromRGB(120, 200, 255), Shape = "Ball", Body = "Blob", Extras = {} },
+	{ Id = "pebble", Name = "Pebble Pal", Rarity = "Common", Price = 50, Income = 2, Color = Color3.fromRGB(140, 140, 140), Shape = "Block", Body = "Biped", Extras = { "Rocky" } },
+	{ Id = "sock", Name = "Sock Goblin", Rarity = "Common", Price = 90, Income = 3, Color = Color3.fromRGB(110, 170, 80), Shape = "Ball", Body = "Biped", Extras = { "BigEars" } },
 
-	{ Id = "toast", Name = "Toast Knight", Rarity = "Uncommon", Price = 250, Income = 6, Color = Color3.fromRGB(210, 160, 90), Shape = "Block" },
-	{ Id = "frog", Name = "Bubble Frog", Rarity = "Uncommon", Price = 500, Income = 10, Color = Color3.fromRGB(60, 200, 120), Shape = "Ball" },
-	{ Id = "cactus", Name = "Cactus Cat", Rarity = "Uncommon", Price = 900, Income = 15, Color = Color3.fromRGB(40, 150, 60), Shape = "Block" },
+	{ Id = "toast", Name = "Toast Knight", Rarity = "Uncommon", Price = 250, Income = 6, Color = Color3.fromRGB(210, 160, 90), Shape = "Block", Body = "Biped", Extras = { "Helmet" } },
+	{ Id = "frog", Name = "Bubble Frog", Rarity = "Uncommon", Price = 500, Income = 10, Color = Color3.fromRGB(60, 200, 120), Shape = "Ball", Body = "Frog", Extras = {} },
+	{ Id = "cactus", Name = "Cactus Cat", Rarity = "Uncommon", Price = 900, Income = 15, Color = Color3.fromRGB(40, 150, 60), Shape = "Block", Body = "Quad", Extras = { "CatEars", "Tail", "Spikes" } },
 
-	{ Id = "duck", Name = "Disco Duck", Rarity = "Rare", Price = 2_500, Income = 35, Color = Color3.fromRGB(255, 230, 60), Shape = "Ball" },
-	{ Id = "ninja", Name = "Noodle Ninja", Rarity = "Rare", Price = 5_000, Income = 60, Color = Color3.fromRGB(240, 220, 160), Shape = "Ball" },
-	{ Id = "potato", Name = "Pirate Potato", Rarity = "Rare", Price = 9_000, Income = 95, Color = Color3.fromRGB(170, 120, 70), Shape = "Block" },
+	{ Id = "duck", Name = "Disco Duck", Rarity = "Rare", Price = 2_500, Income = 35, Color = Color3.fromRGB(255, 230, 60), Shape = "Ball", Body = "Bird", Extras = { "Beak", "DiscoBall" } },
+	{ Id = "ninja", Name = "Noodle Ninja", Rarity = "Rare", Price = 5_000, Income = 60, Color = Color3.fromRGB(240, 220, 160), Shape = "Ball", Body = "Biped", Extras = { "Headband" } },
+	{ Id = "potato", Name = "Pirate Potato", Rarity = "Rare", Price = 9_000, Income = 95, Color = Color3.fromRGB(170, 120, 70), Shape = "Block", Body = "Biped", Extras = { "PirateHat", "EyePatch" } },
 
-	{ Id = "rooster", Name = "Robo Rooster", Rarity = "Epic", Price = 25_000, Income = 220, Color = Color3.fromRGB(180, 190, 200), Shape = "Block" },
-	{ Id = "llama", Name = "Lava Llama", Rarity = "Epic", Price = 50_000, Income = 380, Color = Color3.fromRGB(255, 100, 30), Shape = "Ball" },
-	{ Id = "banana", Name = "Ghost Banana", Rarity = "Epic", Price = 90_000, Income = 600, Color = Color3.fromRGB(250, 250, 200), Shape = "Ball" },
+	{ Id = "rooster", Name = "Robo Rooster", Rarity = "Epic", Price = 25_000, Income = 220, Color = Color3.fromRGB(180, 190, 200), Shape = "Block", Body = "Bird", Extras = { "Beak", "Comb", "Metal" } },
+	{ Id = "llama", Name = "Lava Llama", Rarity = "Epic", Price = 50_000, Income = 380, Color = Color3.fromRGB(255, 100, 30), Shape = "Ball", Body = "Quad", Extras = { "LongNeck", "Ears", "Tail" } },
+	{ Id = "banana", Name = "Ghost Banana", Rarity = "Epic", Price = 90_000, Income = 600, Color = Color3.fromRGB(250, 250, 200), Shape = "Ball", Body = "Ghost", Extras = {} },
 
-	{ Id = "gecko", Name = "Galaxy Gecko", Rarity = "Legendary", Price = 300_000, Income = 1_600, Color = Color3.fromRGB(90, 60, 200), Shape = "Ball" },
-	{ Id = "turtle", Name = "Thunder Turtle", Rarity = "Legendary", Price = 650_000, Income = 3_000, Color = Color3.fromRGB(60, 120, 255), Shape = "Block" },
-	{ Id = "goose", Name = "Golden Goose", Rarity = "Legendary", Price = 1_200_000, Income = 5_000, Color = Color3.fromRGB(255, 200, 40), Shape = "Ball" },
+	{ Id = "gecko", Name = "Galaxy Gecko", Rarity = "Legendary", Price = 300_000, Income = 1_600, Color = Color3.fromRGB(90, 60, 200), Shape = "Ball", Body = "Lizard", Extras = { "Tail" } },
+	{ Id = "turtle", Name = "Thunder Turtle", Rarity = "Legendary", Price = 650_000, Income = 3_000, Color = Color3.fromRGB(60, 120, 255), Shape = "Block", Body = "Quad", Extras = { "Shell" } },
+	{ Id = "goose", Name = "Golden Goose", Rarity = "Legendary", Price = 1_200_000, Income = 5_000, Color = Color3.fromRGB(255, 200, 40), Shape = "Ball", Body = "Bird", Extras = { "Beak", "LongNeck" } },
 
-	{ Id = "capybara", Name = "Cosmic Capybara", Rarity = "Mythic", Price = 5_000_000, Income = 18_000, Color = Color3.fromRGB(150, 80, 255), Shape = "Block" },
-	{ Id = "donut", Name = "Dragon Donut", Rarity = "Mythic", Price = 12_000_000, Income = 38_000, Color = Color3.fromRGB(255, 80, 160), Shape = "Ball" },
-	{ Id = "icecream", Name = "Infinity Ice Cream", Rarity = "Mythic", Price = 30_000_000, Income = 85_000, Color = Color3.fromRGB(120, 255, 240), Shape = "Ball" },
+	{ Id = "capybara", Name = "Cosmic Capybara", Rarity = "Mythic", Price = 5_000_000, Income = 18_000, Color = Color3.fromRGB(150, 80, 255), Shape = "Block", Body = "Quad", Extras = { "Ears", "Snout" } },
+	{ Id = "donut", Name = "Dragon Donut", Rarity = "Mythic", Price = 12_000_000, Income = 38_000, Color = Color3.fromRGB(255, 80, 160), Shape = "Ball", Body = "Dragon", Extras = { "Horns", "Tail" } },
+	{ Id = "icecream", Name = "Infinity Ice Cream", Rarity = "Mythic", Price = 30_000_000, Income = 85_000, Color = Color3.fromRGB(120, 255, 240), Shape = "Ball", Body = "Blob", Extras = { "Cone", "Cherry" } },
 }
 
 -- Gamepasses: einmal kaufen, fuer immer behalten. PriceHint = empfohlener Preis in Robux.
