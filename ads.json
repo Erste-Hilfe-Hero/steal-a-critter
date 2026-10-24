@@ -3,5 +3,6 @@
   "ownerUserId": "2979321382",
   "paymentType": "CREDIT_CARD",
   "dailyBudgetMicros": "1000000",
-  "idempotencyKey": "6f1c2a9e-3b7d-4e52-9a1f-5c8d2e7b4a10"
+  "idempotencyKey": "6f1c2a9e-3b7d-4e52-9a1f-5c8d2e7b4a10",
+  "campaignId": "45776d9c-355f-4e8d-b3f6-837c6d86108d"
 }

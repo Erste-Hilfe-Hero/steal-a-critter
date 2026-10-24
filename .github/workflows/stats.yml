@@ -1,0 +1,23 @@
+name: Game stats
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      # Besucher, Spieler, Favoriten, Bilder und Werbekampagne als Annotations ausgeben
+      - name: Stats
+        run: |
+          U=$(jq -r '.universeId' roblox.json)
+          echo "::notice::game: $(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -c '.data[0] | {playing, visits, favoritedCount, maxPlayers, genre, genre_l1, genre_l2, updated}')"
+          echo "::notice::votes: $(curl -sS "https://games.roblox.com/v1/games/votes?universeIds=$U" | jq -c '.data[0]')"
+          echo "::notice::icon: $(curl -sS "https://thumbnails.roblox.com/v1/games/icons?universeIds=$U&size=150x150&format=Png" | jq -c '.data[0] | {state, imageUrl}')"
+          echo "::notice::thumbs: $(curl -sS "https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=$U&size=768x432&format=Png" | jq -c '[.data[0].thumbnails[] | {targetId, state}]')"
+          C=$(jq -r '.campaignId // empty' ads.json)
+          [ -n "$C" ] && echo "::notice::campaign: $(curl -sS "https://apis.roblox.com/ads-management/v1/campaigns/$C" -H "x-api-key: $ROBLOX_API_KEY" | head -c 600)"
+          true
