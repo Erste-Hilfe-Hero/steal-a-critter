@@ -211,10 +211,10 @@ local function grantProduct(player: Player, key: string): boolean
 		player:SetAttribute("GotStarter", true)
 		beasts:AddItem(player, "MasterOrb", 3)
 		beasts:AddItem(player, "GreatOrb", 10)
-		services.DataService:AddCoins(player, 5_000)
+		services.DataService:AddCoins(player, 10_000)
 		data.BoostUntil = math.max(os.time(), data.BoostUntil) + 1800
 		services.DataService:UpdateAttributes(player)
-		services.Net.SendNotify(player, "Starter Pack unlocked! Good luck in the Colosseum!", GOLD)
+		services.Net.SendNotify(player, "Starter Pack unlocked! Good luck on your journey!", GOLD)
 	elseif kind == "Coins" then
 		local amount = math.floor(product.Battles * (6 + beasts:LeadLevel(player) * 4) * 1.5)
 		services.DataService:AddCoins(player, amount)
@@ -245,18 +245,14 @@ local function grantProduct(player: Player, key: string): boolean
 		end
 		beasts:Sync(player)
 	elseif kind == "Skip" then
-		if data.Crests < #Config.Champions then
-			data.Crests += 1
-			local champion = Config.Champions[data.Crests]
-			services.DataService:AddCoins(player, champion.Coins)
-			services.Net.SendAnnounce(`{player.DisplayName} earned the {champion.Title} Crest!`, GOLD)
-		else
+		-- Naechster Arena-Orden sofort (nach allen 8: Muenzen)
+		if not services.StoryService:GrantBadge(player, data.Crests + 1, true) then
 			services.DataService:AddCoins(player, 30_000)
+			services.Net.SendNotify(player, "You already have every badge! +30,000 coins instead.", GOLD)
 		end
-		services.DataService:UpdateAttributes(player)
 	elseif kind == "Heal" then
 		beasts:HealAll(player)
-		services.Net.SendNotify(player, "Your whole team is healed!", GOLD)
+		services.Net.SendNotify(player, "Your whole team is healed and revived!", GOLD)
 	elseif kind == "Continue" then
 		if not services.BattleService:ContinueGauntlet(player) then
 			services.Net.SendNotify(player, "Your team is healed!", GOLD)
@@ -348,7 +344,7 @@ function MonetizationService:Start()
 				local data = services.DataService:Get(player)
 				if data and data.Started and not data.GotStarter and not player:GetAttribute("StarterOffered") and data.PlayTime > 90 then
 					player:SetAttribute("StarterOffered", true)
-					self:Offer(player, "StarterPack", "WELCOME OFFER: 3 Master Orbs, 10 Great Orbs, 5K coins and a 2x boost!", true)
+					self:Offer(player, "StarterPack", "WELCOME OFFER: 3 Master Orbs, 10 Great Orbs, 10K coins and a 2x boost!", true)
 				end
 			end
 		end

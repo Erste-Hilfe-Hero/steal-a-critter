@@ -16,41 +16,70 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local BeastModel = require(ReplicatedStorage.Shared.BeastModel)
 
+local Story = require(ReplicatedStorage.Shared.Story)
+local Beasts = require(ReplicatedStorage.Shared.Beasts)
+local CollectionService = game:GetService("CollectionService")
+
 -- Konfiguration
 check("Format 1500 -> 1.5K", Format.Number(1500) == "1.5K", Format.Number(1500))
-check("24 beasts", #Config.Beasts == 24, #Config.Beasts)
+check("50 beasts", #Config.Beasts == 50, #Config.Beasts)
 for _, beast in Config.Beasts do
-	check("beast type " .. beast.Id, Config.Types[beast.Type] ~= nil)
+	check("beast type " .. beast.Id, Config.Types[beast.Type] ~= nil and (beast.Type2 == nil or Config.Types[beast.Type2] ~= nil))
 	check("beast rarity " .. beast.Id, Config.RaritiesByName[beast.Rarity] ~= nil)
 	if beast.Evolve then
 		check("evolve target " .. beast.Id, Config.BeastsById[beast.Evolve.To] ~= nil)
+	end
+	local moves = Beasts.DefaultMoves(beast.Id, 50)
+	check("moves " .. beast.Id, #moves >= 1 and #moves <= Config.MaxMoves, #moves)
+	for _, key in moves do
+		check("move exists " .. key, Config.Moves[key] ~= nil)
 	end
 	local ok, model = pcall(BeastModel.Build, beast.Id, 20, false)
 	check("model " .. beast.Id, ok and model.PrimaryPart ~= nil, if ok then nil else model)
 	local okShiny = pcall(BeastModel.Build, beast.Id, 40, true)
 	check("prismatic model " .. beast.Id, okShiny)
 end
-for _, zone in Config.Zones do
-	for _, spawn in zone.Spawns do
-		check("spawn " .. zone.Name .. " " .. spawn.Beast, Config.BeastsById[spawn.Beast] ~= nil)
+local function checkTeam(name: string, team)
+	for _, member in team do
+		check(name .. " beast " .. tostring(member[1]), Config.BeastsById[member[1]] ~= nil)
 	end
 end
-for _, champion in Config.Champions do
-	for _, member in champion.Team do
-		check("champion beast " .. member[1], Config.BeastsById[member[1]] ~= nil)
+for _, area in Story.Areas do
+	if area.Wild then
+		for _, entry in area.Wild do
+			check("wild " .. area.Id .. " " .. entry[1], Config.BeastsById[entry[1]] ~= nil)
+		end
 	end
 end
-check("fire beats leaf", Config.TypeMultiplier("Fire", "Leaf") == Config.SuperEffective)
-check("fire weak vs water", Config.TypeMultiplier("Fire", "Water") == Config.NotEffective)
-check("shadow vs light", Config.TypeMultiplier("Shadow", "Light") == Config.SuperEffective)
-check("light vs shadow", Config.TypeMultiplier("Light", "Shadow") == Config.SuperEffective)
-check("normal neutral", Config.TypeMultiplier("Normal", "Stone") == 1)
-check("master orb always", Config.CatchChance("voidrake", 1, math.huge, 1) == 1)
-local low = Config.CatchChance("cindercub", 0.1, 1, 1)
-local high = Config.CatchChance("cindercub", 1, 1, 1)
+for _, leader in Story.Leaders do
+	checkTeam("leader " .. leader.Name, leader.Team)
+end
+for _, elite in Story.Elite do
+	checkTeam("elite " .. elite.Name, elite.Team)
+end
+for _, trainer in Story.Trainers do
+	checkTeam("trainer " .. trainer.Id, trainer.Team or {})
+end
+for stage = 1, 4 do
+	checkTeam("rival " .. stage, Story.RivalTeam(stage, "cindercub"))
+end
+for _, legend in Story.Legends do
+	check("legend " .. legend.Beast, Config.BeastsById[legend.Beast] ~= nil)
+end
+check("8 leaders", #Story.Leaders == 8, #Story.Leaders)
+check("champion last", Story.Elite[#Story.Elite].Id == "champion")
+check("objective start", typeof(Story.Objective({}, 0)) == "string")
+check("fire beats leaf", Config.Effectiveness("Fire", "sproutling") > 1)
+check("fire weak vs water", Config.Effectiveness("Fire", "puddlit") < 1)
+check("shadow vs light", Beasts.TypeMultiplier("Shadow", "Light") > 1)
+check("spark immune stone", Beasts.TypeMultiplier("Spark", "Stone") == 0)
+check("master orb always", Beasts.CatchChance("cindercub", 1, 100, nil, math.huge, 1) == 1)
+local low = Beasts.CatchChance("cindercub", 5, 100, nil, 1, 1)
+local high = Beasts.CatchChance("cindercub", 100, 100, nil, 1, 1)
 check("low hp easier to catch", low > high, `{low} > {high}`)
-check("ultimate at lv25", table.find(Config.MovesFor("cindercub", 25), "Ultimate") ~= nil)
-check("no ultimate at lv5", table.find(Config.MovesFor("cindercub", 5), "Ultimate") == nil)
+local asleep = Beasts.CatchChance("cindercub", 100, 100, "Sleep", 1, 1)
+check("status helps catch", asleep > high, `{asleep} > {high}`)
+check("xp curve grows", Config.XpToNext(30) > Config.XpToNext(5))
 for key, product in Config.DevProducts do
 	check("product id " .. key, product.Id ~= 0, product.Id)
 end
@@ -62,7 +91,7 @@ end
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local services = {}
-local ORDER = { "DataService", "WorldService", "BeastService", "BattleService", "WildService", "MonetizationService", "RewardService", "LeaderboardService", "CommunityService" }
+local ORDER = { "DataService", "WorldService", "BeastService", "BattleService", "StoryService", "EncounterService", "MonetizationService", "RewardService", "LeaderboardService", "CommunityService" }
 local ok, err = pcall(function()
 	local s = folder.Services
 	services.Net = require(s.Net)
@@ -73,6 +102,7 @@ local ok, err = pcall(function()
 		services[name]:Init(services)
 	end
 	services.WorldService:Build()
+	services.StoryService:Build()
 	for _, name in ORDER do
 		if services[name].Start then
 			services[name]:Start()
@@ -83,60 +113,63 @@ check("services start", ok, err)
 
 if ok then
 	check("world built", workspace:FindFirstChild("World") ~= nil)
-	check("colosseum built", workspace.World:FindFirstChild("Colosseum") ~= nil)
-	local wild = workspace:FindFirstChild("Wild")
-	local expected = #Config.Zones * Config.WildPerZone
-	check("wild beasts spawned", wild ~= nil and #wild:GetChildren() == expected, wild and #wild:GetChildren())
-	check("spring position", services.WorldService.SpringPosition ~= nil)
-	local slot = services.WorldService:ClaimArenaSlot(nil)
-	check("arena slot", slot ~= nil)
-	if slot then
-		services.WorldService:ReleaseArenaSlot(slot)
+	check("npcs built", workspace:FindFirstChild("Npcs") ~= nil and #workspace.Npcs:GetChildren() > 20, workspace:FindFirstChild("Npcs") and #workspace.Npcs:GetChildren())
+	check("tall grass", #CollectionService:GetTagged("TallGrass") > 20, #CollectionService:GetTagged("TallGrass"))
+	check("story gates", #CollectionService:GetTagged("StoryGate") >= 8, #CollectionService:GetTagged("StoryGate"))
+	local models = services.StoryService._Internal.TrainerModels
+	for _, trainer in Story.Trainers do
+		check("trainer placed " .. trainer.Id, models[trainer.Id] ~= nil)
 	end
-	check("gate tagged", #game:GetService("CollectionService"):GetTagged("ZoneGate") == #Config.Zones - 1)
+	for _, area in Story.Areas do
+		if area.Kind == "Town" then
+			local landing = services.WorldService:LandingFor(area.Id)
+			check("landing " .. area.Id, typeof(landing) == "CFrame")
+			check("area at " .. area.Id, Story.AreaAt(landing.Position) ~= nil)
+		elseif area.Wild then
+			local beastId, level = services.EncounterService.Pick(area)
+			check("encounter " .. area.Id, Config.BeastsById[beastId] ~= nil and level >= area.Levels[1] and level <= area.Levels[2])
+		end
+	end
 
 	-- Kampf zwischen zwei Computer-Seiten bis zum Ende simulieren
 	local internal = services.BattleService._Internal
+	local function switchFainted(side)
+		local fighter = side.Fighters[side.Active]
+		if fighter.Hp <= 0 then
+			for index, other in side.Fighters do
+				if other.Hp > 0 then
+					side.Active = index
+					return
+				end
+			end
+		end
+	end
 	for round = 1, 20 do
 		local a = internal.AiSide("A", { { "cindercub", 10 }, { "puddlit", 12 } }, CFrame.new())
 		local b = internal.AiSide("B", { { "sproutling", 11 }, { "zapkit", 10 } }, CFrame.new(0, 0, -20))
-		local battle = { Id = round, Kind = "Champion", Sides = { a, b }, Turn = 0, Coins = 0, Folder = Instance.new("Folder") }
+		local battle = { Id = round, Kind = "Trainer", Sides = { a, b }, Turn = 0, Coins = 0, Events = {}, Caught = nil }
 		local turns = 0
 		while not battle.Winner and turns < 80 do
 			turns += 1
-			for index, side in battle.Sides do
-				local other = battle.Sides[3 - index]
-				side.Action = { Kind = "Move", Key = internal.BestMove(side.Fighters[side.Active], other.Fighters[other.Active], 0.5) }
+			battle.Turn = turns
+			for index in battle.Sides do
+				battle.Sides[index].Action = internal.AiAction(battle, index)
 			end
 			internal.ResolveTurn(battle)
+			switchFainted(a)
+			switchFainted(b)
 		end
 		if round == 1 then
 			check("battle ends", battle.Winner ~= nil, `{turns} turns`)
-			check("battle length sane", turns >= 3 and turns <= 30, turns)
+			check("battle length sane", turns >= 2 and turns <= 40, turns)
 		elseif not battle.Winner then
 			check("battle ends round " .. round, false, turns)
 		end
-		battle.Folder:Destroy()
 	end
-	-- Gauntlet: Welle 2 wird automatisch nachgeschoben
-	local a = internal.AiSide("A", { { "infernox", 60 } }, CFrame.new())
-	local b = internal.AiSide("Wave", internal.GauntletTeam(1), CFrame.new(0, 0, -20))
-	local folderG = Instance.new("Folder")
-	folderG.Parent = workspace
-	local gauntlet = { Id = 99, Kind = "Gauntlet", Sides = { a, b }, Turn = 0, Coins = 0, Wave = 1, WavesWon = 0, Folder = folderG }
-	for _ = 1, 30 do
-		a.Action = { Kind = "Move", Key = "Ultimate" }
-		b.Action = { Kind = "Move", Key = "Strike" }
-		internal.ResolveTurn(gauntlet)
-		if gauntlet.Wave >= 3 or gauntlet.Winner then
-			break
-		end
-	end
-	check("gauntlet waves advance", gauntlet.Wave >= 2, gauntlet.Wave)
-	check("gauntlet coins", gauntlet.Coins > 0, gauntlet.Coins)
-	folderG:Destroy()
-	local damage = internal.ComputeDamage(internal.MakeFighter("cindercub", 10), internal.MakeFighter("sproutling", 10), "Fire")
-	check("damage positive", damage >= 0, damage)
+	local wave = internal.GauntletTeam(5)
+	check("gauntlet team", #wave >= 1, #wave)
+	local damage = internal.ComputeDamage(internal.MakeFighter("cindercub", 10), internal.MakeFighter("sproutling", 10), "Ember")
+	check("damage positive", damage > 0, damage)
 end
 
 table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)

@@ -1,19 +1,24 @@
 # ⚔️ Colosseum Catcher
 
-Fange eigene Bestien in vier Zonen, trainiere dein Team und besiege die 8 Champions des Kolosseums.
+Ein Abenteuer im Stil der klassischen Monster-Spiele: Starter im Labor waehlen, ueber Routen mit hohem Gras
+von Stadt zu Stadt reisen, wilde Bestien fangen, 8 Arenaleiter besiegen und Champion der Liga werden.
 Alle Bestien, Namen und Grafiken sind eigene Entwuerfe.
 
 ## Spielablauf
-- Starter waehlen (Feuer, Wasser oder Blatt), dann wilde Bestien in den Zonen bekaempfen und mit Orbs fangen.
-- 24 Bestien in 5 Seltenheiten, 8 Elemente mit Staerken und Schwaechen, Aufstieg in staerkere Formen.
+- Story: Professor Sol in Dawnvale gibt den Starter (Feuer, Wasser oder Blatt), Rivale Kai kaempft viermal gegen dich.
+- 9 Staedte, 9 Routen, 8 Arenen mit Arena-Trainern und Leitern, Champion Road, Grand Four und Champion Maximus.
+- Team Eclipse als Boesewicht (zwei Bosskaempfe), 5 legendaere Bestien in Schreinen.
+- Wilde Bestien nur im hohen Gras, Trainer sehen dich und laufen auf dich zu.
+- Rundenkampf wie im Original: 4 Attacken mit AP, Typen-Effektivitaet, Volltreffer, Status (Brand, Gift, Schlaf,
+  Paralyse, Frost), Statuswerte, Beutel, Wechseln, Flucht, Fangen mit Wackeln.
+- 50 Bestien mit Doppeltypen, Lernsets, Entwicklung und Attacken lernen nach dem Kampf.
+- Heilzentrum und Laden in jeder Stadt, Fliegen zu besuchten Staedten, Karte mit Ziel-Markierung, Bestiarium.
 - PRISMATISCHE Bestien sind sehr selten und 20 % staerker.
-- 8 Champions geben Abzeichen (Crests), die neue Zonen oeffnen.
-- Endloser Gauntlet mit Bestenliste, Duelle gegen andere Spieler (Trophaeen).
-- Taegliche Truhe (7-Tage-Serie) und Codes: COLOSSEUM, CATCHEMALL, BIGBABA.
+- Endloser Gauntlet, Revanchen gegen Arenaleiter, Duelle gegen Spieler, taegliche Truhe und Codes.
 
 ## Geld verdienen
-- 8 Dauer-Paesse (VIP, 2x Coins, 2x XP, Big Team, Prismatic Hunter, Lucky Catcher, Auto Battle, Speed).
-- 15 Produkte (Master Orbs, Starter Pack, Coin-Pakete, Boost, Power Snack, Ascension Crystal, Champion Pass,
+- 8 Dauer-Paesse (VIP, 2x Coins, 2x XP, XP Share, Prismatic Hunter, Lucky Catcher, Auto Battle, Speed).
+- 15 Produkte (Master Orbs, Starter Pack, Coin-Pakete, Boost, Power Snack, Ascension Crystal, Champion Pass (naechster Orden),
   Full Heal, Gauntlet Second Chance, Prismatic Storm fuer alle, Storage).
 - Angebote im richtigen Moment (z. B. Master Orb nach Fehlwurf auf seltene Bestie, Second Chance im Gauntlet).
 - Video-Werbung fuer gratis Great Orbs und Werbetafeln in der Welt.
