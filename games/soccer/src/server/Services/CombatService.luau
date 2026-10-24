@@ -68,7 +68,8 @@ function CombatService:Heal(actor)
 	setHP(actor, actor.MaxHP)
 end
 
--- Spielzeug-Messer in die rechte Hand (Griff in Teamfarbe)
+-- Samurai-Schwert (Katana) in die rechte Hand: umwickelter Griff in Teamfarbe, goldenes Stichblatt, lange Klinge.
+-- Das Model heisst weiter "Knife", damit alle bisherigen Abfragen gelten.
 local function giveKnife(actor)
 	local hand = actor.Model:FindFirstChild("RightHand") :: BasePart?
 	if not hand or actor.Model:FindFirstChild("Knife") then
@@ -95,8 +96,13 @@ local function giveKnife(actor)
 		return p
 	end
 	local golden = hasPass(actor, "GoldenKnife")
-	piece(Vector3.new(0.3, 0.3, 0.9), CFrame.new(0, -0.35, -0.2), Config.Teams[actor.Team].Color, Enum.Material.SmoothPlastic)
-	piece(Vector3.new(0.1, 0.38, 1.5), CFrame.new(0, -0.35, -1.35), if golden then Color3.fromRGB(255, 200, 40) else Color3.fromRGB(215, 225, 235), if golden then Enum.Material.Neon else Enum.Material.Metal)
+	local bladeColor = if golden then Color3.fromRGB(255, 200, 40) else Color3.fromRGB(215, 225, 235)
+	local bladeMaterial = if golden then Enum.Material.Neon else Enum.Material.Metal
+	piece(Vector3.new(0.28, 0.3, 1.5), CFrame.new(0, -0.35, 0.25), Color3.fromRGB(25, 25, 28), Enum.Material.Fabric)
+	piece(Vector3.new(0.3, 0.32, 0.25), CFrame.new(0, -0.35, 0.95), Config.Teams[actor.Team].Color, Enum.Material.SmoothPlastic)
+	piece(Vector3.new(0.9, 0.9, 0.12), CFrame.new(0, -0.35, -0.55), Color3.fromRGB(200, 160, 60), Enum.Material.Metal)
+	piece(Vector3.new(0.08, 0.32, 4.4), CFrame.new(0, -0.3, -2.8), bladeColor, bladeMaterial)
+	piece(Vector3.new(0.09, 0.08, 4.4), CFrame.new(0, -0.48, -2.8), Color3.fromRGB(245, 248, 255), bladeMaterial)
 	knife.Parent = actor.Model
 end
 
@@ -179,7 +185,7 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 		if (attacker.Root.Position - ball.Position).Magnitude > Config.HuntDistance and (victim.Root.Position - ball.Position).Magnitude > Config.HuntDistance then
 			if attacker.Player and (attacker.HuntWarnedAt or 0) < now() - 2 then
 				attacker.HuntWarnedAt = now()
-				self.Services.Net.SendNotify(attacker.Player, "No hunting! Knife only works near the ball.", Config.Colors.Orange)
+				self.Services.Net.SendNotify(attacker.Player, "No hunting! The sword only works near the ball.", Config.Colors.Orange)
 			end
 			return
 		end
@@ -316,12 +322,20 @@ local function resolveSwings()
 			-- Spieler zielen mit der Kamera (Ego-Sicht): Blickrichtung vom Client, sonst die des Koerpers
 			local look = swing.Aim or flat(actor.Root.CFrame.LookVector)
 			local best, bestDistance = nil, math.huge
+			swing.Hit = swing.Hit or {}
 			for _, other in match:GetActors() do
-				if other.Team ~= actor.Team and not CombatService:IsKO(other) and other.Root.Parent then
+				if other.Team ~= actor.Team and not CombatService:IsKO(other) and other.Root.Parent and not swing.Hit[other] then
 					local offset = other.Root.Position - actor.Root.Position
 					local distance = Vector3.new(offset.X, 0, offset.Z).Magnitude
-					if distance <= def.Range and math.abs(offset.Y) < 7 and (distance < 4 or look:Dot(flat(offset)) > 0) and distance < bestDistance then
-						best, bestDistance = other, distance
+					if distance <= def.Range and math.abs(offset.Y) < 8 and (distance < 4 or look:Dot(flat(offset)) > def.Arc) then
+						if def.Cleave then
+							-- Katana-Schwung: trifft jeden Gegner im Bogen einmal
+							swing.Hit[other] = true
+							local backstab = isBehind(actor, other)
+							CombatService:Damage(other, if backstab then def.Backstab else def.Damage, actor, swing.Kind, backstab)
+						elseif distance < bestDistance then
+							best, bestDistance = other, distance
+						end
 					end
 				end
 			end

@@ -287,7 +287,7 @@ function MonetizationService:AfterKnockout(player: Player)
 	end
 	if #choices > 0 then
 		local key = choices[(knockouts[player] // 4) % #choices + 1]
-		task.delay(Config.KOSeconds + 0.5, function()
+		task.delay(1.5, function()
 			if player.Parent then
 				self.Services.Net.Offer:FireClient(player, key)
 			end

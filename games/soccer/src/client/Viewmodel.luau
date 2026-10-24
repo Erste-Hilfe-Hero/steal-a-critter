@@ -1,4 +1,4 @@
--- Ego-Perspektive wie im Original: rechter Arm mit Messer vor der Kamera, wippt beim Laufen,
+-- Ego-Perspektive: rechter Arm mit Samurai-Schwert vor der Kamera, wippt beim Laufen,
 -- Slash schwingt quer durchs Bild, Stab stoesst nach vorne. Nur sichtbar in der Ego-Sicht.
 local Players = game:GetService("Players")
 
@@ -22,16 +22,16 @@ local function part(name: string, size: Vector3, color: Color3, material: Enum.M
 end
 
 local model = Instance.new("Model")
-model.Name = "KnifeViewmodel"
+model.Name = "KatanaViewmodel"
 local arm = part("Arm", Vector3.new(0.42, 0.42, 1.7), Color3.fromRGB(234, 184, 146))
 local sleeve = part("Sleeve", Vector3.new(0.48, 0.48, 0.8), Color3.fromRGB(40, 60, 140))
 local hand = part("Hand", Vector3.new(0.44, 0.5, 0.42), Color3.fromRGB(234, 184, 146))
-local grip = part("Grip", Vector3.new(0.14, 0.16, 0.55), Color3.fromRGB(35, 35, 40))
-local guard = part("Guard", Vector3.new(0.1, 0.36, 0.06), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
-local blade = part("Blade", Vector3.new(0.04, 0.2, 0.95), Color3.fromRGB(205, 210, 220), Enum.Material.Metal)
+local grip = part("Grip", Vector3.new(0.13, 0.15, 0.8), Color3.fromRGB(25, 25, 28), Enum.Material.Fabric)
+local guard = part("Guard", Vector3.new(0.36, 0.36, 0.05), Color3.fromRGB(200, 160, 60), Enum.Material.Metal)
+local blade = part("Blade", Vector3.new(0.03, 0.12, 2.6), Color3.fromRGB(205, 210, 220), Enum.Material.Metal)
 local tip = Instance.new("WedgePart")
 tip.Name = "Tip"
-tip.Size = Vector3.new(0.04, 0.2, 0.25)
+tip.Size = Vector3.new(0.03, 0.12, 0.3)
 tip.Color = blade.Color
 tip.Material = Enum.Material.Metal
 tip.Anchored = true
@@ -48,13 +48,14 @@ local LAYOUT = {
 	[arm] = CFrame.new(0, 0, 0.95),
 	[sleeve] = CFrame.new(0, 0, 1.55),
 	[hand] = CFrame.new(),
-	[grip] = CFrame.new(0, 0.1, -0.15),
-	[guard] = CFrame.new(0, 0.1, -0.45),
-	[blade] = CFrame.new(0, 0.12, -0.95),
-	[tip] = CFrame.new(0, 0.12, -1.55) * CFrame.Angles(0, math.pi, 0),
+	[grip] = CFrame.new(0, 0.1, -0.2),
+	[guard] = CFrame.new(0, 0.1, -0.62),
+	[blade] = CFrame.new(0, 0.1, -1.95),
+	[tip] = CFrame.new(0, 0.1, -3.4) * CFrame.Angles(0, math.pi, 0),
 }
 
-local REST = CFrame.new(0.85, -0.8, -1.35) * CFrame.Angles(math.rad(6), math.rad(8), math.rad(-12))
+-- Katana schraeg nach oben gehalten, Klinge zeigt nach vorne links
+local REST = CFrame.new(0.9, -0.95, -1.2) * CFrame.Angles(math.rad(38), math.rad(14), math.rad(-18))
 
 local swingKind: string? = nil
 local swingStart = 0

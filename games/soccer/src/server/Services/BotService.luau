@@ -272,7 +272,7 @@ local function think(bot)
 				sprint = true
 				-- Ballfuehrer mit dem Messer angreifen (Treffer koennen ihm den Ball abnehmen)
 				local distance = (carrier.Root.Position - position).Magnitude
-				if distance < Config.Knife.Slash.Range - 0.5 and (actor.KnifeReadyAt or 0) < now() and math.random() < 0.5 then
+				if distance < 8 and (actor.KnifeReadyAt or 0) < now() and math.random() < 0.5 then
 					local look = (carrier.Root.Position - position) * Vector3.new(1, 0, 1)
 					if look.Magnitude > 0.1 then
 						root.CFrame = CFrame.lookAt(position, position + look)
