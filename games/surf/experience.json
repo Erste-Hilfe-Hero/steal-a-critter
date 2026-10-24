@@ -1,0 +1,5 @@
+{
+  "name": "surf_ski",
+  "description": "The classic surf from Counter-Strike, rebuilt for Roblox! Slide along steep snowy ramps, air-strafe to build speed and race the clock through 10 alpine stages. Real surf physics: hold A/D toward the ramp, steer with the mouse (or swipe on mobile), chain bunny hops and hit 3000 u/s. Beat your personal best, climb the world top 10 and break stage records. Unlock trails and skis, rank up from Newbie to Legend. Commands: /r restart, /s restart stage, /cp and /tele for checkpoints.",
+  "serverSize": 16
+}
