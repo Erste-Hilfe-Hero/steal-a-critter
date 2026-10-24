@@ -31,6 +31,23 @@ jobs:
               PLACE_ID=$(jq -r '.data[0].rootPlace.id // empty' games.json)
             fi
           fi
+          HINT=$(jq -r '.hint // empty' roblox.json)
+          if [ -z "$PLACE_ID" ] && [ -n "$HINT" ]; then
+            # Hinweis-Zahl zuerst als Place-ID, dann als User-ID probieren
+            U=$(curl -sS "https://apis.roblox.com/universes/v1/places/$HINT/universe" | jq -r '.universeId // empty')
+            echo "::notice::Hint as place -> universe '$U'"
+            if [ -n "$U" ]; then
+              PLACE_ID=$HINT; UNIVERSE_ID=$U
+            else
+              curl -sS "https://games.roblox.com/v2/users/$HINT/games?accessFilter=All&limit=10&sortOrder=Desc" -o games.json
+              echo "::notice::Hint as user -> games: $(jq -c '[.data[]? | {name, id, place: .rootPlace.id}]' games.json) $(head -c 200 games.json)"
+              UNIVERSE_ID=$(jq -r '.data[0].id // empty' games.json)
+              PLACE_ID=$(jq -r '.data[0].rootPlace.id // empty' games.json)
+            fi
+          fi
+          if [ -n "$USERNAME" ] && [ -z "$USER_ID" ]; then
+            echo "::notice::Username lookup: $(curl -sS -X POST https://users.roblox.com/v1/usernames/users -H 'Content-Type: application/json' -d "{\"usernames\":[\"$USERNAME\"]}" | head -c 300)"
+          fi
           if [ -n "$PLACE_ID" ] && [ -z "$UNIVERSE_ID" ]; then
             UNIVERSE_ID=$(curl -sS "https://apis.roblox.com/universes/v1/places/$PLACE_ID/universe" | jq -r '.universeId // empty')
           fi
