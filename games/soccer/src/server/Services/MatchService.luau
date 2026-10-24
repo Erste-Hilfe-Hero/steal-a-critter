@@ -55,6 +55,37 @@ local function updateScore()
 	end
 end
 
+-- Team-Statistik fuer die TV-Anzeige oben rechts (Ballbesitz, Schuesse, Steals, Saves)
+local teamStats = {}
+local function resetTeamStats()
+	for _, teamName in Config.TeamOrder do
+		teamStats[teamName] = { Possession = 0, Shots = 0, Steals = 0, Saves = 0, Smacks = 0 }
+	end
+end
+resetTeamStats()
+
+local function publishTeamStats()
+	local total = 0
+	for _, stats in teamStats do
+		total += stats.Possession
+	end
+	for teamName, stats in teamStats do
+		local share = if total > 0 then math.floor(stats.Possession / total * 100 + 0.5) else 50
+		workspace:SetAttribute(`Stat{teamName}Possession`, share)
+		for _, key in { "Shots", "Steals", "Saves", "Smacks" } do
+			workspace:SetAttribute(`Stat{teamName}{key}`, stats[key])
+		end
+	end
+end
+
+local function countTeam(actor, key: string)
+	local stats = actor and teamStats[actor.Team]
+	if stats then
+		stats[key] += 1
+		publishTeamStats()
+	end
+end
+
 local function statsFor(player: Player)
 	local stats = matchStats[player]
 	if not stats then
@@ -268,7 +299,14 @@ function MatchService:OnGoal(scoringTeam: string, scorer, assist, distance: numb
 	self.GoalScored = true
 end
 
+function MatchService:OnShot(actor)
+	if state == "Playing" then
+		countTeam(actor, "Shots")
+	end
+end
+
 function MatchService:OnTackle(actor, victim)
+	countTeam(actor, "Steals")
 	reward(actor, "Steal")
 	if actor.Player then
 		statsFor(actor.Player).Steals += 1
@@ -292,6 +330,7 @@ end
 
 -- Ein harter gegnerischer Schuss hat jemanden umgehauen
 function MatchService:OnSmack(kicker, victim)
+	countTeam(kicker, "Smacks")
 	if kicker then
 		reward(kicker, "Smack")
 		if kicker.Player then
@@ -306,6 +345,8 @@ function MatchService:OnSmack(kicker, victim)
 end
 
 function MatchService:OnSave(actor)
+	countTeam(actor, "Saves")
+	self.Services.Net.PlaySound("Save", actor.Root.Position)
 	reward(actor, "Save")
 	if actor.Player then
 		statsFor(actor.Player).Saves += 1
@@ -395,6 +436,8 @@ local function runMatch()
 	goldenGoal = false
 	MatchService.ScoreLimitReached = false
 	table.clear(matchStats)
+	resetTeamStats()
+	publishTeamStats()
 	for _, player in Players:GetPlayers() do
 		MatchService.Services.ProgressService:ResetMatch(player)
 	end
@@ -420,6 +463,11 @@ local function runMatch()
 			lastTick = os.clock()
 		else
 			timeLeft -= dt
+			local carrier = MatchService.Services.BallService.Carrier
+			if carrier and teamStats[carrier.Team] then
+				teamStats[carrier.Team].Possession += dt
+				publishTeamStats()
+			end
 			if timeLeft <= 0 then
 				if score.Blue == score.Red and not goldenGoal then
 					goldenGoal = true

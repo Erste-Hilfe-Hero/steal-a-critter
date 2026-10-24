@@ -2,6 +2,10 @@ name: Smoke test surf_ski
 
 on:
   workflow_dispatch:
+    inputs:
+      script:
+        description: Luau script to run in the place
+        default: tests/smoke.luau
   workflow_run:
     workflows: ["Publish surf_ski"]
     types: [completed]
@@ -13,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      SCRIPT: ${{ inputs.script || 'tests/smoke.luau' }}
     defaults:
       run:
         working-directory: games/surf
@@ -26,7 +31,7 @@ jobs:
           if [ -z "$U" ] || [ -z "$P" ]; then echo "::warning::IDs not pinned in roblox.json yet - skipping"; exit 0; fi
           BASE="https://apis.roblox.com/cloud/v2/universes/$U/places/$P"
           curl -sS -X POST "$BASE/luau-execution-session-tasks" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
-            -d "$(jq -n --rawfile s tests/smoke.luau '{script: $s, timeout: "120s"}')" -o task.json
+            -d "$(jq -n --rawfile s "$SCRIPT" '{script: $s, timeout: "120s"}')" -o task.json
           TASK=$(jq -r '.path // empty' task.json)
           if [ -z "$TASK" ]; then echo "::error::create failed: $(head -c 400 task.json)"; exit 1; fi
           for i in $(seq 1 60); do

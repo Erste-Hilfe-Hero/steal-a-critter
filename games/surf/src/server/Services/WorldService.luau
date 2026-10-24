@@ -1,5 +1,5 @@
 -- Baut die ganze Map aus Code: Lobby (Skihuette), 10 Surf-Stages aus abfallenden Dach-Rampen,
--- Bergkulisse, gefrorener See und Licht im "Alpine Aurora"-Stil. Keine fremden Assets.
+-- verschneites Tal mit Bergen und Tageslicht, angelehnt an die klassische CS-Map surf_ski. Keine fremden Assets.
 -- Zonen (Start, Ziel, Lobby-Portal) liegen unsichtbar in workspace.Zones; der Client prueft sie selbst,
 -- weil er seine Bewegung selbst rechnet (SurfPhysics).
 local Lighting = game:GetService("Lighting")
@@ -17,6 +17,9 @@ local zones: Folder
 local stageInfo = {} -- [Stage] = { Spawn = CFrame, Finish = BasePart, KillY = number }
 local lobbySpawn: CFrame
 local wedgeFacesNegZ = true
+local WOOD = Color3.fromRGB(122, 84, 54)
+local WOOD_DARK = Color3.fromRGB(86, 58, 38)
+local TRIM = Color3.fromRGB(150, 170, 195) -- graublaue Rampenkante wie bei den alten Source-Maps
 
 function WorldService:Init(services)
 	self.Services = services
@@ -143,8 +146,8 @@ local function mountain(center: Vector3, length: number, width: number, height: 
 			ClassName = "WedgePart",
 			Size = Vector3.new(length, height, width / 2),
 			CFrame = cf * CFrame.new(0, height / 2, side * width / 4) * wedgeRotation(side),
-			Color = Color3.fromRGB(88, 100, 132),
-			Material = Enum.Material.Slate,
+			Color = Color3.fromRGB(128, 132, 140),
+			Material = Enum.Material.Rock,
 			Parent = parent,
 		})
 		deco({
@@ -177,33 +180,21 @@ local function ramp(ridgeStart: Vector3, length: number, width: number, height: 
 			Material = Enum.Material.Snow,
 			Parent = model,
 		})
-		-- Leuchtkante unten: zeigt, wo die Rampe endet
+		-- Schmale Kante unten: zeigt, wo die Rampe endet
 		deco({
-			Size = Vector3.new(length, 0.5, 0.5),
-			CFrame = cf * CFrame.new(length / 2, -height + 0.25, side * (half - 0.2)),
-			Color = accent,
-			Material = Enum.Material.Neon,
+			Size = Vector3.new(length, 0.6, 0.6),
+			CFrame = cf * CFrame.new(length / 2, -height + 0.3, side * (half - 0.25)),
+			Color = TRIM,
+			Material = Enum.Material.Concrete,
 			Parent = model,
 		})
-		-- Eis-Stuetzen
-		for _, along in { 0.25, 0.75 } do
-			local top = (cf * CFrame.new(length * along, -height, side * half * 0.5)).Position
-			deco({
-				Size = Vector3.new(3, 140, 3),
-				CFrame = CFrame.new(top - Vector3.new(0, 70, 0)),
-				Color = Color3.fromRGB(150, 200, 240),
-				Material = Enum.Material.Glacier,
-				Transparency = 0.25,
-				Parent = model,
-			})
-		end
 	end
-	-- Leuchtender Grat
+	-- Grat leicht abgesetzt, damit man die Mitte erkennt
 	deco({
-		Size = Vector3.new(length, 0.45, 0.45),
-		CFrame = cf * CFrame.new(length / 2, 0.1, 0),
-		Color = accent,
-		Material = Enum.Material.Neon,
+		Size = Vector3.new(length, 0.35, 0.5),
+		CFrame = cf * CFrame.new(length / 2, 0.05, 0),
+		Color = TRIM,
+		Material = Enum.Material.Concrete,
 		Parent = model,
 	})
 	model.Parent = parent
@@ -223,13 +214,31 @@ local function platform(center: Vector3, size: Vector3, color: Color3, parent: I
 	})
 end
 
+local cabin
 local function arch(center: Vector3, width: number, height: number, color: Color3, text: string, parent: Instance)
 	for _, side in { -1, 1 } do
-		deco({ Size = Vector3.new(3, height, 3), CFrame = CFrame.new(center + Vector3.new(0, height / 2, side * width / 2)), Color = color, Material = Enum.Material.Neon, Parent = parent })
+		deco({ Size = Vector3.new(3, height, 3), CFrame = CFrame.new(center + Vector3.new(0, height / 2, side * width / 2)), Color = WOOD, Material = Enum.Material.Wood, Parent = parent })
 	end
-	local beam = deco({ Size = Vector3.new(3, 8, width + 3), CFrame = CFrame.new(center + Vector3.new(0, height + 4, 0)), Color = THEME.Navy, Parent = parent })
-	label(beam, Enum.NormalId.Left, text, color)
-	label(beam, Enum.NormalId.Right, text, color)
+	local beam = deco({ Size = Vector3.new(3, 8, width + 3), CFrame = CFrame.new(center + Vector3.new(0, height + 4, 0)), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = parent })
+	label(beam, Enum.NormalId.Left, text, THEME.Snow)
+	label(beam, Enum.NormalId.Right, text, THEME.Snow)
+end
+
+-- Kleine Skihuette als Kulisse am Ziel
+cabin = function(base: Vector3, parent: Instance)
+	local model = Instance.new("Model")
+	model.Name = "Cabin"
+	deco({ Size = Vector3.new(24, 12, 18), CFrame = CFrame.new(base + Vector3.new(0, 6, 0)), Color = WOOD, Material = Enum.Material.WoodPlanks, Parent = model })
+	for _, side in { -1, 1 } do
+		deco({ Size = Vector3.new(27, 1, 12), CFrame = CFrame.new(base + Vector3.new(0, 15, side * 5)) * CFrame.Angles(side * math.rad(32), 0, 0), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = model })
+		deco({ Size = Vector3.new(27, 0.8, 12), CFrame = CFrame.new(base + Vector3.new(0, 15.8, side * 5)) * CFrame.Angles(side * math.rad(32), 0, 0), Color = THEME.Snow, Material = Enum.Material.Snow, Parent = model })
+	end
+	deco({ Size = Vector3.new(0.4, 6, 4), CFrame = CFrame.new(base + Vector3.new(-12.1, 3, 0)), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = model })
+	for _, z in { -5, 5 } do
+		deco({ Size = Vector3.new(0.4, 3, 3), CFrame = CFrame.new(base + Vector3.new(-12.1, 7, z)), Color = Color3.fromRGB(255, 220, 140), Material = Enum.Material.Neon, Parent = model })
+	end
+	deco({ Size = Vector3.new(3, 8, 3), CFrame = CFrame.new(base + Vector3.new(6, 19, 4)), Color = Color3.fromRGB(120, 120, 125), Material = Enum.Material.Brick, Parent = model })
+	model.Parent = parent
 end
 
 local function buildStage(index: number, def)
@@ -241,19 +250,23 @@ local function buildStage(index: number, def)
 
 	-- Startplattform (schmal, damit man sicher auf der ersten Rampe landet)
 	local startCenter = layout.StartCenter
-	platform(startCenter, layout.StartSize, Color3.fromRGB(70, 90, 140), folder).Material = Enum.Material.SmoothPlastic
+	-- Start in einer Holzhuette, vorne offen zur ersten Rampe
+	platform(startCenter, layout.StartSize, WOOD, folder).Material = Enum.Material.WoodPlanks
 	for _, side in { -1, 1 } do
-		part({ Size = Vector3.new(40, 8, 1), CFrame = CFrame.new(startCenter + Vector3.new(0, 4, side * 12.5)), Color = THEME.Ice, Material = Enum.Material.Glass, Transparency = 0.6, Parent = folder })
+		part({ Size = Vector3.new(40, 10, 1), CFrame = CFrame.new(startCenter + Vector3.new(0, 5, side * 12.5)), Color = WOOD, Material = Enum.Material.WoodPlanks, Parent = folder })
+		deco({ Size = Vector3.new(42, 1, 15), CFrame = CFrame.new(startCenter + Vector3.new(0, 13.2, side * 6.2)) * CFrame.Angles(side * math.rad(28), 0, 0), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = folder })
+		deco({ Size = Vector3.new(42, 0.6, 15), CFrame = CFrame.new(startCenter + Vector3.new(0, 13.9, side * 6.2)) * CFrame.Angles(side * math.rad(28), 0, 0), Color = THEME.Snow, Material = Enum.Material.Snow, Parent = folder })
 	end
-	part({ Size = Vector3.new(1, 8, 26), CFrame = CFrame.new(startCenter + Vector3.new(-20.5, 4, 0)), Color = THEME.Ice, Material = Enum.Material.Glass, Transparency = 0.6, Parent = folder })
+	part({ Size = Vector3.new(1, 10, 26), CFrame = CFrame.new(startCenter + Vector3.new(-20.5, 5, 0)), Color = WOOD, Material = Enum.Material.WoodPlanks, Parent = folder })
+	deco({ Size = Vector3.new(1, 3.6, 26), CFrame = CFrame.new(startCenter + Vector3.new(-20.5, 11.8, 0)), Color = WOOD, Material = Enum.Material.WoodPlanks, Parent = folder })
 	-- Pfeil nach vorn
 	for i = 0, 2 do
 		for _, angle in { 35, -35 } do
-			deco({ Size = Vector3.new(2, 0.2, 6), CFrame = CFrame.new(startCenter + Vector3.new(-6 + i * 6, 0.11, 0)) * CFrame.Angles(0, math.rad(angle), 0), Color = def.Accent, Material = Enum.Material.Neon, Parent = folder })
+			deco({ Size = Vector3.new(2, 0.2, 6), CFrame = CFrame.new(startCenter + Vector3.new(-6 + i * 6, 0.11, 0)) * CFrame.Angles(0, math.rad(angle), 0), Color = Color3.fromRGB(220, 60, 50), Material = Enum.Material.SmoothPlastic, Parent = folder })
 		end
 	end
-	local sign = deco({ Size = Vector3.new(1, 10, 30), CFrame = CFrame.new(startCenter + Vector3.new(-21, 14, 0)), Color = THEME.Navy, Parent = folder })
-	label(sign, Enum.NormalId.Right, `STAGE {index}\n{string.upper(def.Name)}`, def.Accent)
+	local sign = deco({ Size = Vector3.new(0.4, 6, 20), CFrame = CFrame.new(startCenter + Vector3.new(-19.8, 6.5, 0)), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = folder })
+	label(sign, Enum.NormalId.Right, `STAGE {index}\n{string.upper(def.Name)}`, THEME.Snow)
 
 	local spawn = CFrame.lookAt(layout.Spawn, layout.Spawn + Vector3.new(100, 0, 0))
 	local startZone = zone("Start", CFrame.new(startCenter + Vector3.new(0, 8, 0)), Vector3.new(40, 16, 24), index)
@@ -265,9 +278,10 @@ local function buildStage(index: number, def)
 
 	-- Zielplattform mit Torbogen
 	local finishCenter = layout.FinishCenter
-	platform(finishCenter, layout.FinishSize, Color3.fromRGB(235, 245, 255), folder)
-	deco({ Size = Vector3.new(layout.FinishSize.X, 0.3, 4), CFrame = CFrame.new(finishCenter + Vector3.new(0, 0.12, 0)), Color = def.Accent, Material = Enum.Material.Neon, Parent = folder })
+	platform(finishCenter, layout.FinishSize, Color3.fromRGB(240, 245, 252), folder)
+	deco({ Size = Vector3.new(layout.FinishSize.X, 0.3, 4), CFrame = CFrame.new(finishCenter + Vector3.new(0, 0.12, 0)), Color = Color3.fromRGB(220, 60, 50), Material = Enum.Material.SmoothPlastic, Parent = folder })
 	arch(finishCenter + Vector3.new(20, 0, 0), 60, 26, def.Accent, if index == #Config.Stages then "MAP COMPLETE" else "STAGE CLEAR", folder)
+	cabin(finishCenter + Vector3.new(layout.FinishSize.X / 2 - 22, 0, -layout.FinishSize.Z / 2 + 26), folder)
 	local finish = zone("Finish", CFrame.new(finishCenter + Vector3.new(0, 30, 0)), Vector3.new(layout.FinishSize.X, 60, layout.FinishSize.Z), index)
 	for i = 1, 6 do
 		local angle = i / 6 * math.pi * 2
@@ -277,10 +291,10 @@ local function buildStage(index: number, def)
 	local killY = layout.KillY
 	startZone:SetAttribute("KillY", killY)
 
-	-- Gefrorener See unter der Bahn und Berge links und rechts (Tal-Gefuehl)
+	-- Verschneiter Talboden unter der Bahn und Berge links und rechts (Tal-Gefuehl)
 	local lakeY = killY - 20
 	local lakeLength = math.min(2048, finishCenter.X + 300)
-	deco({ Size = Vector3.new(lakeLength, 4, Config.StageSpacing), CFrame = CFrame.new(lakeLength / 2 - 200, lakeY, laneZ), Color = Color3.fromRGB(120, 175, 230), Material = Enum.Material.Glacier, Parent = folder })
+	deco({ Size = Vector3.new(lakeLength, 4, Config.StageSpacing), CFrame = CFrame.new(lakeLength / 2 - 200, lakeY, laneZ), Color = Color3.fromRGB(236, 242, 250), Material = Enum.Material.Snow, Parent = folder })
 	-- Berge zwischen zwei Bahnen nur einmal bauen
 	for _, side in (if index == 1 then { -1, 1 } else { 1 }) do
 		local x = -150
@@ -406,45 +420,46 @@ end
 ---------------------------------------------------------------- Licht
 
 local function setupLighting()
-	Lighting.ClockTime = 17.6
-	Lighting.GeographicLatitude = 60
-	Lighting.Brightness = 2.4
-	Lighting.Ambient = Color3.fromRGB(70, 80, 120)
-	Lighting.OutdoorAmbient = Color3.fromRGB(150, 160, 200)
-	Lighting.EnvironmentDiffuseScale = 0.6
-	Lighting.EnvironmentSpecularScale = 0.8
+	-- Heller Wintertag mit blauem Himmel wie auf der alten Map
+	Lighting.ClockTime = 13.5
+	Lighting.GeographicLatitude = 35
+	Lighting.Brightness = 3
+	Lighting.Ambient = Color3.fromRGB(110, 120, 140)
+	Lighting.OutdoorAmbient = Color3.fromRGB(170, 180, 200)
+	Lighting.EnvironmentDiffuseScale = 0.8
+	Lighting.EnvironmentSpecularScale = 0.6
 	Lighting.GlobalShadows = true
 
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.32
-	atmosphere.Offset = 0.15
-	atmosphere.Color = Color3.fromRGB(200, 210, 255)
-	atmosphere.Decay = Color3.fromRGB(120, 90, 170)
-	atmosphere.Glare = 0.6
-	atmosphere.Haze = 1.6
+	atmosphere.Density = 0.24
+	atmosphere.Offset = 0.1
+	atmosphere.Color = Color3.fromRGB(205, 225, 250)
+	atmosphere.Decay = Color3.fromRGB(110, 150, 210)
+	atmosphere.Glare = 0.2
+	atmosphere.Haze = 1
 	atmosphere.Parent = Lighting
 
 	local sky = Instance.new("Sky")
-	sky.SunAngularSize = 14
-	sky.MoonAngularSize = 9
-	sky.StarCount = 4000
+	sky.SunAngularSize = 11
+	sky.StarCount = 0
 	sky.Parent = Lighting
 
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.7
-	bloom.Size = 28
-	bloom.Threshold = 1.4
+	bloom.Intensity = 0.4
+	bloom.Size = 24
+	bloom.Threshold = 1.6
 	bloom.Parent = Lighting
 
 	local color = Instance.new("ColorCorrectionEffect")
-	color.Saturation = 0.12
-	color.Contrast = 0.08
-	color.TintColor = Color3.fromRGB(240, 244, 255)
+	color.Saturation = 0.08
+	color.Contrast = 0.05
+	color.Brightness = 0.02
+	color.TintColor = Color3.fromRGB(245, 248, 255)
 	color.Parent = Lighting
 
 	local rays = Instance.new("SunRaysEffect")
-	rays.Intensity = 0.06
-	rays.Spread = 0.6
+	rays.Intensity = 0.04
+	rays.Spread = 0.5
 	rays.Parent = Lighting
 end
 

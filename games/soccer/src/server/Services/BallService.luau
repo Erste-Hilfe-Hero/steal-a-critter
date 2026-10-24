@@ -173,6 +173,8 @@ function BallService:Kick(actor, dir: Vector3, power: number, spin: number?)
 	curve.Value = math.clamp(spin or 0, -1, 1)
 	curve.Until = if math.abs(curve.Value) > 0.15 then now() + Config.CurveTime else 0
 	lastActivity = now()
+	self.Services.MatchService:OnShot(actor)
+	self.Services.Net.PlaySound("Kick", position, 0.9 + power * 0.25, 0.5 + power * 0.5)
 end
 
 -- Pass zum besten Mitspieler in Blickrichtung (sonst flach nach vorne)
@@ -211,6 +213,7 @@ function BallService:Pass(actor)
 	else
 		launch(actor.Root.Position + facing * 3 + Vector3.new(0, -3 + RADIUS + 0.3, 0), facing * 50 + Vector3.new(0, 6, 0))
 	end
+	self.Services.Net.PlaySound("Kick", actor.Root.Position, 1.15, 0.4)
 end
 
 -- Startet ein Tackle-Fenster; true, wenn das Tackling erlaubt war (Client darf dann sprinten)
@@ -247,30 +250,36 @@ function BallService:Knock(actor, velocity: Vector3, seconds: number)
 	end
 end
 
+-- Disarm: wer im Tackle-Fenster nah genug an den gegnerischen Ballfuehrer kommt, nimmt ihm den Ball
+-- direkt ab (der Ball klebt sofort am eigenen Fuss). Gemessen wird nur waagerecht.
+local stealProtectUntil = 0
 local function resolveSteals()
 	local carrier = BallService.Carrier
 	local t = now()
 	for actor, ends in tackles do
 		if t > ends or not actor.Root.Parent then
 			tackles[actor] = nil
-		elseif carrier and carrier.Team ~= actor.Team and canAct(actor) then
-			local range = Config.TackleRange(BallService.Services.MatchService:Skill(actor, "Disarm"))
-			if (carrier.Root.Position - actor.Root.Position).Magnitude <= range then
+		elseif carrier and carrier.Team ~= actor.Team and canAct(actor) and t >= stealProtectUntil then
+			local match = BallService.Services.MatchService
+			local range = Config.TackleRange(match:Skill(actor, "Disarm"))
+			local offset = carrier.Root.Position - actor.Root.Position
+			if Vector3.new(offset.X, 0, offset.Z).Magnitude <= range and math.abs(offset.Y) < 6 then
 				tackles[actor] = nil
-				local chance = Config.TackleChance(
-					BallService.Services.MatchService:Skill(actor, "Disarm"),
-					BallService.Services.MatchService:Skill(carrier, "Dexterity")
-				)
+				local chance = Config.TackleChance(match:Skill(actor, "Disarm"), match:Skill(carrier, "Dexterity"))
+				if not actor.Player and carrier.Player then
+					chance -= 0.2 -- Bots sollen echten Spielern den Ball nicht staendig abnehmen
+				end
 				if math.random() < chance then
-					local push = flat(actor.Root.CFrame.LookVector)
 					stun(carrier, Config.StunTime)
-					immune[carrier] = t + Config.StunTime
-					launch(carrier.Root.Position + push * 2 + Vector3.new(0, -3 + RADIUS + 0.5, 0), push * 28 + Vector3.new(0, 20, 0))
-					addTouch(actor)
-					BallService.Services.MatchService:OnTackle(actor, carrier)
+					immune[carrier] = t + Config.StunTime + 0.3
+					possess(actor)
+					stealProtectUntil = t + Config.StealProtect
+					match:OnTackle(actor, carrier)
+					BallService.Services.Net.PlaySound("Steal", actor.Root.Position)
 				else
-					stun(actor, 0.6)
-					BallService.Services.MatchService:OnTackleMissed(actor, carrier)
+					stun(actor, 0.4)
+					match:OnTackleMissed(actor, carrier)
+					BallService.Services.Net.PlaySound("Dodge", carrier.Root.Position)
 				end
 				carrier = BallService.Carrier
 			end
@@ -310,6 +319,9 @@ local function checkPickup()
 				BallService:Knock(bestActor, flat(velocity) * 45 + Vector3.new(0, 30, 0), Config.SmackStun)
 				immune[bestActor] = t + Config.SmackStun
 				BallService.Services.MatchService:OnSmack(kicker, bestActor)
+				BallService.Services.Net.PlaySound("Smack", bestActor.Root.Position)
+			else
+				BallService.Services.Net.PlaySound("Kick", ball.Position, 0.7, 0.6)
 			end
 			ball.AssemblyLinearVelocity = -velocity * 0.35 + Vector3.new(0, 18, 0)
 			addTouch(bestActor)
@@ -390,6 +402,7 @@ local function step(dt: number)
 			BallService:Reset()
 			BallService:Unfreeze()
 			BallService.Services.Net.SendAnnounce("Ball returned to the center!", Config.Colors.Lime)
+			BallService.Services.Net.PlaySound("Whistle")
 		end
 		if BallService.PickupEnabled then
 			checkPickup()

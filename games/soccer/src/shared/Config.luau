@@ -75,7 +75,9 @@ Config.CurveTime = 1.1
 Config.SmackSpeed = 75 -- schnellere gegnerische Schuesse hauen Spieler um (wie im Original, nur ohne Schaden)
 Config.SmackStun = 1.6
 Config.BallReturnSeconds = 25 -- unberuehrter Ball kommt zur Mitte zurueck
-Config.TackleWindow = 0.45
+Config.TackleWindow = 0.7 -- so lange nach dem Druecken zaehlt ein Disarm (gleicht Netz-Verzoegerung aus)
+Config.TackleAssistRange = 20 -- Disarm zielt automatisch auf den Ballfuehrer in dieser Naehe
+Config.StealProtect = 0.9 -- so lange kann einem frisch erkaempften Ball niemand wieder abnehmen
 Config.StunTime = 1.2
 Config.DashSpeed = 62
 
@@ -136,13 +138,13 @@ function Config.CatchSpeed(level: number): number
 	return 62 + level * 9 -- schnellere Baelle prallen ab oder hauen um
 end
 function Config.TackleRange(level: number): number
-	return 6 + level * 0.7
+	return 8.5 + level * 0.8
 end
 function Config.TackleCooldown(level: number): number
-	return 3 - level * 0.3
+	return 2 - level * 0.2
 end
 function Config.TackleChance(disarm: number, dexterity: number): number
-	return math.clamp(0.55 + (disarm - dexterity) * 0.08, 0.2, 0.95)
+	return math.clamp(0.75 + (disarm - dexterity) * 0.06, 0.45, 0.97)
 end
 
 ---------------------------------------------------------------- Account-Fortschritt (bleibt gespeichert)
