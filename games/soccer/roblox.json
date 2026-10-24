@@ -2,6 +2,6 @@
   "name": "Turbo Soccer",
   "universeId": "",
   "placeId": "",
-  "nameMatch": "Soccer",
+  "nameMatch": "^7$",
   "ownerUserId": "2979321382"
 }
