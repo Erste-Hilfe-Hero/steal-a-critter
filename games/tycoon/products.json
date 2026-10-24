@@ -1,0 +1,16 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "x1.5 fruit value forever + VIP tag", "price": 249},
+  {"key": "Pass_DoubleSell", "name": "2x Sell", "description": "Double all fruit value forever", "price": 399},
+  {"key": "Pass_AutoHarvest", "name": "Auto Harvest", "description": "Ripe plants harvest themselves forever", "price": 349},
+  {"key": "Pass_FastGrow", "name": "Fast Grow", "description": "All plants grow 2x faster forever", "price": 299},
+  {"key": "Pass_BigGarden", "name": "Big Garden", "description": "+12 extra garden tiles forever", "price": 299},
+  {"key": "CoinsSmall", "name": "Coin Pouch", "description": "10 minutes of earnings", "price": 49},
+  {"key": "CoinsMedium", "name": "Coin Chest", "description": "1 hour of earnings", "price": 199},
+  {"key": "CoinsLarge", "name": "Coin Vault", "description": "6 hours of earnings", "price": 699},
+  {"key": "GrowAll", "name": "Grow All Now", "description": "Every plant in your garden is ripe instantly", "price": 39},
+  {"key": "Rain", "name": "Summon Rain", "description": "Rain for everyone: faster growth and Wet x2 fruits", "price": 99},
+  {"key": "Thunderstorm", "name": "Summon Thunderstorm", "description": "Storm for everyone: Shocked x10 fruits", "price": 199},
+  {"key": "GoldenHour", "name": "Golden Hour", "description": "10 minutes of 10x Golden chance for everyone", "price": 249},
+  {"key": "SeedDragon", "name": "Dragon Fruit Seed", "description": "1 Legendary Dragon Fruit seed", "price": 99},
+  {"key": "SeedStar", "name": "Starfruit Seed", "description": "1 Mythic Starfruit seed", "price": 299}
+]
