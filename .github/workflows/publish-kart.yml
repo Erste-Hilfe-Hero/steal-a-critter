@@ -56,6 +56,12 @@ jobs:
           fi
           if [ -n "$UNIVERSE_ID" ] && [ -z "$PLACE_ID" ]; then
             # Private Places stehen nur im Inventar des Besitzers, deshalb zuerst dort nachsehen
+            if [ ! -f placemap.txt ]; then
+              for P in $(curl -sS "https://inventory.roblox.com/v2/users/$(jq -r '.ownerId' roblox.json)/inventory/9?limit=100&sortOrder=Desc" | jq -r '.data[]?.assetId'); do
+                U=$(curl -sS "https://apis.roblox.com/universes/v1/places/$P/universe" | jq -r '.universeId // empty')
+                [ -n "$U" ] && echo "$U $P" >> placemap.txt
+              done
+            fi
             PLACE_ID=$(awk -v u="$UNIVERSE_ID" '$1==u{print $2; exit}' placemap.txt 2>/dev/null)
             [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://develop.roblox.com/v1/universes/$UNIVERSE_ID" | jq -r '.rootPlaceId // empty')
             [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$UNIVERSE_ID" | jq -r '.data[0].rootPlaceId // empty')
