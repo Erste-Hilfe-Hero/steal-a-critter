@@ -31,6 +31,10 @@ end
 
 ---------------------------------------------------------------- Leben
 
+local function hasPass(actor, key: string): boolean
+	return actor.Player ~= nil and actor.Player:GetAttribute("Pass_" .. key) == true
+end
+
 -- Lebensbalken im Namensschild ueber dem Kopf
 local function updateTag(actor)
 	local head = actor.Model:FindFirstChild("Head")
@@ -57,6 +61,9 @@ end
 -- Volle Leben; Stamina-Upgrades zaehlen ab dem naechsten Heilen (wie im Original nach dem Respawn)
 function CombatService:Heal(actor)
 	actor.MaxHP = Config.MaxHPFor(self.Services.MatchService:Skill(actor, "Stamina"))
+	if hasPass(actor, "IronBody") then
+		actor.MaxHP += Config.IronBodyHP
+	end
 	actor.Model:SetAttribute("MaxHP", actor.MaxHP)
 	setHP(actor, actor.MaxHP)
 end
@@ -87,8 +94,9 @@ local function giveKnife(actor)
 		p.Parent = knife
 		return p
 	end
+	local golden = hasPass(actor, "GoldenKnife")
 	piece(Vector3.new(0.3, 0.3, 0.9), CFrame.new(0, -0.35, -0.2), Config.Teams[actor.Team].Color, Enum.Material.SmoothPlastic)
-	piece(Vector3.new(0.1, 0.38, 1.5), CFrame.new(0, -0.35, -1.35), Color3.fromRGB(215, 225, 235), Enum.Material.Metal)
+	piece(Vector3.new(0.1, 0.38, 1.5), CFrame.new(0, -0.35, -1.35), if golden then Color3.fromRGB(255, 200, 40) else Color3.fromRGB(215, 225, 235), if golden then Enum.Material.Neon else Enum.Material.Metal)
 	knife.Parent = actor.Model
 end
 
@@ -176,6 +184,10 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 				self.Services.MatchService:OnDisarm(attacker, victim)
 			end
 		end
+	end
+	-- Golden Knife (Pass): mehr Messerschaden
+	if attacker and (kind == "Slash" or kind == "Stab") and hasPass(attacker, "GoldenKnife") then
+		amount = math.floor(amount * Config.GoldenKnifeDamage + 0.5)
 	end
 	local hp = math.max(0, victim.HP - amount)
 	setHP(victim, hp)

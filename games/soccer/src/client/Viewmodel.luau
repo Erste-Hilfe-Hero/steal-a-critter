@@ -67,8 +67,15 @@ function Viewmodel.Swing(kind: string)
 	swingStart = os.clock()
 end
 
-function Viewmodel.SetSleeveColor(color: Color3)
-	sleeve.Color = color
+-- Aermel in Teamfarbe, Klinge golden mit dem Golden-Knife-Pass
+function Viewmodel.SetStyle(sleeveColor: Color3, golden: boolean)
+	sleeve.Color = sleeveColor
+	local color = if golden then Color3.fromRGB(255, 200, 40) else Color3.fromRGB(205, 210, 220)
+	local material = if golden then Enum.Material.Neon else Enum.Material.Metal
+	for _, p in { blade, tip } do
+		p.Color = color
+		p.Material = material
+	end
 end
 
 local function swingOffset(): CFrame

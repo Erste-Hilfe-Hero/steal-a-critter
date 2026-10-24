@@ -190,6 +190,9 @@ Config.BuyEXPBase = 300
 Config.BuyEXPStep = 150
 Config.DailyCoins = { 100, 150, 200, 300, 400, 500, 750 }
 Config.XPBoostMinutes = 30
+Config.GoldenKnifeDamage = 1.35
+Config.IronBodyHP = 50
+Config.CannonShotPower = 1.2
 Config.AdCooldown = 300
 Config.StarterPackDelay = 90
 
@@ -225,6 +228,9 @@ Config.GamePasses = {
 	DoubleCoins = { ProductName = "Double Coins", Name = "Double Coins", Description = "Earn twice the coins", PriceHint = 199, Order = 3 },
 	ProBoots = { ProductName = "Pro Boots", Name = "Pro Boots", Description = "+1 level on ALL 5 upgrades in every match, even above max", PriceHint = 299, Order = 4 },
 	EffectsPack = { ProductName = "Effects Pack", Name = "Effects Pack", Description = "3 animated kick trails: Rainbow, Galaxy, Lightning", PriceHint = 149, Order = 5 },
+	GoldenKnife = { ProductName = "Golden Knife", Name = "Golden Knife", Description = "+35% knife damage and a glowing golden blade", PriceHint = 349, Order = 6 },
+	IronBody = { ProductName = "Iron Body", Name = "Iron Body", Description = "+50 max health in every match", PriceHint = 249, Order = 7 },
+	CannonShot = { ProductName = "Cannon Shot", Name = "Cannon Shot", Description = "All your kicks are 20% harder", PriceHint = 249, Order = 8 },
 }
 
 Config.DevProducts = {
