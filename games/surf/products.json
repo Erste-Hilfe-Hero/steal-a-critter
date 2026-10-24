@@ -1,0 +1,13 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "x1.5 Snowflakes forever, gold name, VIP Gold trail and skis", "price": 249},
+  {"key": "Pass_DoubleFlakes", "name": "2x Snowflakes", "description": "Double Snowflakes from everything forever", "price": 199},
+  {"key": "Pass_Practice", "name": "Checkpoints", "description": "Save and load checkpoints anywhere forever (practice runs)", "price": 149},
+  {"key": "Pass_TrailPack", "name": "Trail Pack", "description": "Rainbow, Neon Pulse and Lava trails + Neon skis forever", "price": 199},
+  {"key": "FlakesSmall", "name": "Snowflake Bag", "description": "1,000 Snowflakes", "price": 49},
+  {"key": "FlakesMedium", "name": "Snowflake Sled", "description": "6,000 Snowflakes", "price": 199},
+  {"key": "FlakesLarge", "name": "Snowflake Avalanche", "description": "20,000 Snowflakes", "price": 499},
+  {"key": "SkipStage", "name": "Skip Stage", "description": "Jump to the next stage (the run becomes unranked)", "price": 19},
+  {"key": "LowGravity", "name": "Moon Gravity Party", "description": "3 minutes of low gravity for the whole server", "price": 99},
+  {"key": "StarterPack", "name": "Starter Pack", "description": "One time only: 3,000 Snowflakes + Ice Crystal trail", "price": 79},
+  {"key": "AdReward", "name": "Free Snowflakes", "description": "Reward for watching a short video ad", "price": 5}
+]
