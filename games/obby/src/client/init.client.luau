@@ -146,6 +146,57 @@ end
 
 local lastStage = player:GetAttribute("Stage") or 1
 
+-- Eingebaute Roblox-Sounds (keine fremden Assets noetig)
+local CHECKPOINT_SOUND = "rbxasset://sounds/electronicpingshort.wav"
+local WIN_SOUND = "rbxasset://sounds/victory.wav"
+
+local function playSound(id: string, volume: number)
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = volume
+	sound.Parent = workspace.CurrentCamera
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	task.delay(5, function()
+		sound:Destroy()
+	end)
+end
+
+-- Kurzer Partikel-Ausbruch (z. B. Checkpoint, Ziel)
+local function burst(parent: BasePart, color: Color3, amount: number)
+	local attachment = Instance.new("Attachment")
+	attachment.Position = Vector3.new(0, parent.Size.Y / 2 + 0.5, 0)
+	attachment.Parent = parent
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Color = ColorSequence.new(color, Color3.new(1, 1, 1))
+	emitter.LightEmission = 0.6
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Lifetime = NumberRange.new(0.6, 1.2)
+	emitter.Speed = NumberRange.new(14, 24)
+	emitter.SpreadAngle = Vector2.new(70, 70)
+	emitter.Acceleration = Vector3.new(0, -30, 0)
+	emitter.Rate = 0
+	emitter.Parent = attachment
+	emitter:Emit(amount)
+	task.delay(2, function()
+		attachment:Destroy()
+	end)
+end
+
+-- Ziel erreicht: Konfetti in Regenbogenfarben und Fanfare
+player:GetAttributeChangedSignal("Wins"):Connect(function()
+	local rootPart = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if rootPart then
+		for i = 0, 4 do
+			burst(rootPart, Color3.fromHSV(i / 5, 0.7, 1), 30)
+		end
+	end
+	playSound(WIN_SOUND, 0.7)
+	UI.Banner("YOU WIN!", `Wins: {player:GetAttribute("Wins")}`, Color3.fromRGB(255, 210, 60))
+end)
+
 local function applyWorld(instant: boolean)
 	local stage = player:GetAttribute("Stage") or 1
 	local world = Config.WorldForStage(stage)
@@ -162,8 +213,14 @@ local function applyWorld(instant: boolean)
 			local original = pad.Color
 			pad.Color = Color3.new(1, 1, 1)
 			TweenService:Create(pad, TweenInfo.new(0.6), { Color = original }):Play()
+			burst(pad, world.Accent, 40)
 		end
-		UI.Toast(`Checkpoint! Stage {stage}`, Color3.fromRGB(120, 255, 160))
+		playSound(CHECKPOINT_SOUND, 0.6)
+		if (stage - 1) % Config.StagesPerWorld == 0 then
+			UI.Banner(`WORLD {(stage - 1) // Config.StagesPerWorld + 1}`, world.Name, world.Accent)
+		else
+			UI.Toast(`Checkpoint! Stage {stage}`, Color3.fromRGB(120, 255, 160))
+		end
 	end
 	lastStage = stage
 end
@@ -177,8 +234,7 @@ task.spawn(function()
 	while true do
 		local rotation = (os.clock() * 90) % 360
 		for _, other in Players:GetPlayers() do
-			local head = other.Character and other.Character:FindFirstChild("Head")
-			local tag = head and head:FindFirstChild("NameTag")
+			local tag = other.Character and other.Character:FindFirstChild("NameTag")
 			if tag then
 				for _, child in tag:GetDescendants() do
 					if child:IsA("UIGradient") and child.Name == "Animated" then

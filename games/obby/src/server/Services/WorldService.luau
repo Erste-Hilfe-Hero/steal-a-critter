@@ -328,6 +328,31 @@ local function makeCheckpoint(stage: number, position: Vector3): BasePart
 	label.Parent = surface
 	surface.Parent = pad
 	pad.Parent = checkpointFolder
+
+	-- Leuchtender Rand und kleine Fahne, damit man Checkpoints von weitem sieht
+	local trim = Instance.new("Part")
+	trim.Name = "Trim"
+	trim.Anchored = true
+	trim.CanCollide = false
+	trim.CanQuery = false
+	trim.CanTouch = false
+	trim.Size = Vector3.new(Config.PadSize.X + 0.4, 0.3, Config.PadSize.Z + 0.4)
+	trim.CFrame = pad.CFrame * CFrame.new(0, -Config.PadSize.Y / 2 + 0.1, 0)
+	trim.Color = Color3.new(1, 1, 1)
+	trim.Material = Enum.Material.Neon
+	trim.Parent = pad
+	local pole = trim:Clone()
+	pole.Name = "Pole"
+	pole.Size = Vector3.new(0.4, 6, 0.4)
+	pole.Material = Enum.Material.SmoothPlastic
+	pole.CFrame = pad.CFrame * CFrame.new(Config.PadSize.X / 2 - 1, 3.6, Config.PadSize.Z / 2 - 1)
+	pole.Parent = pad
+	local flag = trim:Clone()
+	flag.Name = "Flag"
+	flag.Size = Vector3.new(0.15, 1.6, 2.4)
+	flag.Color = world.Accent
+	flag.CFrame = pole.CFrame * CFrame.new(0, 2.1, -1.2)
+	flag.Parent = pad
 	return pad
 end
 
@@ -439,6 +464,22 @@ function WorldService:Build()
 	atmosphere.Color = Config.Worlds[1].Sky
 	atmosphere.Parent = Lighting
 	Lighting.ClockTime = 14
+	Lighting.Brightness = 2.2
+	Lighting.EnvironmentDiffuseScale = 0.6
+	Lighting.EnvironmentSpecularScale = 0.6
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 170)
+	local bloom = Instance.new("BloomEffect")
+	bloom.Intensity = 0.6
+	bloom.Size = 28
+	bloom.Threshold = 1.6
+	bloom.Parent = Lighting
+	local color = Instance.new("ColorCorrectionEffect")
+	color.Saturation = 0.15
+	color.Contrast = 0.06
+	color.Parent = Lighting
+	local rays = Instance.new("SunRaysEffect")
+	rays.Intensity = 0.06
+	rays.Parent = Lighting
 	workspace.FallenPartsDestroyHeight = -200
 end
 
