@@ -16,6 +16,8 @@ local FALLBACK = {
 	whistle = "rbxasset://sounds/electronicpingshort.wav",
 	whistle_end = "rbxasset://sounds/electronicpingshort.wav",
 	horn = "rbxasset://sounds/victory.wav",
+	slash = "rbxasset://sounds/swordslash.wav",
+	stab = "rbxasset://sounds/swordlunge.wav",
 }
 
 -- Name aus dem Spiel -> Datei, Lautstaerke, Tonhoehe
@@ -31,6 +33,9 @@ local CUES = {
 	Horn = { "horn", 0.7, 1 },
 	Cheer = { "cheer", 0.8, 1 },
 	Beep = { "beep", 0.5, 1 },
+	Slash = { "slash", 0.6, 1.1 },
+	Stab = { "stab", 0.7, 0.9 },
+	Hit = { "smack", 0.5, 1.6 },
 	Go = { "beep", 0.6, 1.5 },
 }
 

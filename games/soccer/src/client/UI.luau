@@ -191,10 +191,10 @@ local scoreLabels = {} :: any
 
 -- TV-Einblendung oben rechts wie beim echten Fussball: RED 2 : 1 BLUE | Zeit,
 -- darunter Ballbesitz-Balken und Team-Statistik (antippen klappt sie ein/aus)
-local STAT_ROWS = { { "Possession", "POSSESSION", "%" }, { "Shots", "SHOTS", "" }, { "Steals", "STEALS", "" }, { "Saves", "SAVES", "" }, { "Smacks", "SMACKS", "" } }
+local STAT_ROWS = { { "Possession", "POSSESSION", "%" }, { "Shots", "SHOTS", "" }, { "Steals", "STEALS", "" }, { "Saves", "SAVES", "" }, { "Smacks", "SMACKS", "" }, { "KOs", "KNOCKOUTS", "" } }
 
 local function buildScoreboard()
-	local holder = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 8), Size = UDim2.fromOffset(330, 160), BackgroundTransparency = 1, Parent = root })
+	local holder = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 8), Size = UDim2.fromOffset(330, 180), BackgroundTransparency = 1, Parent = root })
 	local bug = create("TextButton", { Size = UDim2.fromOffset(330, 44), BackgroundColor3 = PANEL, Text = "", AutoButtonColor = false, Parent = holder }, { corner(10), stroke(C.Navy, 3) })
 	local x = { Red = { Block = 0, Score = 72 }, Blue = { Block = 164, Score = 118 } }
 	for index, teamName in Config.TeamOrder do
@@ -337,26 +337,32 @@ end
 ---------------------------------------------------------------- Ausdauer und Schusskraft
 
 local staminaBar: Frame
+local hpBar: Frame
+local hpText: TextLabel
 local powerFrame: Frame
 local powerBar: Frame
 
 local function buildBars()
-	local holder = create("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -14), Size = UDim2.fromOffset(320, 60), BackgroundTransparency = 1, Parent = root })
+	local holder = create("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.fromOffset(320, 76), BackgroundTransparency = 1, Parent = root })
 	powerFrame = create("Frame", { Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(320, 26), BackgroundColor3 = C.Navy, Visible = false, Parent = holder }, { corner(13), stroke(C.Orange, 2) })
 	powerBar = create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = C.Orange, Parent = powerFrame }, {
 		corner(13),
 		create("UIGradient", { Color = ColorSequence.new(C.Lime, C.Orange) }),
 	})
 	label({ Size = UDim2.fromScale(1, 1), Text = "POWER", ZIndex = 2, Parent = powerFrame })
-	local staminaBack = create("Frame", { Position = UDim2.fromOffset(20, 36), Size = UDim2.fromOffset(280, 14), BackgroundColor3 = C.Navy, Parent = holder }, { corner(7), stroke(C.Navy, 2) })
+	local hpBack = create("Frame", { Position = UDim2.fromOffset(20, 32), Size = UDim2.fromOffset(280, 18), BackgroundColor3 = C.Navy, Parent = holder }, { corner(9), stroke(C.Navy, 2) })
+	hpBar = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(90, 230, 90), Parent = hpBack }, { corner(9) })
+	hpText = label({ Size = UDim2.fromScale(1, 1), Text = "100", Font = BODY, ZIndex = 2, Parent = hpBack })
+	label({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(0, -6, 0.5, 0), Size = UDim2.fromOffset(70, 16), Text = "HEALTH", TextXAlignment = Enum.TextXAlignment.Right, Font = BODY, Parent = hpBack })
+	local staminaBack = create("Frame", { Position = UDim2.fromOffset(20, 58), Size = UDim2.fromOffset(280, 12), BackgroundColor3 = C.Navy, Parent = holder }, { corner(6), stroke(C.Navy, 2) })
 	staminaBar = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Lime, Parent = staminaBack }, { corner(7) })
 	label({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(0, -6, 0.5, 0), Size = UDim2.fromOffset(70, 16), Text = "STAMINA", TextXAlignment = Enum.TextXAlignment.Right, Font = BODY, Parent = staminaBack })
 	if not UI.IsTouch then
 		label({
 			AnchorPoint = Vector2.new(0, 1),
 			Position = UDim2.new(0, 10, 1, -8),
-			Size = UDim2.fromOffset(420, 18),
-			Text = "Hold CLICK: kick (run sideways to curve)  |  E: pass  |  F: disarm  |  SHIFT/R: turbo",
+			Size = UDim2.fromOffset(620, 18),
+			Text = "Hold CLICK: kick (run sideways to curve)  |  E: pass  |  CLICK/F: knife + disarm  |  RIGHT-CLICK/G: stab  |  SHIFT/R: turbo",
 			Font = BODY,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextColor3 = Color3.fromRGB(220, 230, 255),
@@ -370,6 +376,51 @@ function UI.SetPower(power: number?)
 	if power then
 		powerBar.Size = UDim2.fromScale(math.clamp(power, 0.02, 1), 1)
 	end
+end
+
+function UI.SetHP(hp: number, maxHP: number)
+	local fraction = math.clamp(hp / maxHP, 0, 1)
+	hpBar.Size = UDim2.fromScale(math.max(fraction, 0.001), 1)
+	hpBar.Visible = fraction > 0
+	hpBar.BackgroundColor3 = if fraction > 0.5 then Color3.fromRGB(90, 230, 90) elseif fraction > 0.25 then C.Orange else C.Red
+	hpText.Text = tostring(math.ceil(hp))
+end
+
+-- Schadenszahl ueber dem Kopf (Backstab gross und rot)
+function UI.DamageNumber(head: BasePart, amount: number, backstab: boolean)
+	local board = create("BillboardGui", { Size = UDim2.fromOffset(160, 40), StudsOffset = Vector3.new(math.random(-10, 10) / 10, 3.5, 0), AlwaysOnTop = true, LightInfluence = 0, Adornee = head, Parent = player:WaitForChild("PlayerGui") })
+	local text = label({ Size = UDim2.fromScale(1, 1), Text = (if backstab then "BACKSTAB -" else "-") .. amount, TextColor3 = if backstab then C.Red else C.Orange, StrokeThickness = 3, Parent = board })
+	TweenService:Create(board, TweenInfo.new(0.8), { StudsOffset = board.StudsOffset + Vector3.new(0, 2.5, 0) }):Play()
+	TweenService:Create(text, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { TextTransparency = 1 }):Play()
+	task.delay(0.85, function()
+		board:Destroy()
+	end)
+end
+
+-- Kill-Feed (K.O.-Meldungen) rechts unter der TV-Anzeige
+local feed: Frame
+function UI.KillFeed(info)
+	local line = create("Frame", { Size = UDim2.fromOffset(330, 24), BackgroundColor3 = PANEL, BackgroundTransparency = 0.25, Parent = feed }, { corner(6) })
+	local function teamColor(team)
+		return if team and Config.Teams[team] then Config.Teams[team].Color else C.White
+	end
+	local how = if info.Kind == "Smack" then "SMACK" elseif info.Kind == "Stab" then "STAB" else "KNIFE"
+	local left = if info.Attacker then info.Attacker else ""
+	label({ Position = UDim2.fromOffset(6, 3), Size = UDim2.new(0.42, -6, 1, -6), Text = left, Font = BODY, TextColor3 = teamColor(info.AttackerTeam), TextXAlignment = Enum.TextXAlignment.Right, Parent = line })
+	label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.new(0.16, 0, 1, -6), Text = how, Font = BODY, TextColor3 = C.Gold, Parent = line })
+	label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -6, 0, 3), Size = UDim2.new(0.42, -6, 1, -6), Text = info.Victim, Font = BODY, TextColor3 = teamColor(info.VictimTeam), TextXAlignment = Enum.TextXAlignment.Left, Parent = line })
+	local lines = {}
+	for _, child in feed:GetChildren() do
+		if child:IsA("Frame") then
+			table.insert(lines, child)
+		end
+	end
+	if #lines > 5 then
+		lines[1]:Destroy()
+	end
+	task.delay(6, function()
+		line:Destroy()
+	end)
 end
 
 function UI.SetStamina(fraction: number, exhausted: boolean)
@@ -387,10 +438,10 @@ local function buildTouch()
 	local small = math.min(viewport.X, viewport.Y) <= 500
 	-- {rechter Abstand, unterer Abstand, Groesse}
 	local layout = if small
-		then { Shoot = { 110, 14, 84 }, Tackle = { 24, 98, 64 }, Pass = { 120, 104, 60 }, Sprint = { 204, 16, 60 } }
-		else { Shoot = { 180, 26, 128 }, Tackle = { 48, 222, 100 }, Pass = { 200, 166, 92 }, Sprint = { 320, 26, 96 } }
-	local colors = { Shoot = C.Lime, Tackle = C.Orange, Pass = C.Cyan, Sprint = Color3.fromRGB(170, 120, 255) }
-	local texts = { Shoot = "KICK", Tackle = "DISARM", Pass = "PASS", Sprint = "TURBO" }
+		then { Shoot = { 110, 14, 84 }, Tackle = { 24, 98, 64 }, Pass = { 120, 104, 60 }, Sprint = { 204, 16, 60 }, Stab = { 30, 168, 52 } }
+		else { Shoot = { 180, 26, 128 }, Tackle = { 48, 222, 100 }, Pass = { 200, 166, 92 }, Sprint = { 320, 26, 96 }, Stab = { 56, 334, 80 } }
+	local colors = { Shoot = C.Lime, Tackle = C.Orange, Pass = C.Cyan, Sprint = Color3.fromRGB(170, 120, 255), Stab = C.Red }
+	local texts = { Shoot = "KICK", Tackle = "KNIFE", Pass = "PASS", Sprint = "TURBO", Stab = "STAB" }
 	for name, spec in layout do
 		local b = create("TextButton", {
 			Name = name,
@@ -834,6 +885,9 @@ function UI.Start()
 	announceLabel = label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.62), Size = UDim2.fromOffset(800, 52), Text = "", Visible = false, StrokeThickness = 3, Parent = root })
 
 	buildScoreboard()
+	feed = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 196), Size = UDim2.fromOffset(330, 160), BackgroundTransparency = 1, Parent = root }, {
+		create("UIListLayout", { Padding = UDim.new(0, 3), HorizontalAlignment = Enum.HorizontalAlignment.Right }),
+	})
 	buildProfile()
 	buildMenu()
 	buildBars()
@@ -860,6 +914,8 @@ function UI.Start()
 	task.spawn(function()
 		while true do
 			updateScoreboard()
+			local character = player.Character
+			UI.SetHP(character and character:GetAttribute("HP") or Config.MaxHP, Config.MaxHP)
 			local boost = (player:GetAttribute("BoostUntil") or 0) - os.time()
 			profile.Boost.Visible = boost > 0
 			if boost > 0 then

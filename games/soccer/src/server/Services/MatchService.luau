@@ -59,7 +59,7 @@ end
 local teamStats = {}
 local function resetTeamStats()
 	for _, teamName in Config.TeamOrder do
-		teamStats[teamName] = { Possession = 0, Shots = 0, Steals = 0, Saves = 0, Smacks = 0 }
+		teamStats[teamName] = { Possession = 0, Shots = 0, Steals = 0, Saves = 0, Smacks = 0, KOs = 0 }
 	end
 end
 resetTeamStats()
@@ -72,7 +72,7 @@ local function publishTeamStats()
 	for teamName, stats in teamStats do
 		local share = if total > 0 then math.floor(stats.Possession / total * 100 + 0.5) else 50
 		workspace:SetAttribute(`Stat{teamName}Possession`, share)
-		for _, key in { "Shots", "Steals", "Saves", "Smacks" } do
+		for _, key in { "Shots", "Steals", "Saves", "Smacks", "KOs" } do
 			workspace:SetAttribute(`Stat{teamName}{key}`, stats[key])
 		end
 	end
@@ -89,7 +89,7 @@ end
 local function statsFor(player: Player)
 	local stats = matchStats[player]
 	if not stats then
-		stats = { Goals = 0, Assists = 0, Steals = 0, Saves = 0, Smacks = 0, XP = 0, Coins = 0, EXP = 0, Name = player.DisplayName }
+		stats = { Goals = 0, Assists = 0, Steals = 0, Saves = 0, Smacks = 0, KOs = 0, XP = 0, Coins = 0, EXP = 0, Name = player.DisplayName }
 		matchStats[player] = stats
 	end
 	return stats
@@ -176,6 +176,7 @@ function MatchService:AddActor(model: Model, team: string, player: Player?, skil
 	rebuildList()
 	model:SetAttribute("Team", team)
 	addRing(actor)
+	self.Services.CombatService:Setup(actor)
 	self:AssignSlots()
 	self:PlaceActor(actor)
 	return actor
@@ -189,6 +190,7 @@ function MatchService:RemoveActor(model: Model)
 	actors[model] = nil
 	rebuildList()
 	self.Services.BallService:Forget(actor)
+	self.Services.CombatService:Forget(actor)
 	self:AssignSlots()
 end
 
@@ -344,6 +346,26 @@ function MatchService:OnSmack(kicker, victim)
 	end
 end
 
+-- Jemand wurde mit dem Messer oder einem Smack K.O. geschlagen
+function MatchService:OnKO(attacker, victim, kind: string)
+	countTeam(attacker, "KOs")
+	if attacker then
+		reward(attacker, "KO")
+		if attacker.Player then
+			statsFor(attacker.Player).KOs += 1
+		end
+	end
+	self.Services.Net.PlaySound("Ooh", victim.Root.Position)
+	self.Services.Net.MatchEvent:FireAllClients("KO", {
+		Attacker = if attacker then attacker.Name else nil,
+		AttackerTeam = if attacker then attacker.Team else nil,
+		Victim = victim.Name,
+		VictimTeam = victim.Team,
+		VictimModel = victim.Model,
+		Kind = kind,
+	})
+end
+
 function MatchService:OnSave(actor)
 	countTeam(actor, "Saves")
 	self.Services.Net.PlaySound("Save", actor.Root.Position)
@@ -361,6 +383,7 @@ local function placeAll()
 		MatchService:PlaceActor(actor)
 		actor.StunnedUntil = 0
 		actor.Model:SetAttribute("StunnedUntil", 0)
+		MatchService.Services.CombatService:Reset(actor)
 	end
 end
 
@@ -386,7 +409,7 @@ local function finishMatch()
 	setState("Ended", Config.ResultsSeconds)
 	-- Auszeichnungen wie die Endstatistik im Original
 	local awards = {}
-	for _, award in { { "Goals", "TOP SCORER" }, { "Assists", "PLAYMAKER" }, { "Steals", "THIEF" }, { "Saves", "WALL" }, { "Smacks", "SMACKER" } } do
+	for _, award in { { "Goals", "TOP SCORER" }, { "Assists", "PLAYMAKER" }, { "Steals", "THIEF" }, { "Saves", "WALL" }, { "Smacks", "SMACKER" }, { "KOs", "KNOCKOUT KING" } } do
 		local bestName, best = nil, 0
 		for _, stats in matchStats do
 			if stats[award[1]] > best then
@@ -419,6 +442,7 @@ local function finishMatch()
 				Steals = stats.Steals,
 				Saves = stats.Saves,
 				Smacks = stats.Smacks,
+				KOs = stats.KOs,
 				XP = stats.XP,
 				Coins = stats.Coins,
 				EXP = stats.EXP,

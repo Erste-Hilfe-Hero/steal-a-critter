@@ -320,6 +320,7 @@ local function checkPickup()
 				immune[bestActor] = t + Config.SmackStun
 				BallService.Services.MatchService:OnSmack(kicker, bestActor)
 				BallService.Services.Net.PlaySound("Smack", bestActor.Root.Position)
+				BallService.Services.CombatService:Damage(bestActor, Config.SmackDamage(velocity.Magnitude), kicker, "Smack")
 			else
 				BallService.Services.Net.PlaySound("Kick", ball.Position, 0.7, 0.6)
 			end
@@ -494,8 +495,12 @@ function BallService:Start()
 	end)
 	net.Tackle.OnServerEvent:Connect(function(player)
 		local actor = self.Services.MatchService:ActorForPlayer(player)
-		if actor and self.PickupEnabled then
-			self:Tackle(actor)
+		if actor then
+			-- KNIFE: Messer-Slash; steht ein gegnerischer Ballfuehrer nah genug, ist es zugleich ein Disarm
+			self.Services.CombatService:Swing(actor, "Slash")
+			if self.PickupEnabled then
+				self:Tackle(actor)
+			end
 		end
 	end)
 end
