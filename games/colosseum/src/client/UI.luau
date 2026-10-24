@@ -1,5 +1,7 @@
--- Benutzeroberflaeche ausserhalb der Kaempfe: Anzeige oben, Menue, Team, Shop, Orb-Laden, Arena, Starter-Wahl,
--- Meldungen und Kaufangebote. Alles skaliert per UIScale, damit es auf dem Handy gut lesbar ist.
+-- Benutzeroberflaeche ausserhalb der Kaempfe: Anzeige mit Ziel und Orden, Menue, Team und Box mit Attacken,
+-- Beutel, Laden, Bestiarium, Karte zum Fliegen, Kampf-Menue (Gauntlet, Revanchen), Robux-Shop,
+-- Starter-Wahl, Entwicklungen, neue Attacken, Orden-Feier, Ruhmeshalle, Meldungen und Kaufangebote.
+-- Alles skaliert per UIScale, damit es auf dem Handy gut lesbar ist.
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,6 +10,8 @@ local TweenService = game:GetService("TweenService")
 local AdService = game:GetService("AdService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Beasts = require(ReplicatedStorage.Shared.Beasts)
+local Story = require(ReplicatedStorage.Shared.Story)
 local Format = require(ReplicatedStorage.Shared.Format)
 local Theme = require(script.Parent.Theme)
 
@@ -29,6 +33,8 @@ local modal: Frame
 local toastList: Frame
 local openWindow: Frame? = nil
 local refreshers = {} -- Funktionen, die bei neuer Sammlung neu zeichnen
+local listeners = {} -- andere Module, die bei neuer Sammlung informiert werden
+local sceneCount = 0 -- laufende Szenen (Entwicklung, Orden ...), Gespraeche warten darauf
 
 ---------------------------------------------------------------- Hilfen
 
@@ -38,6 +44,17 @@ end
 
 local function hasPass(key: string): boolean
 	return player:GetAttribute("Pass_" .. key) == true
+end
+
+function UI.SceneBusy(): boolean
+	return sceneCount > 0
+end
+
+function UI.Subscribe(fn: (any) -> ())
+	table.insert(listeners, fn)
+	if UI.State.Collection then
+		task.spawn(fn, UI.State.Collection)
+	end
 end
 
 -- Kauf starten (in Studio ohne IDs: simulieren)
@@ -65,6 +82,10 @@ local function priceButton(price: number, props): TextButton
 	props.Color = props.Color or C.Green
 	props.Text = props.Text or `R$ {price}`
 	return button(props)
+end
+
+local function typeColor(typeName: string): Color3
+	return Config.Types[typeName].Color
 end
 
 ---------------------------------------------------------------- Meldungen
@@ -140,7 +161,8 @@ local function window(title: string, width: number, height: number): (Frame, Fra
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.52),
 		Size = UDim2.fromOffset(width, height),
-		Parent = modal,
+		ZIndex = 6,
+		Parent = root,
 	})
 	-- Titelband in Purpur
 	local header = create("Frame", { Size = UDim2.new(1, 0, 0, 52), BackgroundColor3 = C.Crimson, Parent = frame })
@@ -175,7 +197,7 @@ local function scrolling(parent: Instance, props): ScrollingFrame
 	return create("ScrollingFrame", defaults)
 end
 
-local function tabs(parent: Frame, names: { string }, build: (string, Frame) -> ())
+local function tabs(parent: Frame, names: { string }, build: (string, Frame) -> (), start: string?)
 	local bar = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = parent })
 	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), Parent = bar })
 	local body = create("Frame", { Position = UDim2.fromOffset(0, 50), Size = UDim2.new(1, 0, 1, -50), BackgroundTransparency = 1, Parent = parent })
@@ -195,27 +217,67 @@ local function tabs(parent: Frame, names: { string }, build: (string, Frame) -> 
 			select(name)
 		end)
 	end
-	select(names[1])
+	select(start or names[1])
+	return select
 end
 
----------------------------------------------------------------- Team
+local function gridIn(body: Frame, cell: Vector2): ScrollingFrame
+	local scroll = scrolling(body)
+	create("UIGridLayout", { CellSize = UDim2.fromOffset(cell.X, cell.Y), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroll })
+	create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), Parent = scroll })
+	return scroll
+end
 
-local function sortedBeasts()
-	local collection = UI.State.Collection
-	local list = {}
-	for uid, beast in collection.Beasts do
-		table.insert(list, { Uid = uid, Beast = beast, Team = table.find(collection.Team, uid) })
-	end
-	table.sort(list, function(a, b)
-		if (a.Team ~= nil) ~= (b.Team ~= nil) then
-			return a.Team ~= nil
-		end
-		if a.Team and b.Team then
-			return a.Team < b.Team
-		end
-		return a.Beast.Power > b.Beast.Power
+-- Kleine Auswahl-Liste ueber einem Fenster
+local function chooser(title: string, entries: { { Text: string, Sub: string?, Color: Color3?, Disabled: boolean?, OnPick: () -> () } })
+	local frame = Theme.panel({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(420, math.min(440, 70 + #entries * 54)), ZIndex = 9, Parent = root })
+	label({ Position = UDim2.fromOffset(16, 6), Size = UDim2.new(1, -70, 0, 36), Text = title, Font = Theme.Title, TextSize = 22, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, Parent = frame })
+	local close = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 8), Size = UDim2.fromOffset(34, 32), Text = "X", TextSize = 18, Color = C.CrimsonDark, ZIndex = 9, Parent = frame })
+	close.Activated:Connect(function()
+		frame:Destroy()
 	end)
-	return list
+	local list = scrolling(frame, { Position = UDim2.fromOffset(12, 48), Size = UDim2.new(1, -24, 1, -58), ZIndex = 9 })
+	create("UIListLayout", { Padding = UDim.new(0, 6), Parent = list })
+	for _, entry in entries do
+		local b = button({ Size = UDim2.new(1, -8, 0, 48), Text = "", Color = if entry.Disabled then C.PanelLight else (entry.Color or C.Crimson), ZIndex = 9, Parent = list })
+		label({ Position = UDim2.fromOffset(12, 0), Size = UDim2.new(0.55, 0, 1, 0), Text = entry.Text, Font = Theme.Title, TextSize = 18, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, Parent = b })
+		label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 0), Size = UDim2.new(0.45, -12, 1, 0), Text = entry.Sub or "", TextSize = 14, TextScaled = true, TextColor3 = C.Cream, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9, Parent = b })
+		b.Activated:Connect(function()
+			if not entry.Disabled then
+				frame:Destroy()
+				entry.OnPick()
+			end
+		end)
+	end
+	return frame
+end
+
+local function teamChooser(title: string, onPick: (string) -> (), filter: ((any) -> boolean)?)
+	local collection = UI.State.Collection
+	local entries = {}
+	for _, uid in collection.Team do
+		local beast = collection.Beasts[uid]
+		if beast then
+			local def = Config.BeastsById[beast.S]
+			local ok = if filter then filter(beast) else true
+			table.insert(entries, {
+				Text = `{def.Name}  Lv{beast.L}`,
+				Sub = (if beast.Hp <= 0 then "FNT  " elseif beast.St then Config.Statuses[beast.St].Name .. "  " else "") .. `{beast.Hp}/{beast.MaxHp} HP`,
+				Color = typeColor(def.Type):Lerp(C.Ink, 0.45),
+				Disabled = not ok,
+				OnPick = function()
+					onPick(uid)
+				end,
+			})
+		end
+	end
+	chooser(title, entries)
+end
+
+---------------------------------------------------------------- Team und Box
+
+local function beastSort(a, b)
+	return a.Beast.Power > b.Beast.Power
 end
 
 local function setTeam(team: { string })
@@ -226,30 +288,60 @@ local function makeLead(uid: string)
 	local collection = UI.State.Collection
 	local team = { uid }
 	for _, other in collection.Team do
-		if other ~= uid and #team < collection.TeamSize then
+		if other ~= uid then
 			table.insert(team, other)
 		end
 	end
 	setTeam(team)
 end
 
+local function moveRow(parent: Instance, move, order: number, onTap: (() -> ())?)
+	local row = create("TextButton", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = typeColor(move.Type):Lerp(C.Ink, 0.55), AutoButtonColor = onTap ~= nil, Text = "", LayoutOrder = order, Parent = parent })
+	Theme.corner(row, 8)
+	Theme.stroke(row, typeColor(move.Type), 1.5)
+	label({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(0.5, 0, 1, 0), Text = move.Name, Font = Theme.Heavy, TextSize = 16, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+	label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 0), Size = UDim2.new(0.5, -10, 1, 0), Text = `{move.Type:upper()} · {if move.Power > 0 then "PWR " .. move.Power else "STATUS"} · PP {move.PP}/{move.MaxPP}`, TextSize = 13, TextScaled = true, TextColor3 = C.Cream, TextXAlignment = Enum.TextXAlignment.Right, Parent = row })
+	if onTap then
+		row.Activated:Connect(onTap)
+	end
+	return row
+end
+
+-- Andere Attacken, die die Bestie auf ihrem Level kann (zum Umlernen)
+local function learnable(beast): { string }
+	local known = {}
+	for _, move in beast.Moves do
+		known[move.Key] = true
+	end
+	local list = {}
+	for _, entry in Beasts.Learnset(beast.S) do
+		if entry[1] <= beast.L and not known[entry[2]] and not table.find(list, entry[2]) then
+			table.insert(list, entry[2])
+		end
+	end
+	return list
+end
+
 local selectedUid: string? = nil
 
-function UI.OpenTeam()
+function UI.OpenTeam(startTab: string?)
 	local collection = UI.State.Collection
 	if not collection then
 		return
 	end
-	local _, content = window("YOUR BEASTS", 860, 500)
-	local listArea = create("Frame", { Size = UDim2.new(0.55, -8, 1, 0), BackgroundTransparency = 1, Parent = content })
-	local info = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C.Muted, Parent = listArea })
-	local grid = scrolling(listArea, { Position = UDim2.fromOffset(0, 30), Size = UDim2.new(1, 0, 1, -30) })
+	local _, content = window("YOUR BEASTS", 900, 520)
+	local current = startTab or "TEAM"
+	local listArea = create("Frame", { Position = UDim2.fromOffset(0, 50), Size = UDim2.new(0.52, -8, 1, -50), BackgroundTransparency = 1, Parent = content })
+	local detail = Theme.panel({ Position = UDim2.new(0.52, 8, 0, 0), Size = UDim2.new(0.48, -8, 1, 0), BackgroundColor3 = C.PanelDark, Parent = content })
+	local info = label({ AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 22), Text = "", TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C.Muted, Parent = listArea })
+	local grid = scrolling(listArea, { Size = UDim2.new(1, 0, 1, -26) })
 	create("UIGridLayout", { CellSize = UDim2.fromOffset(148, 92), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = grid })
 	create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), Parent = grid })
-	local detail = Theme.panel({ Position = UDim2.new(0.55, 8, 0, 0), Size = UDim2.new(0.45, -8, 1, 0), BackgroundColor3 = C.PanelDark, Parent = content })
 
 	local releaseArmed = false
-	local function drawDetail()
+	local drawList, drawDetail
+
+	drawDetail = function()
 		detail:ClearAllChildren()
 		Theme.corner(detail, 12)
 		Theme.stroke(detail, C.Gold, 2, 0.15)
@@ -262,73 +354,112 @@ function UI.OpenTeam()
 		local uid = selectedUid :: string
 		local def = Config.BeastsById[beast.S]
 		local rarity = Config.RaritiesByName[def.Rarity]
-		local inTeam = table.find(col.Team, uid)
-		Theme.viewport(beast.S, beast.L, beast.Sh, { Position = UDim2.fromOffset(10, 8), Size = UDim2.new(0.5, -10, 0, 150), Parent = detail })
-		local nameLabel = label({ Position = UDim2.new(0.5, 0, 0, 12), Size = UDim2.new(0.5, -10, 0, 30), Text = (if beast.Sh then "✦ " else "") .. def.Name, Font = Theme.Title, TextSize = 26, TextScaled = true, TextColor3 = if beast.Sh then C.Prism else C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
+		local teamIndex = table.find(col.Team, uid)
+		Theme.viewport(beast.S, beast.L, beast.Sh, { Position = UDim2.fromOffset(6, 6), Size = UDim2.new(0.42, -6, 0, 130), Parent = detail })
+		local nameLabel = label({ Position = UDim2.new(0.42, 4, 0, 8), Size = UDim2.new(0.58, -14, 0, 30), Text = (if beast.Sh then "✦ " else "") .. def.Name, Font = Theme.Title, TextSize = 26, TextScaled = true, TextColor3 = if beast.Sh then C.Prism else C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
 		Theme.textStroke(nameLabel, 1.5)
-		label({ Position = UDim2.new(0.5, 0, 0, 44), Size = UDim2.new(0.5, -10, 0, 20), Text = `Lv {beast.L}  ·  {def.Rarity}`, TextColor3 = rarity.Color, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
-		Theme.typeChip(def.Type, { Position = UDim2.new(0.5, 0, 0, 70), Parent = detail })
-		local xpBack, xpFill = Theme.hpBar({ Position = UDim2.new(0.5, 0, 0, 100), Size = UDim2.new(0.5, -14, 0, 12), Parent = detail })
-		xpFill.Size = UDim2.fromScale(math.clamp(beast.X / math.max(1, beast.Need), 0, 1), 1)
-		xpFill.BackgroundColor3 = C.Blue
-		label({ Position = UDim2.new(0.5, 0, 0, 114), Size = UDim2.new(0.5, -14, 0, 18), Text = `XP {Format.Number(beast.X)}/{Format.Number(beast.Need)}`, TextSize = 14, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = xpBack.Parent })
-		local hpBack, hpFill = Theme.hpBar({ Position = UDim2.new(0.5, 0, 0, 136), Size = UDim2.new(0.5, -14, 0, 12), Parent = detail })
+		label({ Position = UDim2.new(0.42, 4, 0, 38), Size = UDim2.new(0.58, -14, 0, 20), Text = `No.{string.format("%03d", def.Number)}  ·  Lv {beast.L}  ·  {def.Rarity}`, TextSize = 15, TextColor3 = rarity.Color, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
+		local chips = create("Frame", { Position = UDim2.new(0.42, 4, 0, 60), Size = UDim2.new(0.58, -14, 0, 20), BackgroundTransparency = 1, Parent = detail })
+		create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), Parent = chips })
+		Theme.typeChip(def.Type, { Parent = chips })
+		if def.Type2 then
+			Theme.typeChip(def.Type2, { Parent = chips })
+		end
+		if beast.St then
+			local status = Config.Statuses[beast.St]
+			label({ Size = UDim2.fromOffset(44, 20), BackgroundTransparency = 0, BackgroundColor3 = status.Color, Text = status.Name, Font = Theme.Heavy, TextSize = 12, TextColor3 = C.Ink, Parent = chips })
+		end
+		local _, hpFill = Theme.hpBar({ Position = UDim2.new(0.42, 4, 0, 88), Size = UDim2.new(0.58, -18, 0, 12), Parent = detail })
 		Theme.setHp(hpFill, beast.Hp / beast.MaxHp)
-		label({ Position = UDim2.new(0.5, 0, 0, 150), Size = UDim2.new(0.5, -14, 0, 18), Text = `HP {beast.Hp}/{beast.MaxHp}`, TextSize = 14, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = hpBack.Parent })
+		label({ Position = UDim2.new(0.42, 4, 0, 100), Size = UDim2.new(0.58, -18, 0, 16), Text = `HP {beast.Hp}/{beast.MaxHp}`, TextSize = 13, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
+		local _, xpFill = Theme.hpBar({ Position = UDim2.new(0.42, 4, 0, 118), Size = UDim2.new(0.58, -18, 0, 8), Parent = detail })
+		xpFill.Size = UDim2.fromScale(math.clamp(beast.X / math.max(1, beast.Need), 0, 1), 1)
+		xpFill.BackgroundColor3 = Color3.fromRGB(90, 180, 255)
+		local stats = label({ Position = UDim2.fromOffset(12, 138), Size = UDim2.new(1, -24, 0, 20), RichText = true, Text = `<font color="#F2C14E">ATK</font> {beast.Atk}   <font color="#F2C14E">DEF</font> {beast.Def}   <font color="#F2C14E">SPD</font> {beast.Spd}   <font color="#F2C14E">EXP</font> {Format.Number(beast.X)}/{Format.Number(beast.Need)}`, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
+		stats.TextScaled = true
+		local evolveText = if def.Evolve then `Evolves into {Config.BeastsById[def.Evolve.To].Name} at Lv {def.Evolve.Level}` else "Final form"
+		label({ Position = UDim2.fromOffset(12, 158), Size = UDim2.new(1, -24, 0, 18), Text = evolveText, TextSize = 14, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
 
-		local stats = label({ Position = UDim2.fromOffset(14, 176), Size = UDim2.new(1, -28, 0, 22), RichText = true, Text = `<font color="#F2C14E">ATK</font> {beast.Atk}   <font color="#F2C14E">DEF</font> {beast.Def}   <font color="#F2C14E">SPD</font> {beast.Spd}   <font color="#F2C14E">POWER</font> {beast.Power}`, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
-		stats.TextSize = 17
-		local moves = {}
-		for _, key in Config.MovesFor(beast.S, beast.L) do
-			table.insert(moves, Config.MoveInfo(beast.S, key).Name)
+		-- Attacken: antippen zum Umlernen
+		local moves = create("Frame", { Position = UDim2.fromOffset(12, 180), Size = UDim2.new(1, -24, 0, 156), BackgroundTransparency = 1, Parent = detail })
+		create("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder, Parent = moves })
+		for slot = 1, Config.MaxMoves do
+			local move = beast.Moves[slot]
+			local function relearn()
+				local options = learnable(beast)
+				if #options == 0 then
+					UI.Toast("No other moves to learn yet. Level up to learn more!", C.Muted)
+					return
+				end
+				local entries = {}
+				for _, key in options do
+					local m = Config.Moves[key]
+					table.insert(entries, { Text = m.Name, Sub = `{m.Type:upper()} · {if m.Power > 0 then "PWR " .. m.Power else "STATUS"} · PP {m.PP}`, Color = typeColor(m.Type):Lerp(C.Ink, 0.45), OnPick = function()
+						remotes.SetMove:FireServer(uid, math.min(slot, #beast.Moves + 1), key)
+					end })
+				end
+				chooser(if move then `REPLACE {move.Name:upper()}` else "LEARN A MOVE", entries)
+			end
+			if move then
+				moveRow(moves, move, slot, relearn)
+			else
+				local empty = create("TextButton", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = C.Panel, Text = "+ empty slot", Font = Theme.Body, TextSize = 15, TextColor3 = C.Muted, LayoutOrder = slot, Parent = moves })
+				Theme.corner(empty, 8)
+				empty.Activated:Connect(relearn)
+			end
 		end
-		label({ Position = UDim2.fromOffset(14, 200), Size = UDim2.new(1, -28, 0, 22), Text = "Moves: " .. table.concat(moves, ", "), TextSize = 15, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
-		local evolveText = if def.Evolve then `Ascends into {Config.BeastsById[def.Evolve.To].Name} at Lv {def.Evolve.Level}` else "Final form"
-		if not table.find(Config.MovesFor(beast.S, beast.L), "Ultimate") then
-			evolveText ..= `  ·  Ultimate move at Lv {Config.UltimateLevel}`
-		end
-		label({ Position = UDim2.fromOffset(14, 222), Size = UDim2.new(1, -28, 0, 22), Text = evolveText, TextSize = 15, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
 
-		local actions = create("Frame", { Position = UDim2.fromOffset(12, 252), Size = UDim2.new(1, -24, 1, -262), BackgroundTransparency = 1, Parent = detail })
-		create("UIGridLayout", { CellSize = UDim2.new(0.5, -5, 0, 44), CellPadding = UDim2.fromOffset(10, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = actions })
-		local lead = button({ Text = if inTeam == 1 then "LEAD BEAST" else "MAKE LEAD", TextSize = 17, Color = C.Blue, LayoutOrder = 1, Parent = actions })
+		local actions = create("Frame", { Position = UDim2.new(0, 12, 1, -102), Size = UDim2.new(1, -24, 0, 92), BackgroundTransparency = 1, Parent = detail })
+		create("UIGridLayout", { CellSize = UDim2.new(1 / 3, -6, 0, 42), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = actions })
+		local lead = button({ Text = if teamIndex == 1 then "LEAD" else "MAKE LEAD", TextSize = 15, Color = C.Blue, LayoutOrder = 1, Parent = actions })
 		lead.Activated:Connect(function()
+			if not teamIndex then
+				remotes.MoveBeast:FireServer(uid, "Team")
+				task.wait(0.3)
+			end
 			makeLead(uid)
 		end)
-		local teamButton = button({ Text = if inTeam then "REMOVE" else "ADD TO TEAM", TextSize = 17, Color = C.PanelLight, LayoutOrder = 2, Parent = actions })
-		teamButton.Activated:Connect(function()
-			local team = table.clone(col.Team)
-			if inTeam then
-				if #team > 1 then
-					table.remove(team, inTeam)
+		local swap = button({ Text = if teamIndex then "TO BOX" else "TO TEAM", TextSize = 15, Color = C.PanelLight, LayoutOrder = 2, Parent = actions })
+		swap.Activated:Connect(function()
+			remotes.MoveBeast:FireServer(uid, if teamIndex then "Box" else "Team")
+		end)
+		local useItem = button({ Text = "USE ITEM", TextSize = 15, Color = C.Green, LayoutOrder = 3, Parent = actions })
+		useItem.Activated:Connect(function()
+			local items = UI.State.Collection.Items
+			local entries = {}
+			for _, key in { "Potion", "SuperPotion", "HyperPotion", "FullCure", "Revive" } do
+				if (items[key] or 0) > 0 then
+					table.insert(entries, { Text = `{Config.Items[key].Name} x{items[key]}`, Sub = Config.Items[key].Description, Color = Config.Items[key].Color:Lerp(C.Ink, 0.45), OnPick = function()
+						remotes.UseItem:FireServer(key, uid)
+					end })
 				end
-			elseif #team < col.TeamSize then
-				table.insert(team, uid)
-			else
-				team[#team] = uid
 			end
-			setTeam(team)
+			if #entries == 0 then
+				UI.Toast("You have no medicine. Buy some at a Beast Mart!", C.Muted)
+				return
+			end
+			chooser("USE WHICH ITEM?", entries)
 		end)
 		if def.Evolve then
-			local ascend = priceButton(Config.DevProducts.EvoCrystal.PriceHint, { Text = `ASCEND NOW  R$ {Config.DevProducts.EvoCrystal.PriceHint}`, TextSize = 15, LayoutOrder = 3, Color = C.GoldDark, Parent = actions })
+			local ascend = priceButton(Config.DevProducts.EvoCrystal.PriceHint, { Text = `EVOLVE R$ {Config.DevProducts.EvoCrystal.PriceHint}`, TextSize = 14, LayoutOrder = 4, Color = C.GoldDark, Parent = actions })
 			ascend.Activated:Connect(function()
 				makeLead(uid)
 				task.wait(0.3)
 				UI.Buy("Product", "EvoCrystal")
 			end)
 		end
-		local snack = priceButton(Config.DevProducts.PowerSnack.PriceHint, { Text = `+5 LEVELS  R$ {Config.DevProducts.PowerSnack.PriceHint}`, TextSize = 15, LayoutOrder = 4, Parent = actions })
+		local snack = priceButton(Config.DevProducts.PowerSnack.PriceHint, { Text = `+5 LV R$ {Config.DevProducts.PowerSnack.PriceHint}`, TextSize = 14, LayoutOrder = 5, Parent = actions })
 		snack.Activated:Connect(function()
 			makeLead(uid)
 			task.wait(0.3)
 			UI.Buy("Product", "PowerSnack")
 		end)
-		local coins = 10 * beast.L * rarity.Index
-		local release = button({ Text = `RELEASE (+{Format.Number(coins)})`, TextSize = 15, Color = C.CrimsonDark, LayoutOrder = 5, Parent = actions })
+		local coins = 30 * beast.L * rarity.Index
+		local release = button({ Text = `RELEASE`, TextSize = 14, Color = C.CrimsonDark, LayoutOrder = 6, Parent = actions })
 		release.Activated:Connect(function()
 			if not releaseArmed then
 				releaseArmed = true
-				release.Text = "TAP AGAIN TO RELEASE"
+				release.Text = `SURE? +{Format.Number(coins)}`
 				return
 			end
 			releaseArmed = false
@@ -337,24 +468,37 @@ function UI.OpenTeam()
 		end)
 	end
 
-	local function drawList()
+	drawList = function()
 		local col = UI.State.Collection
 		for _, child in grid:GetChildren() do
 			if child:IsA("GuiObject") then
 				child:Destroy()
 			end
 		end
-		local count = 0
-		for order, item in sortedBeasts() do
-			count += 1
+		local list = {}
+		if current == "TEAM" then
+			for index, uid in col.Team do
+				if col.Beasts[uid] then
+					table.insert(list, { Uid = uid, Beast = col.Beasts[uid], Team = index })
+				end
+			end
+		else
+			for uid, beast in col.Beasts do
+				if not table.find(col.Team, uid) then
+					table.insert(list, { Uid = uid, Beast = beast })
+				end
+			end
+			table.sort(list, beastSort)
+		end
+		for order, item in list do
 			local beast = item.Beast
 			local def = Config.BeastsById[beast.S]
 			local card = create("TextButton", { BackgroundColor3 = if item.Uid == selectedUid then C.PanelLight else C.PanelDark, AutoButtonColor = true, Text = "", LayoutOrder = order, Parent = grid })
 			Theme.corner(card, 10)
-			Theme.stroke(card, if item.Team then C.Gold elseif beast.Sh then C.Prism else C.PanelLight, 2)
+			Theme.stroke(card, if item.Uid == selectedUid then C.Gold elseif beast.Sh then C.Prism else C.PanelLight, 2)
 			Theme.beastIcon(beast.S, beast.Sh, { Position = UDim2.fromOffset(8, 8), Parent = card })
 			label({ Position = UDim2.fromOffset(58, 6), Size = UDim2.new(1, -62, 0, 22), Text = def.Name, Font = Theme.Heavy, TextSize = 16, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = if beast.Sh then C.Prism else C.Cream, Parent = card })
-			label({ Position = UDim2.fromOffset(58, 28), Size = UDim2.new(1, -62, 0, 18), Text = `Lv {beast.L}`, TextSize = 15, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+			label({ Position = UDim2.fromOffset(58, 28), Size = UDim2.new(1, -62, 0, 18), Text = `Lv {beast.L}` .. (if beast.St then `  {Config.Statuses[beast.St].Name}` elseif beast.Hp <= 0 then "  FNT" else ""), TextSize = 15, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
 			Theme.typeChip(def.Type, { Position = UDim2.fromOffset(8, 60), Size = UDim2.fromOffset(56, 18), TextSize = 11, Parent = card })
 			local _, fill = Theme.hpBar({ Position = UDim2.fromOffset(70, 63), Size = UDim2.new(1, -78, 0, 10), Parent = card })
 			Theme.setHp(fill, beast.Hp / beast.MaxHp)
@@ -369,9 +513,19 @@ function UI.OpenTeam()
 				drawDetail()
 			end)
 		end
-		info.Text = `Team {#col.Team}/{col.TeamSize}  ·  Storage {count}/{col.Capacity}` .. (if hasPass("BigTeam") then "" else "  ·  Big Team pass: 5 in battle!")
+		local boxCount = 0
+		for uid in col.Beasts do
+			if not table.find(col.Team, uid) then
+				boxCount += 1
+			end
+		end
+		info.Text = `Team {#col.Team}/{col.TeamSize}  ·  Box {boxCount}/{col.Capacity}  ·  Tap a move to change it`
 	end
 
+	tabs(content, { "TEAM", "BOX" }, function(name, _)
+		current = name
+		drawList()
+	end, current)
 	if not selectedUid or not collection.Beasts[selectedUid] then
 		selectedUid = collection.Team[1]
 	end
@@ -380,6 +534,139 @@ function UI.OpenTeam()
 	table.insert(refreshers, function()
 		drawList()
 		drawDetail()
+	end)
+end
+
+---------------------------------------------------------------- Beutel
+
+local function orbIcon(parent: Instance, color: Color3, size: number, position: UDim2, catch: boolean)
+	local orb = create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = position, Size = UDim2.fromOffset(size, size), BackgroundColor3 = color, Parent = parent })
+	Theme.corner(orb, 100)
+	Theme.stroke(orb, C.Ink, 2)
+	Theme.gradient(orb, Color3.new(1, 1, 1), Color3.fromRGB(140, 140, 140))
+	if catch then
+		-- Goldener Ring statt Mittelstreifen (eigenes Orb-Design)
+		local ring = create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.45, 0.45), BackgroundTransparency = 1, Parent = orb })
+		Theme.corner(ring, 100)
+		Theme.stroke(ring, C.Gold, 3)
+	end
+	return orb
+end
+
+function UI.OpenBag()
+	local _, content = window("BAG", 760, 470)
+	tabs(content, { "MEDICINE", "ORBS" }, function(name, body)
+		local scroll = scrolling(body)
+		create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroll })
+		local function draw()
+			for _, child in scroll:GetChildren() do
+				if child:IsA("GuiObject") then
+					child:Destroy()
+				end
+			end
+			local items = UI.State.Collection and UI.State.Collection.Items or {}
+			local list = {}
+			for key, item in Config.Items do
+				if item.Pocket == (if name == "ORBS" then "Orbs" else "Medicine") then
+					table.insert(list, { Key = key, Item = item })
+				end
+			end
+			table.sort(list, function(a, b)
+				return a.Item.Order < b.Item.Order
+			end)
+			for _, entry in list do
+				local item = entry.Item
+				local count = items[entry.Key] or 0
+				local row = Theme.panel({ Size = UDim2.new(1, -10, 0, 70), BackgroundColor3 = C.PanelDark, LayoutOrder = item.Order, Parent = scroll })
+				orbIcon(row, item.Color, 46, UDim2.fromOffset(40, 35), item.Catch ~= nil)
+				label({ Position = UDim2.fromOffset(76, 8), Size = UDim2.new(0.5, 0, 0, 26), Text = `{item.Name}  x{count}`, Font = Theme.Title, TextSize = 22, TextColor3 = if count > 0 then C.Gold else C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+				label({ Position = UDim2.fromOffset(76, 36), Size = UDim2.new(0.55, 0, 0, 24), Text = item.Description, TextSize = 15, TextColor3 = C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+				if item.Catch then
+					if entry.Key == "MasterOrb" then
+						local buy = priceButton(Config.DevProducts.MasterOrb1.PriceHint, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(150, 44), Text = `BUY R$ {Config.DevProducts.MasterOrb1.PriceHint}`, TextSize = 16, Parent = row })
+						buy.Activated:Connect(function()
+							UI.Buy("Product", "MasterOrb1")
+						end)
+					else
+						label({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(170, 40), Text = "Throw it in battle", TextSize = 15, TextColor3 = C.Muted, Parent = row })
+					end
+				elseif count > 0 then
+					local use = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(120, 44), Text = "USE", TextSize = 20, Color = C.Green, Parent = row })
+					use.Activated:Connect(function()
+						teamChooser(`USE {item.Name:upper()} ON...`, function(uid)
+							remotes.UseItem:FireServer(entry.Key, uid)
+						end, function(beast)
+							if item.Revive then
+								return beast.Hp <= 0
+							elseif item.Cure then
+								return beast.Hp > 0 and beast.St ~= nil
+							end
+							return beast.Hp > 0 and beast.Hp < beast.MaxHp
+						end)
+					end)
+				end
+			end
+		end
+		draw()
+		table.clear(refreshers)
+		table.insert(refreshers, draw)
+	end)
+end
+
+---------------------------------------------------------------- Laden (Muenzen)
+
+function UI.OpenMart()
+	local _, content = window("BEAST MART", 820, 470)
+	local coinsLabel = label({ Size = UDim2.new(1, 0, 0, 26), Text = "", Font = Theme.Title, TextSize = 22, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Right, Parent = content })
+	local body = create("Frame", { Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 1, -32), BackgroundTransparency = 1, Parent = content })
+	local scroll = gridIn(body, Vector2.new(184, 170))
+	local function draw()
+		coinsLabel.Text = `Your coins: {Format.Number(player:GetAttribute("Coins") or 0)}`
+		for _, child in scroll:GetChildren() do
+			if child:IsA("GuiObject") then
+				child:Destroy()
+			end
+		end
+		local badges = UI.State.Collection and UI.State.Collection.Badges or 0
+		local items = UI.State.Collection and UI.State.Collection.Items or {}
+		local list = {}
+		for key, item in Config.Items do
+			if item.Price > 0 then
+				table.insert(list, { Key = key, Item = item })
+			end
+		end
+		table.sort(list, function(a, b)
+			return a.Item.Order < b.Item.Order
+		end)
+		for _, entry in list do
+			local item = entry.Item
+			local locked = badges < item.Badges
+			local card = Theme.panel({ BackgroundColor3 = C.PanelDark, LayoutOrder = item.Order, Parent = scroll })
+			orbIcon(card, if locked then C.PanelLight else item.Color, 40, UDim2.fromOffset(32, 30), item.Catch ~= nil)
+			label({ Position = UDim2.fromOffset(58, 8), Size = UDim2.new(1, -64, 0, 24), Text = item.Name, Font = Theme.Title, TextSize = 18, TextScaled = true, TextColor3 = if locked then C.Muted else C.Gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+			label({ Position = UDim2.fromOffset(58, 32), Size = UDim2.new(1, -64, 0, 18), Text = `{Format.Number(item.Price)} coins · have {items[entry.Key] or 0}`, TextSize = 13, TextColor3 = C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+			label({ Position = UDim2.fromOffset(10, 56), Size = UDim2.new(1, -20, 0, 34), Text = item.Description, TextSize = 13, TextColor3 = C.Muted, Parent = card })
+			if locked then
+				label({ Position = UDim2.new(0, 10, 1, -56), Size = UDim2.new(1, -20, 0, 44), Text = `🔒 Needs {item.Badges} badges`, Font = Theme.Title, TextSize = 17, TextColor3 = C.Muted, Parent = card })
+			else
+				for i, amount in { 1, 5, 10 } do
+					local buy = button({ Position = UDim2.new((i - 1) / 3, 6, 1, -54), Size = UDim2.new(1 / 3, -10, 0, 44), Text = `x{amount}`, TextSize = 18, Color = C.Crimson, Parent = card })
+					buy.Activated:Connect(function()
+						remotes.BuyItem:FireServer(entry.Key, amount)
+					end)
+				end
+			end
+		end
+	end
+	draw()
+	table.insert(refreshers, draw)
+	local connection
+	connection = player:GetAttributeChangedSignal("Coins"):Connect(function()
+		if coinsLabel.Parent then
+			coinsLabel.Text = `Your coins: {Format.Number(player:GetAttribute("Coins") or 0)}`
+		else
+			connection:Disconnect()
+		end
 	end)
 end
 
@@ -403,13 +690,6 @@ local function shopCard(parent: Instance, order: number, title: string, descript
 	return card
 end
 
-local function gridIn(body: Frame, cell: Vector2): ScrollingFrame
-	local scroll = scrolling(body)
-	create("UIGridLayout", { CellSize = UDim2.fromOffset(cell.X, cell.Y), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroll })
-	create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), Parent = scroll })
-	return scroll
-end
-
 local PRODUCT_GROUPS = {
 	BOOSTS = { "MasterOrb1", "MasterOrb5", "Boost", "PowerSnack", "EvoCrystal", "SkipChampion", "FullHeal", "ServerShiny", "Storage" },
 	COINS = { "CoinsSmall", "CoinsMedium", "CoinsLarge" },
@@ -417,12 +697,7 @@ local PRODUCT_GROUPS = {
 
 function UI.OpenShop(startTab: string?)
 	local _, content = window("ROYAL SHOP", 860, 500)
-	local names = { "PASSES", "BOOSTS", "COINS", "CODES" }
-	if startTab then
-		table.remove(names, table.find(names, startTab) :: number)
-		table.insert(names, 1, startTab)
-	end
-	tabs(content, names, function(name, body)
+	tabs(content, { "PASSES", "BOOSTS", "COINS", "CODES" }, function(name, body)
 		if name == "PASSES" then
 			local scroll = gridIn(body, Vector2.new(196, 150))
 			local list = {}
@@ -448,7 +723,7 @@ function UI.OpenShop(startTab: string?)
 				remotes.RedeemCode:FireServer(box.Text)
 				box.Text = ""
 			end)
-			label({ Position = UDim2.fromOffset(0, 90), Size = UDim2.new(1, 0, 0, 60), Text = "New codes come with every update. Follow the game and like it to get them first!", TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = body })
+			label({ Position = UDim2.fromOffset(0, 90), Size = UDim2.new(1, 0, 0, 60), Text = "New codes come with every update. Like the game and join the group to get them first!", TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = body })
 		else
 			local scroll = gridIn(body, Vector2.new(196, 150))
 			local order = 0
@@ -469,114 +744,213 @@ function UI.OpenShop(startTab: string?)
 				end
 			end
 		end
+	end, startTab)
+end
+
+---------------------------------------------------------------- Kampf-Menue (Gauntlet, Revanchen)
+
+function UI.OpenBattleMenu()
+	local _, content = window("BATTLE", 860, 500)
+	local collection = UI.State.Collection
+	local badges = collection and collection.Badges or 0
+	-- Gauntlet oben
+	local gauntlet = Theme.panel({ Size = UDim2.new(0.62, -6, 0, 96), BackgroundColor3 = C.CrimsonDark, Parent = content })
+	local gTitle = label({ Position = UDim2.fromOffset(16, 8), Size = UDim2.new(0.6, 0, 0, 34), Text = "ENDLESS GAUNTLET", Font = Theme.Title, TextSize = 28, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = gauntlet })
+	Theme.textStroke(gTitle, 1.5)
+	label({ Position = UDim2.fromOffset(16, 46), Size = UDim2.new(0.62, 0, 0, 40), Text = if badges >= Config.GauntletBadges then `Best: {player:GetAttribute("BestWave") or 0} waves · coins every wave · legend boss every 10 waves` else "Unlocks with your first arena badge", TextSize = 15, TextColor3 = C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = gauntlet })
+	local start = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(150, 56), Text = if badges >= Config.GauntletBadges then "START" else "🔒", TextSize = 24, Color = C.Crimson, Parent = gauntlet })
+	start.Activated:Connect(function()
+		if badges >= Config.GauntletBadges then
+			closeWindow()
+			remotes.ArenaChallenge:FireServer("Gauntlet")
+		end
 	end)
-end
-
----------------------------------------------------------------- Orb-Laden (Muenzen)
-
-function UI.OpenItems()
-	local _, content = window("ORB SHOP", 760, 430)
-	local scroll = gridIn(content, Vector2.new(170, 330))
-	local function draw()
-		for _, child in scroll:GetChildren() do
-			if child:IsA("GuiObject") then
-				child:Destroy()
-			end
-		end
-		local items = UI.State.Collection and UI.State.Collection.Items or {}
-		local list = {}
-		for key, item in Config.Items do
-			table.insert(list, { Key = key, Item = item })
-		end
-		table.sort(list, function(a, b)
-			return a.Item.Order < b.Item.Order
+	local pass = Theme.panel({ Position = UDim2.new(0.62, 6, 0, 0), Size = UDim2.new(0.38, -6, 0, 96), BackgroundColor3 = C.PanelDark, Parent = content })
+	local nextLeader = Story.Leaders[badges + 1]
+	label({ Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -24, 0, 36), Text = if nextLeader then `Stuck on {nextLeader.Name}? Get the {nextLeader.Badge} now!` else "You have all 8 badges!", TextSize = 15, TextColor3 = C.Cream, Parent = pass })
+	if nextLeader then
+		local skip = priceButton(Config.DevProducts.SkipChampion.PriceHint, { Position = UDim2.fromOffset(12, 44), Size = UDim2.new(1, -24, 0, 42), Text = `CHAMPION PASS  R$ {Config.DevProducts.SkipChampion.PriceHint}`, TextSize = 16, Parent = pass })
+		skip.Activated:Connect(function()
+			UI.Buy("Product", "SkipChampion")
 		end)
-		for _, entry in list do
-			local item = entry.Item
-			local card = Theme.panel({ BackgroundColor3 = C.PanelDark, LayoutOrder = item.Order, Parent = scroll })
-			local orb = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 14), Size = UDim2.fromOffset(70, 70), BackgroundColor3 = item.Color, Parent = card })
-			Theme.corner(orb, 100)
-			Theme.stroke(orb, C.Ink, 3)
-			Theme.gradient(orb, Color3.new(1, 1, 1), Color3.fromRGB(140, 140, 140))
-			if item.Catch then
-				create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(1, 0, 0, 6), BackgroundColor3 = C.Ink, Parent = orb })
-			end
-			label({ Position = UDim2.fromOffset(8, 92), Size = UDim2.new(1, -16, 0, 26), Text = item.Name, Font = Theme.Title, TextSize = 20, TextColor3 = C.Gold, Parent = card })
-			label({ Position = UDim2.fromOffset(8, 120), Size = UDim2.new(1, -16, 0, 40), Text = item.Description, TextSize = 14, TextColor3 = C.Cream, Parent = card })
-			label({ Position = UDim2.fromOffset(8, 162), Size = UDim2.new(1, -16, 0, 22), Text = `You have {items[entry.Key] or 0}`, TextSize = 15, TextColor3 = C.Muted, Parent = card })
-			if item.Price > 0 then
-				for i, amount in { 1, 10 } do
-					local buy = button({ Position = UDim2.new(0, 10, 0, 194 + (i - 1) * 52), Size = UDim2.new(1, -20, 0, 44), Text = `x{amount}  ·  {Format.Number(item.Price * amount)} coins`, TextSize = 15, Color = C.Crimson, Parent = card })
-					buy.Activated:Connect(function()
-						remotes.BuyItem:FireServer(entry.Key, amount)
-					end)
-				end
-			else
-				for i, key in { "MasterOrb1", "MasterOrb5" } do
-					local product = Config.DevProducts[key]
-					local buy = priceButton(product.PriceHint, { Position = UDim2.new(0, 10, 0, 194 + (i - 1) * 52), Size = UDim2.new(1, -20, 0, 44), Text = `x{product.Amount}  ·  R$ {product.PriceHint}`, TextSize = 15, Parent = card })
-					buy.Activated:Connect(function()
-						UI.Buy("Product", key)
-					end)
-				end
-			end
-		end
 	end
-	draw()
-	table.insert(refreshers, draw)
-end
 
----------------------------------------------------------------- Arena
-
-function UI.OpenArena()
-	local _, content = window("THE COLOSSEUM", 880, 500)
-	local scroll = scrolling(content, { Size = UDim2.new(1, 0, 1, -96) })
-	create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroll })
-	create("UIPadding", { PaddingRight = UDim.new(0, 10), Parent = scroll })
-	local crests = player:GetAttribute("Crests") or 0
-	for index, champion in Config.Champions do
-		local beaten = index <= crests
-		local isNext = index == crests + 1
-		local row = Theme.panel({ Size = UDim2.new(1, 0, 0, 74), BackgroundColor3 = if isNext then C.PanelLight else C.PanelDark, LayoutOrder = index, Parent = scroll })
-		local shield = create("Frame", { Position = UDim2.fromOffset(10, 10), Size = UDim2.fromOffset(54, 54), BackgroundColor3 = if beaten then C.Gold else C.PanelDark, Parent = row })
-		Theme.corner(shield, 14)
-		Theme.stroke(shield, C.Gold, 2)
-		label({ Size = UDim2.fromScale(1, 1), Text = tostring(index), Font = Theme.Title, TextSize = 28, TextColor3 = if beaten then C.Ink else C.Gold, Parent = shield })
-		local nameLabel = label({ Position = UDim2.fromOffset(76, 8), Size = UDim2.new(0.42, 0, 0, 28), Text = champion.Name, Font = Theme.Title, TextSize = 24, TextColor3 = C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
-		Theme.textStroke(nameLabel, 1.5)
-		local team = {}
-		for _, member in champion.Team do
-			table.insert(team, `{Config.BeastsById[member[1]].Name} {member[2]}`)
-		end
-		label({ Position = UDim2.fromOffset(76, 38), Size = UDim2.new(0.5, 0, 0, 30), Text = `{champion.Title}  ·  {table.concat(team, ", ")}`, TextSize = 14, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
-		label({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -200, 0.5, 0), Size = UDim2.fromOffset(150, 30), Text = `{Format.Number(if beaten then math.floor(champion.Coins * Config.ChampionRematch) else champion.Coins)} coins`, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Right, Parent = row })
-		if beaten or isNext then
-			local fight = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(170, 46), Text = if beaten then "REMATCH" else "CHALLENGE", Color = if beaten then C.PanelLight else C.Crimson, Parent = row })
+	label({ Position = UDim2.fromOffset(0, 104), Size = UDim2.new(1, 0, 0, 26), Text = "LEADER REMATCHES  ·  stronger teams, more coins", Font = Theme.Title, TextSize = 20, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = content })
+	local scroll = scrolling(content, { Position = UDim2.fromOffset(0, 134), Size = UDim2.new(1, 0, 1, -134) })
+	create("UIGridLayout", { CellSize = UDim2.new(0.25, -8, 0, 140), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroll })
+	for index, leader in Story.Leaders do
+		local beaten = index <= badges
+		local card = Theme.panel({ BackgroundColor3 = if beaten then C.PanelLight else C.PanelDark, LayoutOrder = index, Parent = scroll })
+		local medal = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8), Size = UDim2.fromOffset(46, 46), BackgroundColor3 = if beaten then typeColor(leader.Type) else C.PanelDark, Parent = card })
+		Theme.corner(medal, 100)
+		Theme.stroke(medal, C.Gold, 2)
+		label({ Size = UDim2.fromScale(1, 1), Text = tostring(index), Font = Theme.Title, TextSize = 24, TextColor3 = if beaten then C.Ink else C.Muted, Parent = medal })
+		label({ Position = UDim2.fromOffset(4, 56), Size = UDim2.new(1, -8, 0, 22), Text = leader.Name, Font = Theme.Title, TextSize = 20, TextColor3 = C.Cream, Parent = card })
+		label({ Position = UDim2.fromOffset(4, 78), Size = UDim2.new(1, -8, 0, 16), Text = `{leader.Type} · {leader.Badge}`, TextSize = 12, TextColor3 = C.Muted, Parent = card })
+		if beaten then
+			local fight = button({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.new(1, -16, 0, 34), Text = `REMATCH`, TextSize = 16, Color = C.Crimson, Parent = card })
 			fight.Activated:Connect(function()
 				closeWindow()
-				remotes.ArenaChallenge:FireServer(index)
+				remotes.ArenaChallenge:FireServer("Rematch", index)
 			end)
 		else
-			label({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(170, 46), Text = "LOCKED", Font = Theme.Title, TextSize = 20, TextColor3 = C.Muted, Parent = row })
+			label({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.new(1, -16, 0, 34), Text = "🔒", TextSize = 20, TextColor3 = C.Muted, Parent = card })
 		end
 	end
-	-- Gauntlet und Champion Pass
-	local bottom = create("Frame", { Position = UDim2.new(0, 0, 1, -86), Size = UDim2.new(1, 0, 0, 86), BackgroundTransparency = 1, Parent = content })
-	local gauntlet = Theme.panel({ Size = UDim2.new(0.62, -6, 1, 0), BackgroundColor3 = C.CrimsonDark, Parent = bottom })
-	local gTitle = label({ Position = UDim2.fromOffset(16, 8), Size = UDim2.new(0.6, 0, 0, 32), Text = "ENDLESS GAUNTLET", Font = Theme.Title, TextSize = 26, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = gauntlet })
-	Theme.textStroke(gTitle, 1.5)
-	label({ Position = UDim2.fromOffset(16, 42), Size = UDim2.new(0.6, 0, 0, 34), Text = `Best: {player:GetAttribute("BestWave") or 0} waves · coins every wave`, TextSize = 15, TextColor3 = C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = gauntlet })
-	local start = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(150, 52), Text = "START", TextSize = 24, Color = C.Crimson, Parent = gauntlet })
-	start.Activated:Connect(function()
-		closeWindow()
-		remotes.ArenaChallenge:FireServer("Gauntlet")
-	end)
-	local pass = Theme.panel({ Position = UDim2.new(0.62, 6, 0, 0), Size = UDim2.new(0.38, -6, 1, 0), BackgroundColor3 = C.PanelDark, Parent = bottom })
-	label({ Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -24, 0, 26), Text = "Stuck on a champion?", TextSize = 16, TextColor3 = C.Cream, Parent = pass })
-	local skip = priceButton(Config.DevProducts.SkipChampion.PriceHint, { Position = UDim2.fromOffset(12, 36), Size = UDim2.new(1, -24, 0, 42), Text = `CHAMPION PASS  R$ {Config.DevProducts.SkipChampion.PriceHint}`, TextSize = 16, Parent = pass })
-	skip.Activated:Connect(function()
-		UI.Buy("Product", "SkipChampion")
-	end)
+end
+
+---------------------------------------------------------------- Bestiarium
+
+local function habitats(beastId: string): { string }
+	local list = {}
+	for _, area in Story.Areas do
+		for _, entry in area.Wild or {} do
+			if entry[1] == beastId then
+				table.insert(list, area.Name)
+			end
+		end
+	end
+	for _, legend in Story.Legends do
+		if legend.Beast == beastId then
+			table.insert(list, Story.AreasById[legend.Area].Name .. " (shrine)")
+		end
+	end
+	return list
+end
+
+function UI.OpenDex()
+	local collection = UI.State.Collection
+	if not collection then
+		return
+	end
+	local _, content = window("BESTIARY", 900, 520)
+	local caught, seen = 0, 0
+	for _ in collection.Dex do
+		caught += 1
+	end
+	for _ in collection.Seen do
+		seen += 1
+	end
+	label({ Size = UDim2.new(0.55, 0, 0, 24), Text = `Seen {seen}  ·  Caught {caught} / {#Config.Beasts}`, Font = Theme.Title, TextSize = 20, TextColor3 = C.Gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = content })
+	local listArea = create("Frame", { Position = UDim2.fromOffset(0, 30), Size = UDim2.new(0.55, -8, 1, -30), BackgroundTransparency = 1, Parent = content })
+	local grid = gridIn(listArea, Vector2.new(88, 96))
+	local detail = Theme.panel({ Position = UDim2.new(0.55, 8, 0, 0), Size = UDim2.new(0.45, -8, 1, 0), BackgroundColor3 = C.PanelDark, Parent = content })
+	local function show(def)
+		detail:ClearAllChildren()
+		Theme.corner(detail, 12)
+		Theme.stroke(detail, C.Gold, 2, 0.15)
+		local isSeen = collection.Seen[def.Id] or collection.Dex[def.Id]
+		if not isSeen then
+			label({ Size = UDim2.fromScale(1, 1), Text = `No.{string.format("%03d", def.Number)}\n???\n\nYou haven't seen this beast yet.`, TextSize = 20, TextColor3 = C.Muted, Parent = detail })
+			return
+		end
+		Theme.viewport(def.Id, 30, false, { Position = UDim2.fromOffset(10, 10), Size = UDim2.new(1, -20, 0, 190), Parent = detail })
+		local nameLabel = label({ Position = UDim2.fromOffset(12, 204), Size = UDim2.new(1, -24, 0, 32), Text = `No.{string.format("%03d", def.Number)}  {def.Name}`, Font = Theme.Title, TextSize = 26, TextScaled = true, TextColor3 = C.Cream, Parent = detail })
+		Theme.textStroke(nameLabel, 1.5)
+		local chips = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 240), Size = UDim2.fromOffset(200, 20), BackgroundTransparency = 1, Parent = detail })
+		create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 6), Parent = chips })
+		Theme.typeChip(def.Type, { Parent = chips })
+		if def.Type2 then
+			Theme.typeChip(def.Type2, { Parent = chips })
+		end
+		local rarity = Config.RaritiesByName[def.Rarity]
+		label({ Position = UDim2.fromOffset(12, 266), Size = UDim2.new(1, -24, 0, 20), Text = def.Rarity .. (if collection.Dex[def.Id] then "  ·  CAUGHT" else "  ·  seen"), TextSize = 16, TextColor3 = rarity.Color, Parent = detail })
+		label({ Position = UDim2.fromOffset(16, 290), Size = UDim2.new(1, -32, 0, 60), Text = def.Dex or "", TextSize = 16, TextColor3 = C.Cream, Parent = detail })
+		local places = habitats(def.Id)
+		local evo = if def.Evolve then `Evolves into {Config.BeastsById[def.Evolve.To].Name} at Lv {def.Evolve.Level}` elseif def.From then `Evolves from {Config.BeastsById[def.From].Name}` else "Does not evolve"
+		label({ Position = UDim2.fromOffset(16, 352), Size = UDim2.new(1, -32, 0, 20), Text = evo, TextSize = 15, TextColor3 = C.Gold, Parent = detail })
+		label({ Position = UDim2.fromOffset(16, 374), Size = UDim2.new(1, -32, 0, 40), Text = if #places > 0 then "Found in: " .. table.concat(places, ", ") else "Found by evolving", TextSize = 14, TextColor3 = C.Muted, Parent = detail })
+	end
+	for _, def in Config.Beasts do
+		local isCaught = collection.Dex[def.Id]
+		local isSeen = isCaught or collection.Seen[def.Id]
+		local cell = create("TextButton", { BackgroundColor3 = if isCaught then C.PanelLight else C.PanelDark, AutoButtonColor = true, Text = "", LayoutOrder = def.Number, Parent = grid })
+		Theme.corner(cell, 10)
+		Theme.stroke(cell, if isCaught then typeColor(def.Type) else C.PanelLight, 2)
+		label({ Position = UDim2.fromOffset(4, 2), Size = UDim2.new(1, -8, 0, 16), Text = string.format("%03d", def.Number), TextSize = 12, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = cell })
+		if isSeen then
+			Theme.beastIcon(def.Id, false, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 18), Parent = cell })
+		else
+			local unknown = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 18), Size = UDim2.fromOffset(44, 44), BackgroundColor3 = C.Ink, Parent = cell })
+			Theme.corner(unknown, 100)
+			label({ Size = UDim2.fromScale(1, 1), Text = "?", Font = Theme.Title, TextSize = 24, TextColor3 = C.Muted, Parent = unknown })
+		end
+		label({ Position = UDim2.new(0, 2, 1, -24), Size = UDim2.new(1, -4, 0, 20), Text = if isSeen then def.Name else "???", Font = Theme.Heavy, TextSize = 13, TextScaled = true, TextColor3 = if isCaught then C.Cream else C.Muted, Parent = cell })
+		if isCaught then
+			local dot = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 4), Size = UDim2.fromOffset(12, 12), BackgroundColor3 = Color3.fromRGB(150, 60, 170), Parent = cell })
+			Theme.corner(dot, 6)
+			Theme.stroke(dot, C.Gold, 1.5)
+		end
+		cell.Activated:Connect(function()
+			show(def)
+		end)
+	end
+	show(Config.Beasts[1])
+end
+
+---------------------------------------------------------------- Karte und Fliegen
+
+function UI.OpenMap()
+	local collection = UI.State.Collection
+	if not collection then
+		return
+	end
+	local _, content = window("MAP OF VALORIA", 900, 520)
+	local mapFrame = create("Frame", { Size = UDim2.new(1, 0, 1, -34), BackgroundColor3 = Color3.fromRGB(60, 120, 160), Parent = content })
+	Theme.corner(mapFrame, 12)
+	Theme.stroke(mapFrame, C.Gold, 2)
+	local hint = label({ AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 28), Text = "Tap a town you have visited to fly there. ★ = your next goal", TextSize = 16, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = content })
+	local _ = hint
+	-- Weltkoordinaten auf die Karte abbilden
+	local minX, maxX, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge
+	for _, area in Story.Areas do
+		local r = area.Rect
+		minX = math.min(minX, r.Center.X - r.SizeX / 2)
+		maxX = math.max(maxX, r.Center.X + r.SizeX / 2)
+		minZ = math.min(minZ, r.Center.Z - r.SizeZ / 2)
+		maxZ = math.max(maxZ, r.Center.Z + r.SizeZ / 2)
+	end
+	local pad = 40
+	minX -= pad
+	maxX += pad
+	minZ -= pad
+	maxZ += pad
+	local function toMap(x: number, z: number): UDim2
+		return UDim2.fromScale((x - minX) / (maxX - minX), (z - minZ) / (maxZ - minZ))
+	end
+	local currentArea = player:GetAttribute("Area")
+	for _, area in Story.Areas do
+		if area.Kind == "Route" then
+			local r = area.Rect
+			local bar = create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = toMap(r.Center.X, r.Center.Z), Size = UDim2.fromScale(r.SizeX / (maxX - minX) * 0.7, r.SizeZ / (maxZ - minZ) * 0.7), BackgroundColor3 = area.Theme.Ground, Parent = mapFrame })
+			Theme.corner(bar, 6)
+			label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = toMap(r.Center.X, r.Center.Z), Size = UDim2.fromOffset(90, 18), Text = area.Name, TextSize = 12, TextColor3 = C.Ink, ZIndex = 2, Parent = mapFrame })
+		end
+	end
+	for _, area in Story.Areas do
+		if area.Kind == "Town" then
+			local visited = collection.Visited[area.Id] == true
+			local isHere = currentArea == area.Id
+			local isGoal = collection.ObjectiveArea == area.Id
+			local size = if area.League then 74 else 58
+			local town = create("TextButton", { AnchorPoint = Vector2.new(0.5, 0.5), Position = toMap(area.Center.X, area.Center.Z), Size = UDim2.fromOffset(size, size), BackgroundColor3 = if visited then area.Theme.Accent else C.PanelDark, AutoButtonColor = visited, Text = "", ZIndex = 3, Parent = mapFrame })
+			Theme.corner(town, 14)
+			Theme.stroke(town, if isHere then C.Cream else C.Gold, if isHere then 4 else 2)
+			label({ Size = UDim2.fromScale(1, 1), Text = if isGoal then "★" elseif visited then "" else "?", Font = Theme.Title, TextSize = 28, TextColor3 = if isGoal then C.Gold else C.Muted, ZIndex = 4, Parent = town })
+			local name = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 1, 2), Size = UDim2.fromOffset(130, 18), Text = if visited then area.Name else "???", Font = Theme.Heavy, TextSize = 14, TextColor3 = C.Cream, ZIndex = 4, Parent = town })
+			Theme.textStroke(name, 1.5)
+			if isHere then
+				local you = label({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 0, -2), Size = UDim2.fromOffset(60, 18), Text = "YOU", Font = Theme.Title, TextSize = 14, TextColor3 = C.Cream, ZIndex = 4, Parent = town })
+				Theme.textStroke(you, 1.5)
+			end
+			town.Activated:Connect(function()
+				if visited and not isHere then
+					closeWindow()
+					remotes.Fly:FireServer(area.Id)
+				end
+			end)
+		end
+	end
 end
 
 ---------------------------------------------------------------- Starter-Wahl
@@ -584,16 +958,16 @@ end
 function UI.ShowStarter()
 	closeWindow()
 	local screen = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.25, ZIndex = 20, Parent = root })
-	local title = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 30), Size = UDim2.fromOffset(800, 56), Text = "CHOOSE YOUR FIRST BEAST", Font = Theme.Title, TextSize = 46, TextColor3 = C.Gold, ZIndex = 21, Parent = screen })
+	local title = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 30), Size = UDim2.fromOffset(800, 56), Text = "CHOOSE YOUR PARTNER", Font = Theme.Title, TextSize = 46, TextColor3 = C.Gold, ZIndex = 21, Parent = screen })
 	Theme.textStroke(title, 3)
-	label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 88), Size = UDim2.fromOffset(800, 26), Text = "Your partner for the Colosseum. Choose wisely - Fire beats Leaf, Leaf beats Water, Water beats Fire!", TextSize = 18, ZIndex = 21, Parent = screen })
+	label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 88), Size = UDim2.fromOffset(800, 26), Text = "Fire beats Leaf, Leaf beats Water, Water beats Fire. Your rival Kai will pick the one that beats yours!", TextSize = 18, ZIndex = 21, Parent = screen })
 	local row = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 130), Size = UDim2.fromOffset(840, 360), BackgroundTransparency = 1, ZIndex = 21, Parent = screen })
 	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 20), Parent = row })
 	for _, beastId in Config.Starters do
 		local def = Config.BeastsById[beastId]
-		local typeColor = Config.Types[def.Type].Color
+		local color = typeColor(def.Type)
 		local card = Theme.panel({ Size = UDim2.fromOffset(260, 350), BackgroundColor3 = C.Panel, ZIndex = 21, Parent = row })
-		local glow = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 16), Size = UDim2.fromOffset(200, 200), BackgroundColor3 = typeColor, BackgroundTransparency = 0.75, ZIndex = 21, Parent = card })
+		local glow = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 16), Size = UDim2.fromOffset(200, 200), BackgroundColor3 = color, BackgroundTransparency = 0.75, ZIndex = 21, Parent = card })
 		Theme.corner(glow, 200)
 		Theme.viewport(beastId, 5, false, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 10), Size = UDim2.fromOffset(220, 210), ZIndex = 22, Parent = card })
 		local nameLabel = label({ Position = UDim2.fromOffset(0, 222), Size = UDim2.new(1, 0, 0, 34), Text = def.Name, Font = Theme.Title, TextSize = 30, TextColor3 = C.Cream, ZIndex = 22, Parent = card })
@@ -605,6 +979,174 @@ function UI.ShowStarter()
 			screen:Destroy()
 		end)
 	end
+end
+
+---------------------------------------------------------------- Szenen nach dem Kampf
+
+local sceneQueue = {}
+local sceneRunning = false
+
+local function overlay(): Frame
+	return create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.15, ZIndex = 25, Parent = root })
+end
+
+-- Entwicklung: Silhouette pulsiert und wechselt zur neuen Form
+local function evolutionScene(event)
+	local from = Config.BeastsById[event.From]
+	local to = Config.BeastsById[event.To]
+	local screen = overlay()
+	local text = label({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -40), Size = UDim2.fromOffset(800, 50), Text = `What? {from.Name} is evolving!`, Font = Theme.Title, TextSize = 34, TextColor3 = C.Cream, ZIndex = 27, Parent = screen })
+	Theme.textStroke(text, 2)
+	local glow = create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(300, 300), BackgroundColor3 = typeColor(to.Type), BackgroundTransparency = 0.6, ZIndex = 25, Parent = screen })
+	Theme.corner(glow, 300)
+	local oldView = Theme.viewport(event.From, 30, false, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(340, 340), ZIndex = 26, Parent = screen })
+	local newView = Theme.viewport(event.To, 30, false, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(340, 340), ZIndex = 26, Visible = false, Parent = screen })
+	for i = 1, 8 do
+		local speed = 0.35 - i * 0.03
+		oldView.Visible = i % 2 == 1
+		newView.Visible = i % 2 == 0
+		oldView.ImageColor3 = Color3.new(1, 1, 1)
+		TweenService:Create(glow, TweenInfo.new(speed), { BackgroundTransparency = if i % 2 == 0 then 0.2 else 0.7 }):Play()
+		task.wait(speed)
+	end
+	oldView.Visible = false
+	newView.Visible = true
+	glow.BackgroundTransparency = 0
+	TweenService:Create(glow, TweenInfo.new(0.8), { BackgroundTransparency = 0.7, Size = UDim2.fromOffset(420, 420) }):Play()
+	text.Text = `Congratulations! Your {from.Name} evolved into {to.Name}!`
+	text.TextColor3 = C.Gold
+	task.wait(2.6)
+	screen:Destroy()
+end
+
+-- Neue Attacke bei vollen Plaetzen: eine alte vergessen oder nicht lernen
+local function learnScene(event)
+	local collection = UI.State.Collection
+	local beast = collection and collection.Beasts[event.Uid]
+	if not beast then
+		return
+	end
+	local def = Config.BeastsById[beast.S]
+	local new = Config.Moves[event.Move]
+	local done = Instance.new("BindableEvent")
+	local entries = {}
+	for slot, move in beast.Moves do
+		table.insert(entries, { Text = `Forget {move.Name}`, Sub = `{move.Type:upper()} · {if move.Power > 0 then "PWR " .. move.Power else "STATUS"}`, Color = typeColor(move.Type):Lerp(C.Ink, 0.45), OnPick = function()
+			remotes.SetMove:FireServer(event.Uid, slot, event.Move)
+			done:Fire()
+		end })
+	end
+	table.insert(entries, { Text = `Don't learn {new.Name}`, Sub = "keep all moves", Color = C.PanelLight, OnPick = function()
+		UI.Toast(`{def.Name} did not learn {new.Name}.`, C.Muted)
+		done:Fire()
+	end })
+	local frame = chooser(`{def.Name:upper()} WANTS TO LEARN {new.Name:upper()} ({new.Type:upper()}, {if new.Power > 0 then "PWR " .. new.Power else "STATUS"})`, entries)
+	frame.Destroying:Connect(function()
+		done:Fire()
+	end)
+	done.Event:Wait()
+	done:Destroy()
+end
+
+local function badgeScene(payload)
+	local screen = overlay()
+	local color = typeColor(payload.Type)
+	local medal = create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromOffset(40, 40), BackgroundColor3 = color, ZIndex = 26, Parent = screen })
+	Theme.corner(medal, 200)
+	Theme.stroke(medal, C.Gold, 8)
+	Theme.gradient(medal, Color3.new(1, 1, 1), Color3.fromRGB(150, 150, 150))
+	local number = label({ Size = UDim2.fromScale(1, 1), Text = tostring(payload.Index), Font = Theme.Title, TextScaled = true, TextColor3 = C.Ink, ZIndex = 27, Parent = medal })
+	local _ = number
+	TweenService:Create(medal, TweenInfo.new(0.6, Enum.EasingStyle.Back), { Size = UDim2.fromOffset(200, 200), Rotation = 360 }):Play()
+	local title = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.64), Size = UDim2.fromOffset(800, 60), Text = payload.Badge:upper(), Font = Theme.Title, TextSize = 52, TextColor3 = C.Gold, ZIndex = 27, Parent = screen })
+	Theme.textStroke(title, 3)
+	label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.76), Size = UDim2.fromOffset(800, 30), Text = `Badge {payload.Index} of 8 · +{Format.Coins(payload.Coins)}`, TextSize = 22, TextColor3 = C.Cream, ZIndex = 27, Parent = screen })
+	task.wait(3.2)
+	screen:Destroy()
+end
+
+local function hallOfFameScene(payload)
+	local screen = overlay()
+	local title = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 40), Size = UDim2.fromOffset(900, 80), Text = "HALL OF FAME", Font = Theme.Title, TextSize = 72, TextColor3 = C.Gold, ZIndex = 27, Parent = screen })
+	Theme.textStroke(title, 4)
+	label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 124), Size = UDim2.fromOffset(900, 30), Text = `{player.DisplayName} is the new Champion of Valoria!`, TextSize = 24, TextColor3 = C.Cream, ZIndex = 27, Parent = screen })
+	local row = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 180), Size = UDim2.fromOffset(900, 200), BackgroundTransparency = 1, ZIndex = 26, Parent = screen })
+	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 10), Parent = row })
+	for _, item in payload.Team or {} do
+		local entry = item.Entry
+		local card = Theme.panel({ Size = UDim2.fromOffset(140, 190), ZIndex = 26, Parent = row })
+		Theme.viewport(entry.S, entry.L, entry.Sh, { Size = UDim2.new(1, 0, 0, 140), ZIndex = 27, Parent = card })
+		label({ Position = UDim2.fromOffset(0, 142), Size = UDim2.new(1, 0, 0, 24), Text = Config.BeastsById[entry.S].Name, Font = Theme.Title, TextSize = 18, TextScaled = true, ZIndex = 27, Parent = card })
+		label({ Position = UDim2.fromOffset(0, 164), Size = UDim2.new(1, 0, 0, 18), Text = `Lv {entry.L}`, TextSize = 15, TextColor3 = C.Gold, ZIndex = 27, Parent = card })
+	end
+	task.wait(7)
+	screen:Destroy()
+end
+
+local function runScenes()
+	if sceneRunning then
+		return
+	end
+	sceneRunning = true
+	while #sceneQueue > 0 do
+		local scene = table.remove(sceneQueue, 1)
+		sceneCount += 1
+		local ok, err = pcall(scene)
+		sceneCount -= 1
+		if not ok then
+			warn("[UI] Szene", err)
+		end
+	end
+	sceneRunning = false
+end
+
+local function queueScene(fn: () -> ())
+	table.insert(sceneQueue, fn)
+	task.spawn(runScenes)
+end
+
+function UI.ShowPostBattle(events: { any })
+	-- Erst Entwicklungen, dann neue Attacken
+	for _, event in events do
+		if event.T == "Evolve" then
+			queueScene(function()
+				evolutionScene(event)
+			end)
+		end
+	end
+	for _, event in events do
+		if event.T == "LearnPrompt" then
+			queueScene(function()
+				learnScene(event)
+			end)
+		end
+	end
+end
+
+function UI.ShowBadge(payload)
+	queueScene(function()
+		badgeScene(payload)
+	end)
+end
+
+function UI.ShowHallOfFame(payload)
+	queueScene(function()
+		hallOfFameScene(payload)
+	end)
+end
+
+-- Schwarzblende (Fliegen, Aufwachen im Heilzentrum)
+function UI.Fade(text: string?)
+	local screen = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, ZIndex = 40, Parent = root })
+	local caption = label({ Size = UDim2.fromScale(1, 1), Text = text or "", Font = Theme.Title, TextSize = 36, TextColor3 = C.Gold, TextTransparency = 1, ZIndex = 41, Parent = screen })
+	TweenService:Create(screen, TweenInfo.new(0.4), { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(caption, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
+	task.delay(1.3, function()
+		TweenService:Create(screen, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
+		TweenService:Create(caption, TweenInfo.new(0.6), { TextTransparency = 1 }):Play()
+		task.wait(0.7)
+		screen:Destroy()
+	end)
 end
 
 ---------------------------------------------------------------- Kaufangebote und Duelle
@@ -666,6 +1208,10 @@ end
 ---------------------------------------------------------------- Anzeige oben, Menue, Team-Leiste
 
 local teamBar: Frame
+local objectiveLabel: TextLabel
+local badgeDots: Frame
+local areaBanner: TextLabel
+
 local function drawTeamBar()
 	for _, child in teamBar:GetChildren() do
 		if child:IsA("GuiObject") then
@@ -680,16 +1226,37 @@ local function drawTeamBar()
 		local beast = collection.Beasts[uid]
 		if beast then
 			local def = Config.BeastsById[beast.S]
-			local card = create("TextButton", { Size = UDim2.fromOffset(150, 54), BackgroundColor3 = C.Panel, BackgroundTransparency = 0.1, Text = "", AutoButtonColor = true, LayoutOrder = index, Parent = teamBar })
+			local card = create("TextButton", { Size = UDim2.fromOffset(124, 50), BackgroundColor3 = C.Panel, BackgroundTransparency = 0.1, Text = "", AutoButtonColor = true, LayoutOrder = index, Parent = teamBar })
 			Theme.corner(card, 10)
-			Theme.stroke(card, if index == 1 then C.Gold else C.PanelLight, 2)
-			Theme.beastIcon(beast.S, beast.Sh, { Position = UDim2.fromOffset(6, 7), Size = UDim2.fromOffset(40, 40), Parent = card })
-			label({ Position = UDim2.fromOffset(52, 4), Size = UDim2.new(1, -56, 0, 20), Text = def.Name, Font = Theme.Heavy, TextSize = 15, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
-			label({ Position = UDim2.fromOffset(52, 22), Size = UDim2.new(1, -56, 0, 14), Text = `Lv {beast.L}`, TextSize = 13, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
-			local _, fill = Theme.hpBar({ Position = UDim2.fromOffset(52, 39), Size = UDim2.new(1, -60, 0, 8), Parent = card })
+			Theme.stroke(card, if index == 1 then C.Gold elseif beast.Hp <= 0 then C.Red else C.PanelLight, 2)
+			Theme.beastIcon(beast.S, beast.Sh, { Position = UDim2.fromOffset(5, 6), Size = UDim2.fromOffset(38, 38), Parent = card })
+			label({ Position = UDim2.fromOffset(48, 3), Size = UDim2.new(1, -52, 0, 18), Text = def.Name, Font = Theme.Heavy, TextSize = 14, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+			label({ Position = UDim2.fromOffset(48, 20), Size = UDim2.new(1, -52, 0, 14), Text = `Lv {beast.L}` .. (if beast.St then " " .. Config.Statuses[beast.St].Name elseif beast.Hp <= 0 then " FNT" else ""), TextSize = 12, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = card })
+			local _, fill = Theme.hpBar({ Position = UDim2.fromOffset(48, 36), Size = UDim2.new(1, -56, 0, 8), Parent = card })
 			Theme.setHp(fill, beast.Hp / beast.MaxHp)
-			card.Activated:Connect(UI.OpenTeam)
+			card.Activated:Connect(function()
+				UI.OpenTeam()
+			end)
 		end
+	end
+end
+
+local function drawProgress()
+	local collection = UI.State.Collection
+	if not collection then
+		return
+	end
+	objectiveLabel.Text = collection.Objective or ""
+	for _, child in badgeDots:GetChildren() do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	for index, leader in Story.Leaders do
+		local earned = index <= (collection.Badges or 0)
+		local dot = create("Frame", { Size = UDim2.fromOffset(16, 16), BackgroundColor3 = if earned then typeColor(leader.Type) else C.PanelDark, Parent = badgeDots })
+		Theme.corner(dot, 8)
+		Theme.stroke(dot, if earned then C.Gold else C.PanelLight, 1.5)
 	end
 end
 
@@ -707,12 +1274,12 @@ local function pill(position: UDim2, width: number, iconColor: Color3, iconText:
 end
 
 local function menuButton(icon: string, text: string, color: Color3, order: number): (TextButton, TextLabel)
-	local b = button({ Size = UDim2.fromOffset(74, 74), Color = color, LayoutOrder = order, Parent = hud:FindFirstChild("Menu") })
-	label({ Position = UDim2.fromOffset(0, 4), Size = UDim2.new(1, 0, 0, 40), Text = icon, TextSize = 32, Parent = b })
-	local textLabel = label({ Position = UDim2.new(0, 0, 1, -26), Size = UDim2.new(1, 0, 0, 22), Text = text, Font = Theme.Title, TextSize = 15, TextColor3 = C.Cream, Parent = b })
+	local b = button({ Color = color, LayoutOrder = order, Parent = hud:FindFirstChild("Menu") })
+	label({ Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 0, 36), Text = icon, TextSize = 28, Parent = b })
+	local textLabel = label({ Position = UDim2.new(0, 0, 1, -24), Size = UDim2.new(1, 0, 0, 20), Text = text, Font = Theme.Title, TextSize = 14, TextColor3 = C.Cream, Parent = b })
 	Theme.textStroke(textLabel, 1.2)
-	local badge = label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -6), Size = UDim2.fromOffset(24, 24), BackgroundTransparency = 0, BackgroundColor3 = C.Red, Text = "!", Font = Theme.Title, TextSize = 16, Visible = false, Parent = b })
-	Theme.corner(badge, 12)
+	local badge = label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -6), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 0, BackgroundColor3 = C.Red, Text = "!", Font = Theme.Title, TextSize = 15, Visible = false, Parent = b })
+	Theme.corner(badge, 11)
 	return b, badge
 end
 
@@ -734,9 +1301,51 @@ end
 function UI.SetCollection(collection)
 	UI.State.Collection = collection
 	drawTeamBar()
+	drawProgress()
 	for _, refresh in refreshers do
 		task.spawn(refresh)
 	end
+	for _, fn in listeners do
+		task.spawn(fn, collection)
+	end
+end
+
+function UI.OpenMenu(name: string)
+	if name == "Mart" then
+		UI.OpenMart()
+	elseif name == "Bag" then
+		UI.OpenBag()
+	elseif name == "Team" then
+		UI.OpenTeam()
+	elseif name == "Map" then
+		UI.OpenMap()
+	elseif name == "Dex" then
+		UI.OpenDex()
+	elseif name == "Shop" then
+		UI.OpenShop()
+	elseif name == "Battle" then
+		UI.OpenBattleMenu()
+	end
+end
+
+local function showArea(areaId: string?)
+	local area = areaId and Story.AreasById[areaId]
+	if not area then
+		return
+	end
+	areaBanner.Text = area.Name:upper()
+	areaBanner.TextColor3 = area.Theme.Accent:Lerp(Color3.new(1, 1, 1), 0.35)
+	areaBanner.Visible = true
+	areaBanner.TextTransparency = 1
+	areaBanner.Position = UDim2.new(0.5, 0, 0, 70)
+	TweenService:Create(areaBanner, TweenInfo.new(0.4), { TextTransparency = 0, Position = UDim2.new(0.5, 0, 0, 84) }):Play()
+	local stamp = os.clock()
+	areaBanner:SetAttribute("Stamp", stamp)
+	task.delay(2.6, function()
+		if areaBanner:GetAttribute("Stamp") == stamp then
+			TweenService:Create(areaBanner, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
+		end
+	end)
 end
 
 function UI.Init()
@@ -760,30 +1369,44 @@ function UI.Init()
 		closeWindow()
 	end)
 
-	toastList = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 64), Size = UDim2.fromOffset(600, 200), BackgroundTransparency = 1, ZIndex = 30, Parent = root })
+	toastList = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 120), Size = UDim2.fromOffset(600, 200), BackgroundTransparency = 1, ZIndex = 30, Parent = root })
 	create("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 6), Parent = toastList })
 	bannerLabel = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 14), Size = UDim2.fromOffset(760, 40), Text = "", Font = Theme.Title, TextSize = 26, TextScaled = true, Visible = false, ZIndex = 30, Parent = root })
 	Theme.textStroke(bannerLabel, 2.5)
+	areaBanner = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 84), Size = UDim2.fromOffset(700, 52), Text = "", Font = Theme.Title, TextSize = 46, Visible = false, ZIndex = 4, Parent = hud })
+	Theme.textStroke(areaBanner, 3)
 
-	-- Muenzen und Wappen
-	local coins = pill(UDim2.fromOffset(14, 14), 200, C.Gold, "C")
-	local crests = pill(UDim2.fromOffset(222, 14), 130, C.Crimson, "")
-	local crestIcon = (crests.Parent :: Frame):FindFirstChildOfClass("Frame") :: Frame
-	label({ Size = UDim2.fromScale(1, 1), Text = "★", TextSize = 22, TextColor3 = C.Gold, Parent = crestIcon })
-	local chips = create("Frame", { Name = "Chips", Position = UDim2.fromOffset(362, 20), Size = UDim2.fromOffset(600, 32), BackgroundTransparency = 1, Parent = hud })
+	-- Muenzen, Orden und aktuelles Ziel
+	local coins = pill(UDim2.fromOffset(14, 14), 190, C.Gold, "C")
+	local badgeFrame = create("Frame", { Position = UDim2.fromOffset(212, 14), Size = UDim2.fromOffset(196, 44), BackgroundColor3 = C.Panel, BackgroundTransparency = 0.05, Parent = hud })
+	Theme.corner(badgeFrame, 22)
+	Theme.stroke(badgeFrame, C.Gold, 2)
+	badgeDots = create("Frame", { Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -20, 1, 0), BackgroundTransparency = 1, Parent = badgeFrame })
+	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 6), Parent = badgeDots })
+	local objective = create("TextButton", { Position = UDim2.fromOffset(14, 66), Size = UDim2.fromOffset(394, 44), BackgroundColor3 = C.PanelDark, BackgroundTransparency = 0.1, AutoButtonColor = true, Text = "", Parent = hud })
+	Theme.corner(objective, 12)
+	Theme.stroke(objective, C.GoldDark, 1.5)
+	label({ Position = UDim2.fromOffset(10, 0), Size = UDim2.fromOffset(30, 44), Text = "★", Font = Theme.Title, TextSize = 24, TextColor3 = C.Gold, Parent = objective })
+	objectiveLabel = label({ Position = UDim2.fromOffset(40, 2), Size = UDim2.new(1, -48, 1, -4), Text = "", TextSize = 15, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, Parent = objective })
+	objective.Activated:Connect(UI.OpenMap)
+
+	local chips = create("Frame", { Name = "Chips", Position = UDim2.fromOffset(418, 20), Size = UDim2.fromOffset(560, 32), BackgroundTransparency = 1, Parent = hud })
 	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = chips })
 	local multChip = chip(1, C.Gold)
 	local boostChip = chip(2, C.Green)
 	local stormChip = chip(3, C.Prism)
 
-	local menu = create("Frame", { Name = "Menu", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 10), Size = UDim2.fromOffset(74, 520), BackgroundTransparency = 1, Parent = hud })
-	create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center, Parent = menu })
+	-- Menue: zwei Spalten links
+	local menu = create("Frame", { Name = "Menu", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 40), Size = UDim2.fromOffset(150, 316), BackgroundTransparency = 1, Parent = hud })
+	create("UIGridLayout", { CellSize = UDim2.fromOffset(70, 70), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = menu })
 	local teamButton = menuButton("🐾", "TEAM", C.Blue, 1)
-	local shopButton, shopBadge = menuButton("💎", "SHOP", C.GoldDark, 2)
-	local orbButton = menuButton("🔮", "ORBS", C.Crimson, 3)
-	local arenaButton = menuButton("🏛️", "ARENA", C.CrimsonDark, 4)
-	local dailyButton, dailyBadge = menuButton("🎁", "DAILY", C.Green, 5)
-	local adButton, adBadge = menuButton("🎬", "FREE", Color3.fromRGB(200, 110, 40), 6)
+	local bagButton = menuButton("🎒", "BAG", Color3.fromRGB(200, 140, 40), 2)
+	local dexButton = menuButton("📖", "DEX", C.Crimson, 3)
+	local mapButton = menuButton("🗺️", "MAP", C.Green, 4)
+	local shopButton, shopBadge = menuButton("💎", "SHOP", C.GoldDark, 5)
+	local battleButton = menuButton("⚔️", "BATTLE", C.CrimsonDark, 6)
+	local dailyButton, dailyBadge = menuButton("🎁", "DAILY", Color3.fromRGB(70, 160, 120), 7)
+	local adButton, adBadge = menuButton("🎬", "FREE", Color3.fromRGB(200, 110, 40), 8)
 	adButton.Visible = false
 	adBadge.Text = "+"
 	adBadge.BackgroundColor3 = C.Gold
@@ -793,12 +1416,16 @@ function UI.Init()
 	shopBadge.BackgroundColor3 = C.Gold
 	shopBadge.TextColor3 = C.Ink
 
-	teamButton.Activated:Connect(UI.OpenTeam)
+	teamButton.Activated:Connect(function()
+		UI.OpenTeam()
+	end)
+	bagButton.Activated:Connect(UI.OpenBag)
+	dexButton.Activated:Connect(UI.OpenDex)
+	mapButton.Activated:Connect(UI.OpenMap)
 	shopButton.Activated:Connect(function()
 		UI.OpenShop()
 	end)
-	orbButton.Activated:Connect(UI.OpenItems)
-	arenaButton.Activated:Connect(UI.OpenArena)
+	battleButton.Activated:Connect(UI.OpenBattleMenu)
 	dailyButton.Activated:Connect(function()
 		remotes.ClaimDaily:FireServer()
 	end)
@@ -815,22 +1442,24 @@ function UI.Init()
 		end
 	end)
 
-	teamBar = create("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.fromOffset(800, 54), BackgroundTransparency = 1, Parent = hud })
-	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = teamBar })
+	teamBar = create("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.fromOffset(800, 50), BackgroundTransparency = 1, Parent = hud })
+	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = teamBar })
 
 	local function refreshStats()
 		coins.Text = Format.Number(player:GetAttribute("Coins") or 0)
-		crests.Text = `{player:GetAttribute("Crests") or 0}/{#Config.Champions}`
 		dailyBadge.Visible = player:GetAttribute("DailyReady") == true
 		shopBadge.Visible = not player:GetAttribute("GotStarter")
 		local mult = player:GetAttribute("CoinMultiplier") or 1
 		multChip.Visible = mult > 1
 		multChip.Text = `x{mult} COINS`
 	end
-	for _, attribute in { "Coins", "Crests", "DailyReady", "GotStarter", "CoinMultiplier" } do
+	for _, attribute in { "Coins", "DailyReady", "GotStarter", "CoinMultiplier" } do
 		player:GetAttributeChangedSignal(attribute):Connect(refreshStats)
 	end
 	refreshStats()
+	player:GetAttributeChangedSignal("Area"):Connect(function()
+		showArea(player:GetAttribute("Area"))
+	end)
 
 	task.spawn(function()
 		while gui.Parent do

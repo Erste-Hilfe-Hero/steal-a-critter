@@ -11,6 +11,7 @@ local DataService = { Services = nil :: any }
 local store = DataStoreService:GetDataStore(Config.DataStoreName)
 local profiles = {} -- [Player] = { Data = table, CanSave = boolean }
 local MAX_RECEIPTS = 100
+local LEADERSTATS = { { "Badges", "Crests" }, { "Caught", "Caught" }, { "Trophies", "Trophies" } }
 
 local function defaultData()
 	local items = {}
@@ -19,17 +20,24 @@ local function defaultData()
 	end
 	return {
 		Coins = Config.StartCoins,
-		Beasts = {}, -- [uid] = { S = Art, L = Level, X = XP, Sh = prismatisch?, Hp = aktuelle HP }
-		Team = {}, -- { uid, ... } Reihenfolge im Kampf
+		-- [uid] = { S = Art, L = Level, X = EP, Sh = prismatisch?, Hp = KP, M = { Attacken }, PP = { AP }, St = Status }
+		Beasts = {},
+		Team = {}, -- { uid, ... } Reihenfolge im Kampf (max. 6), der Rest ist in der Box
 		NextId = 1,
 		Items = items, -- [ItemKey] = Anzahl
 		Started = false, -- Starter-Bestie gewaehlt?
-		Crests = 0, -- besiegte Champions (in Reihenfolge)
+		Starter = "", -- gewaehlter Starter (fuer den Rivalen)
+		Crests = 0, -- Orden (besiegte Arenaleiter in Reihenfolge)
+		Flags = {}, -- [Ereignis] = true (Story-Fortschritt)
+		Beaten = {}, -- [TrainerId] = true
+		Seen = {}, -- [beastId] = true (je gesehen)
+		Dex = {}, -- [beastId] = true (je gefangen)
+		Visited = { dawnvale = true }, -- [areaId] = true (fuer das Fliegen)
+		LastCenter = "dawnvale", -- hier wacht man nach einer Niederlage auf
 		BestWave = 0, -- Gauntlet-Rekord
 		Trophies = 0, -- aus Duellen
 		Wins = 0,
 		Caught = 0,
-		Dex = {}, -- [beastId] = true (je gefangen)
 		ExtraStorage = 0,
 		BoostUntil = 0, -- os.time() bis 2x-Boost endet
 		LastDaily = 0, -- Tag des letzten Geschenks
@@ -101,10 +109,10 @@ function DataService:Load(player: Player)
 
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
-	for _, stat in { "Crests", "Caught", "Trophies" } do
+	for _, pair in LEADERSTATS do
 		local value = Instance.new("IntValue")
-		value.Name = stat
-		value.Value = profile.Data[stat]
+		value.Name = pair[1]
+		value.Value = profile.Data[pair[2]]
 		value.Parent = leaderstats
 	end
 	leaderstats.Parent = player
@@ -125,14 +133,15 @@ function DataService:UpdateAttributes(player: Player)
 	end
 	player:SetAttribute("Coins", data.Coins)
 	player:SetAttribute("Crests", data.Crests)
+	player:SetAttribute("Champion", data.Flags.champion == true)
 	player:SetAttribute("BestWave", data.BestWave)
 	player:SetAttribute("Trophies", data.Trophies)
 	player:SetAttribute("BoostUntil", data.BoostUntil)
 	player:SetAttribute("DailyReady", data.LastDaily ~= os.time() // 86400)
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
-		for _, stat in { "Crests", "Caught", "Trophies" } do
-			(leaderstats :: any)[stat].Value = data[stat]
+		for _, pair in LEADERSTATS do
+			(leaderstats :: any)[pair[1]].Value = data[pair[2]]
 		end
 	end
 end

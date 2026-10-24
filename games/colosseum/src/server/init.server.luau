@@ -7,19 +7,21 @@ local Services = {
 	WorldService = require(script.Services.WorldService),
 	BeastService = require(script.Services.BeastService),
 	BattleService = require(script.Services.BattleService),
-	WildService = require(script.Services.WildService),
+	StoryService = require(script.Services.StoryService),
+	EncounterService = require(script.Services.EncounterService),
 	MonetizationService = require(script.Services.MonetizationService),
 	RewardService = require(script.Services.RewardService),
 	LeaderboardService = require(script.Services.LeaderboardService),
 	CommunityService = require(script.Services.CommunityService),
 }
 
-local ORDER = { "DataService", "WorldService", "BeastService", "BattleService", "WildService", "MonetizationService", "RewardService", "LeaderboardService", "CommunityService" }
+local ORDER = { "DataService", "WorldService", "BeastService", "BattleService", "StoryService", "EncounterService", "MonetizationService", "RewardService", "LeaderboardService", "CommunityService" }
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
 end
 Services.WorldService:Build()
+Services.StoryService:Build()
 for _, name in ORDER do
 	if Services[name].Start then
 		Services[name]:Start()
@@ -58,6 +60,7 @@ local function onPlayerAdded(player: Player)
 	end
 	Services.MonetizationService:LoadPasses(player)
 	Services.BeastService:OnPlayerReady(player)
+	Services.StoryService:OnPlayerReady(player)
 	Services.RewardService:OnPlayerReady(player)
 	Services.CommunityService:OnPlayerReady(player)
 
@@ -76,6 +79,8 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	Services.BattleService:OnPlayerRemoving(player)
+	Services.BeastService:OnPlayerRemoving(player)
+	Services.StoryService:OnPlayerRemoving(player)
 	Services.CommunityService:OnPlayerRemoving(player)
 	Services.DataService:Release(player)
 end)
