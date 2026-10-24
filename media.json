@@ -5,9 +5,7 @@
       "universeId": "3003317051",
       "icon": "assets/icon.png",
       "thumbnails": [
-        "assets/thumbnail.png",
-        "assets/variants/thumbnail_b_mythic.png",
-        "assets/variants/thumbnail_c_revenge.png"
+        "assets/thumbnail.png"
       ]
     },
     {
@@ -23,8 +21,7 @@
       "universeId": "10772778924",
       "icon": "games/petsim/assets/icon.png",
       "thumbnails": [
-        "games/petsim/assets/thumbnail.png",
-        "games/petsim/assets/thumbnail_golden.png"
+        "games/petsim/assets/thumbnail.png"
       ]
     },
     {
@@ -40,8 +37,7 @@
       "universeId": "10772779320",
       "icon": "games/city/assets/icon.png",
       "thumbnails": [
-        "games/city/assets/thumbnail.png",
-        "games/city/assets/thumbnail_heist.png"
+        "games/city/assets/thumbnail.png"
       ]
     },
     {

@@ -110,6 +110,12 @@ function Fx.Number(position: Vector3, amount: number, kind: string)
 		Fx.FloatText(position, "+" .. value, Color3.fromRGB(110, 231, 160), 0.9)
 	elseif kind == "Taken" then
 		Fx.FloatText(position, "-" .. value, Color3.fromRGB(255, 90, 90), 0.9)
+	elseif kind == "Crit" then
+		Fx.FloatText(position, value .. "!", Color3.fromRGB(255, 120, 40), 1.25)
+	elseif kind == "Magic" then
+		Fx.FloatText(position, tostring(value), Color3.fromRGB(150, 150, 255), 1)
+	elseif kind == "True" then
+		Fx.FloatText(position, tostring(value), Color3.fromRGB(240, 240, 240), 1)
 	elseif kind == "Ability" then
 		Fx.FloatText(position, tostring(value), Color3.fromRGB(255, 170, 60), 1.15)
 	else
@@ -254,7 +260,7 @@ local function aura(model: Instance?, seconds: number, color: Color3, size: numb
 end
 
 handlers.Shield = function(data)
-	aura(data.Model, data.Time or 3, Color3.fromRGB(200, 230, 255), 7, 0)
+	aura(data.Model, math.min(data.Time or 3, 3), Color3.fromRGB(200, 230, 255), 7, 0)
 end
 
 handlers.Buff = function(data)
@@ -359,6 +365,201 @@ handlers.Cast = function(data)
 		tween(flash, 0.2, { Size = Vector3.one * 6, Transparency = 1 })
 		Debris:AddItem(flash, 0.25)
 	end
+end
+
+---------------------------------------------------------------- Geschosse, Strahlen, Zustaende
+
+local missiles = {}
+
+-- Fliegendes Geschoss (Faehigkeit): fliegt die ganze Strecke, ausser der Server meldet einen Treffer
+handlers.Missile = function(data)
+	local from = ground(data.From, 2.2)
+	local direction: Vector3 = data.Dir
+	local length: number = data.Length
+	local speed: number = data.Speed or 0
+	if speed <= 0 or data.Look == "None" then
+		return
+	end
+	local color = data.Color or WHITE
+	local width = math.max(1, data.Width or 2)
+	local look = data.Look
+	local head = part({ Shape = Enum.PartType.Ball, Size = Vector3.one * math.min(5, width * 1.1), Position = from, Color = color, Transparency = 0.05 })
+	local tail = part({ Size = Vector3.new(width * 0.5, width * 0.5, 3), CFrame = CFrame.lookAt(from, from + direction), Color = color, Transparency = 0.45 })
+	local chain
+	if look == "Hook" then
+		chain = part({ Size = Vector3.new(0.3, 0.3, 0.1), CFrame = CFrame.lookAt(from, from + direction), Color = Color3.fromRGB(70, 80, 80), Material = Enum.Material.Metal, Transparency = 0 })
+	end
+	local start = os.clock()
+	local duration = length / speed
+	missiles[data.Id] = { Head = head, Tail = tail, Chain = chain }
+	local connection
+	connection = RunService.RenderStepped:Connect(function()
+		local elapsed = os.clock() - start
+		if not head.Parent or elapsed >= duration then
+			connection:Disconnect()
+			head:Destroy()
+			tail:Destroy()
+			if chain then
+				chain:Destroy()
+			end
+			missiles[data.Id] = nil
+			return
+		end
+		local position = from + direction * (speed * elapsed)
+		head.Position = position
+		tail.CFrame = CFrame.lookAt(position - direction * 1.5, position)
+		if chain then
+			local distance = (position - from).Magnitude
+			chain.Size = Vector3.new(0.3, 0.3, math.max(0.1, distance))
+			chain.CFrame = CFrame.lookAt((from + position) / 2, position)
+		end
+	end)
+end
+
+handlers.MissileEnd = function(data)
+	local missile = missiles[data.Id]
+	if missile then
+		missile.Head:Destroy()
+		missile.Tail:Destroy()
+		if missile.Chain then
+			missile.Chain:Destroy()
+		end
+		missiles[data.Id] = nil
+	end
+	handlers.Boom({ At = data.At, Color = data.Color, Size = 5 })
+end
+
+-- Vorwarnung am Boden (gleich kommt etwas)
+handlers.Telegraph = function(data)
+	local from = ground(data.From, 0.35)
+	local to = ground(data.To, 0.35)
+	local length = (to - from).Magnitude
+	local strip = part({ Size = Vector3.new(data.Width or 3, 0.15, length), CFrame = CFrame.lookAt((from + to) / 2, to), Color = data.Color or WHITE, Transparency = 0.7 })
+	tween(strip, data.Time or 0.5, { Transparency = 0.35 }, Enum.EasingStyle.Linear)
+	Debris:AddItem(strip, data.Time or 0.5)
+end
+
+handlers.Laser = function(data)
+	local from = ground(data.From, 2.5)
+	local to = ground(data.To, 2.5)
+	local length = (to - from).Magnitude
+	local width = data.Width or 4
+	local beam = part({ Size = Vector3.new(width, width * 0.6, length), CFrame = CFrame.lookAt((from + to) / 2, to), Color = data.Color or WHITE, Transparency = 0.05 })
+	local core = part({ Size = Vector3.new(width * 0.4, width * 0.3, length), CFrame = beam.CFrame, Color = WHITE, Transparency = 0 })
+	tween(beam, 0.5, { Size = Vector3.new(0.2, 0.2, length), Transparency = 1 })
+	tween(core, 0.4, { Size = Vector3.new(0.1, 0.1, length), Transparency = 1 })
+	Debris:AddItem(beam, 0.55)
+	Debris:AddItem(core, 0.45)
+end
+
+handlers.Bolt = function(data)
+	handlers.Shot({ From = ground(data.From, 2.5), To = data.To, Color = data.Color, Time = math.clamp((data.To - data.From).Magnitude / 120, 0.08, 0.3) })
+end
+
+handlers.Hook = function(data)
+	local from = ground(data.From, 2.4)
+	local to = ground(data.To, 2.4)
+	local length = (to - from).Magnitude
+	local chain = part({ Size = Vector3.new(0.35, 0.35, length), CFrame = CFrame.lookAt((from + to) / 2, to), Color = data.Color or Color3.fromRGB(80, 90, 90), Transparency = 0.1 })
+	tween(chain, 0.35, { Size = Vector3.new(0.35, 0.35, 0.1), CFrame = CFrame.new(from), Transparency = 0.6 })
+	Debris:AddItem(chain, 0.4)
+end
+
+handlers.Flash = function(data)
+	for _, point in { data.From, data.To } do
+		local burst = part({ Shape = Enum.PartType.Ball, Size = Vector3.one * 2, Position = ground(point, 2.5), Color = data.Color or Color3.fromRGB(255, 240, 150), Transparency = 0.1 })
+		tween(burst, 0.3, { Size = Vector3.one * 7, Transparency = 1 })
+		Debris:AddItem(burst, 0.35)
+	end
+end
+
+handlers.Airborne = function(data)
+	local root = rootOf(data.Model)
+	if root then
+		handlers.Ring({ At = root.Position, Radius = 3, Color = Color3.fromRGB(255, 230, 90) })
+	end
+end
+
+handlers.Root = function(data)
+	local root = rootOf(data.Model)
+	if not root then
+		return
+	end
+	local ring = part({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(1.2, 4, 4), CFrame = CFrame.new(ground(root.Position, 0.6)) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(255, 250, 190), Transparency = 0.35, Material = Enum.Material.ForceField })
+	Debris:AddItem(ring, data.Time or 1)
+end
+
+handlers.Stasis = function(data)
+	aura(data.Model, data.Time or 2.5, Color3.fromRGB(255, 215, 90), 7, 0, Enum.Material.Glass)
+end
+
+handlers.Stealth = function(data)
+	handlers.Poof({ At = (rootOf(data.Model) or { Position = Vector3.zero } :: any).Position, Color = Color3.fromRGB(150, 80, 220) })
+end
+
+handlers.Burn = function(data)
+	aura(data.Model, data.Time or 3, Color3.fromRGB(255, 110, 40), 5, 0.6, Enum.Material.Neon)
+end
+
+handlers.Exhaust = function(data)
+	aura(data.Model, data.Time or 3, Color3.fromRGB(120, 110, 90), 6, 0.5, Enum.Material.ForceField)
+end
+
+handlers.Mark = function(data)
+	local root = rootOf(data.Model)
+	if not root then
+		return
+	end
+	local mark = part({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.2, 3.5, 3.5), CFrame = root.CFrame * CFrame.new(0, 4.5, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = data.Color or WHITE, Transparency = 0.2, Anchored = false, Massless = true })
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = mark
+	weld.Parent = mark
+	Debris:AddItem(mark, data.Time or 3)
+end
+
+handlers.Smite = function(data)
+	local to = ground(data.To, 2)
+	local bolt = part({ Size = Vector3.new(1.2, 40, 1.2), Position = to + Vector3.new(0, 20, 0), Color = Color3.fromRGB(255, 220, 120), Transparency = 0.05 })
+	tween(bolt, 0.3, { Size = Vector3.new(0.1, 40, 0.1), Transparency = 1 })
+	Debris:AddItem(bolt, 0.35)
+	handlers.Boom({ At = data.To, Color = Color3.fromRGB(255, 220, 120), Size = 8 })
+end
+
+handlers.Soul = function(data)
+	local root = rootOf(data.Model)
+	if not root then
+		return
+	end
+	local orb = part({ Shape = Enum.PartType.Ball, Size = Vector3.one * 1.2, Position = ground(data.From, 2), Color = Color3.fromRGB(110, 255, 200) })
+	tween(orb, 0.6, { Position = root.Position, Size = Vector3.one * 0.3 }, Enum.EasingStyle.Sine)
+	Debris:AddItem(orb, 0.65)
+end
+
+handlers.Cone = function(data)
+	local at = ground(data.At, 0.4)
+	local direction: Vector3 = data.Dir
+	local half = math.rad((data.Angle or 60) / 2)
+	for i = -2, 2 do
+		local angle = half * i / 2
+		local rotated = CFrame.fromAxisAngle(Vector3.yAxis, angle):VectorToWorldSpace(direction)
+		local to = at + rotated * data.Range
+		local streak = part({ Size = Vector3.new(1, 0.2, data.Range), CFrame = CFrame.lookAt((at + to) / 2, to), Color = data.Color or WHITE, Transparency = 0.4 })
+		tween(streak, 0.35, { Transparency = 1 })
+		Debris:AddItem(streak, 0.4)
+	end
+end
+
+handlers.RankUp = function(data)
+	local root = rootOf(data.Model)
+	if root then
+		Fx.FloatText(root.Position + Vector3.new(0, 1, 0), tostring(data.Key) .. " +", Color3.fromRGB(140, 220, 255), 0.8)
+	end
+end
+
+handlers.Plate = function(data)
+	handlers.Boom({ At = data.At, Color = Color3.fromRGB(255, 210, 70), Size = 8 })
+	Fx.FloatText(data.At + Vector3.new(0, 10, 0), "PLATE", Color3.fromRGB(255, 210, 70), 1)
 end
 
 function Fx.Handle(kind: string, data)

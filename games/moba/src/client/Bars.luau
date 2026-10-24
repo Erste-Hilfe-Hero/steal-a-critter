@@ -18,8 +18,10 @@ local SIZES = {
 	Hero = { Width = 92, Height = 11, Offset = 4.2 },
 	Minion = { Width = 40, Height = 5, Offset = 2.4 },
 	Tower = { Width = 110, Height = 10, Offset = 24 },
-	Core = { Width = 150, Height = 12, Offset = 18 },
+	Inhibitor = { Width = 110, Height = 9, Offset = 12 },
+	Nexus = { Width = 150, Height = 12, Offset = 18 },
 	Monster = { Width = 70, Height = 7, Offset = 5 },
+	Ward = { Width = 28, Height = 4, Offset = 5 },
 }
 
 local bars = {} -- [Model] = Update-Funktion
@@ -55,7 +57,7 @@ local function attach(model: Instance)
 	billboard.StudsOffsetWorldSpace = Vector3.new(0, size.Offset, 0)
 	billboard.AlwaysOnTop = true
 	billboard.LightInfluence = 0
-	billboard.MaxDistance = if isHero or kind == "Core" or kind == "Tower" then 220 else 110
+	billboard.MaxDistance = if isHero or kind == "Nexus" or kind == "Tower" or kind == "Inhibitor" then 220 else 110
 	billboard.Adornee = root
 	billboard.ResetOnSpawn = false
 
@@ -91,8 +93,22 @@ local function attach(model: Instance)
 	lock.Visible = false
 	lock.Parent = back
 
-	local nameLabel, levelLabel
+	local nameLabel, levelLabel, manaFill, manaBack
 	if isHero then
+		billboard.Size = UDim2.fromOffset(size.Width, size.Height + 32)
+		manaBack = Instance.new("Frame")
+		manaBack.AnchorPoint = Vector2.new(0, 1)
+		manaBack.Position = UDim2.new(0, 0, 1, 0)
+		manaBack.Size = UDim2.new(1, 0, 0, 4)
+		manaBack.BackgroundColor3 = Color3.fromRGB(16, 18, 30)
+		manaBack.BorderSizePixel = 0
+		manaBack.Parent = billboard
+		manaFill = Instance.new("Frame")
+		manaFill.Size = UDim2.fromScale(1, 1)
+		manaFill.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
+		manaFill.BorderSizePixel = 0
+		manaFill.Parent = manaBack
+		back.Position = UDim2.new(0, 0, 1, -6)
 		nameLabel = Instance.new("TextLabel")
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Size = UDim2.new(1, 0, 0, 16)
@@ -136,9 +152,16 @@ local function attach(model: Instance)
 			nameLabel.Text = (if heroDef then heroDef.Icon .. " " else "") .. tostring(name) .. tag
 			local owner = Players:GetPlayerFromCharacter(model)
 			nameLabel.TextColor3 = if owner and owner:GetAttribute("VIP") then Color3.fromRGB(255, 210, 70) else Color3.new(1, 1, 1)
-			if model:GetAttribute("Might") then
-				nameLabel.Text = "🔥 " .. nameLabel.Text
+			local buffs = tostring(model:GetAttribute("Buffs") or "")
+			if string.find(buffs, "Baron", 1, true) then
+				nameLabel.Text = "👁 " .. nameLabel.Text
 			end
+			if string.find(buffs, "Elder", 1, true) then
+				nameLabel.Text = "🐉 " .. nameLabel.Text
+			end
+			local maxMana = tonumber(model:GetAttribute("MaxMana")) or 0
+			manaBack.Visible = maxMana > 0
+			manaFill.Size = UDim2.fromScale(if maxMana > 0 then math.clamp((tonumber(model:GetAttribute("Mana")) or 0) / maxMana, 0, 1) else 0, 1)
 			levelLabel.Text = tostring(model:GetAttribute("Level") or 1)
 			-- Striche
 			local count = math.floor(maxHp / 200)
@@ -163,7 +186,7 @@ local function attach(model: Instance)
 		end
 	end
 	update()
-	for _, attribute in { "HP", "MaxHP", "Shield", "Protected", "Level", "Might", "Team", "HeroId", "UnitName" } do
+	for _, attribute in { "HP", "MaxHP", "Shield", "Protected", "Level", "Buffs", "Team", "HeroId", "UnitName", "Mana", "MaxMana" } do
 		model:GetAttributeChangedSignal(attribute):Connect(update)
 	end
 	bars[model] = update

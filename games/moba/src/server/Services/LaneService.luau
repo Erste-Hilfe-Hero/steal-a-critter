@@ -1,4 +1,4 @@
--- Tuerme, Kerne, Minion-Wellen und Dschungel-Monster samt ihrer KI.
+-- Gebaeude (Tuerme in drei Reihen, Inhibitoren, Nexus-Tuerme, Nexus) und Minion-Wellen samt KI.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -7,23 +7,23 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local LaneService = {
 	Services = nil :: any,
 	Towers = {} :: { any },
-	Cores = {} :: { [number]: any },
+	Inhibitors = {} :: { any },
+	Nexus = {} :: { [number]: any },
 	Minions = {} :: { any },
-	Monsters = {} :: { any },
 	Wave = 0,
 	Running = false,
 	Epoch = 0,
 	Overtime = false,
+	FirstTower = false,
 }
 
 local MAP = Config.Map
 local TICK = 0.1
 
-local STRUCTURE_KINDS = { Tower = true, Core = true }
-local MINION_TARGETS = { Minion = true, Hero = true, Tower = true, Core = true }
-local NON_HERO = { Minion = true, Tower = true, Core = true }
+local MINION_TARGETS = { Minion = true, Hero = true, Tower = true, Inhibitor = true, Nexus = true }
+local NON_HERO = { Minion = true, Tower = true, Inhibitor = true, Nexus = true }
 local HERO_ONLY = { Hero = true }
-local TOWER_TARGETS = { Minion = true, Hero = true }
+local MINIONS = { Minion = true }
 
 local Combat -- CombatService (wird in Init gesetzt)
 
@@ -36,26 +36,23 @@ function LaneService:Init(services)
 	Combat.DeathHandlers.Tower = function(unit, killer)
 		self:OnTowerDeath(unit, killer)
 	end
-	Combat.DeathHandlers.Core = function(unit, killer)
-		self:OnCoreDeath(unit, killer)
+	Combat.DeathHandlers.Inhibitor = function(unit, killer)
+		self:OnInhibitorDeath(unit, killer)
 	end
-	Combat.DeathHandlers.Monster = function(unit, killer)
-		self:OnMonsterDeath(unit, killer)
+	Combat.DeathHandlers.Nexus = function(unit, killer)
+		self:OnNexusDeath(unit, killer)
 	end
 end
 
-local function lanePoints(lane: string, team: number)
-	local points = MAP.Lanes[lane]
-	if team == 1 then
-		return points
-	end
-	local reversed = {}
-	for i = #points, 1, -1 do
-		table.insert(reversed, points[i])
-	end
-	return reversed
+LaneService.LanePoints = Config.LanePoints
+
+local function elapsed(): number
+	return LaneService.Services.MatchService:Elapsed()
 end
-LaneService.LanePoints = lanePoints
+
+local function enemyOf(team: number): number
+	return if team == 1 then 2 else 1
+end
 
 ---------------------------------------------------------------- Aufbau
 
@@ -63,8 +60,9 @@ function LaneService:Clear()
 	self.Epoch += 1
 	self.Running = false
 	self.Overtime = false
+	self.FirstTower = false
 	self.Wave = 0
-	for _, list in { self.Towers, self.Minions, self.Monsters } do
+	for _, list in { self.Towers, self.Minions, self.Inhibitors } do
 		for _, unit in list do
 			Combat:Unregister(unit)
 			if unit.Model then
@@ -72,100 +70,173 @@ function LaneService:Clear()
 			end
 		end
 	end
-	for _, core in self.Cores do
-		Combat:Unregister(core)
-		if core.Model then
-			core.Model:Destroy()
+	for _, nexus in self.Nexus do
+		Combat:Unregister(nexus)
+		if nexus.Model then
+			nexus.Model:Destroy()
 		end
 	end
-	self.Towers, self.Minions, self.Monsters, self.Cores = {}, {}, {}, {}
+	self.Towers, self.Minions, self.Inhibitors, self.Nexus = {}, {}, {}, {}
 	local rubble = workspace:FindFirstChild("Rubble")
 	if rubble then
 		rubble:Destroy()
 	end
 end
 
+function LaneService:AddTower(team: number, tier: number, lane: string?, position: Vector3)
+	local world = self.Services.WorldService
+	local statsKey = if lane then "Tower" .. tier else "NexusTower"
+	local stats = Config.Structures[statsKey]
+	local model = world:MakeTower(team, if lane then tier else 4, position)
+	local unit = Combat:Register({
+		Kind = "Tower",
+		Name = Config.Teams[team].Name .. (if lane then ` {lane} Tower {tier}` else " Nexus Tower"),
+		Team = team,
+		Tier = if lane then tier else 4,
+		Lane = lane,
+		Model = model,
+		Home = position,
+		HP = stats.HP,
+		MaxHP = stats.HP,
+		Armor = stats.Armor,
+		MR = stats.MR,
+		BaseDamage = stats.Damage,
+		Damage = stats.Damage,
+		Range = stats.Range,
+		AttackSpeed = stats.AttackSpeed,
+		Gold = stats.Gold,
+		GlobalGold = stats.GlobalGold,
+		Plates = stats.Plates or 0,
+		PlateGold = stats.PlateGold or 0,
+		Ranged = true,
+		ShotFx = "Beam",
+		ShotHeight = model:GetAttribute("ShotHeight"),
+		FxColor = Config.Teams[team].Color,
+		Radius = 5,
+	})
+	model:SetAttribute("Plates", unit.Plates)
+	table.insert(self.Towers, unit)
+	return unit
+end
+
+function LaneService:AddInhibitor(team: number, lane: string, position: Vector3)
+	local stats = Config.Structures.Inhibitor
+	local unit = Combat:Register({
+		Kind = "Inhibitor",
+		Name = Config.Teams[team].Name .. ` {lane} Inhibitor`,
+		Team = team,
+		Lane = lane,
+		Model = self.Services.WorldService:MakeInhibitor(team, position),
+		Home = position,
+		HP = stats.HP,
+		MaxHP = stats.HP,
+		Armor = stats.Armor,
+		MR = stats.MR,
+		Gold = stats.Gold,
+		GlobalGold = stats.GlobalGold,
+		Range = 0,
+		Damage = 0,
+		AttackSpeed = 0.1,
+		FxColor = Config.Teams[team].Color,
+		Radius = 5,
+	})
+	table.insert(self.Inhibitors, unit)
+	return unit
+end
+
 function LaneService:Build()
 	self:Clear()
-	local world = self.Services.WorldService
 	for team = 1, 2 do
-		local color = Config.Teams[team].Color
 		for _, info in MAP.Towers do
-			local position = world.Mirror(info.Position, team)
-			local stats = Config.Structures["Tower" .. info.Tier]
-			local model = world:MakeTower(team, info.Tier, position)
-			local unit = Combat:Register({
-				Kind = "Tower",
-				Name = Config.Teams[team].Name .. " Tower",
-				Team = team,
-				Tier = info.Tier,
-				Lane = info.Lane,
-				Model = model,
-				Home = position,
-				HP = stats.HP,
-				MaxHP = stats.HP,
-				Armor = stats.Armor,
-				Damage = stats.Damage,
-				Range = stats.Range,
-				AttackSpeed = stats.AttackSpeed,
-				Gold = stats.Gold,
-				Ranged = true,
-				ShotFx = "Beam",
-				ShotHeight = model:GetAttribute("ShotHeight"),
-				FxColor = color,
-				Radius = 5,
-			})
-			table.insert(self.Towers, unit)
+			local lane = if team == 1 then info.Lane else Config.MirrorLane[info.Lane]
+			self:AddTower(team, info.Tier, lane, Config.Mirror(info.Position, team))
 		end
-		local corePosition = MAP.Core[team]
-		local stats = Config.Structures.Core
-		local core = Combat:Register({
-			Kind = "Core",
-			Name = Config.Teams[team].Name .. " Core",
+		for _, position in MAP.NexusTowers do
+			self:AddTower(team, 4, nil, Config.Mirror(position, team))
+		end
+		for _, info in MAP.Inhibitors do
+			local lane = if team == 1 then info.Lane else Config.MirrorLane[info.Lane]
+			self:AddInhibitor(team, lane, Config.Mirror(info.Position, team))
+		end
+		local position = Config.Mirror(MAP.Nexus, team)
+		local stats = Config.Structures.Nexus
+		self.Nexus[team] = Combat:Register({
+			Kind = "Nexus",
+			Name = Config.Teams[team].Name .. " Nexus",
 			Team = team,
-			Model = world:MakeCore(team, corePosition),
-			Home = corePosition,
+			Model = self.Services.WorldService:MakeNexus(team, position),
+			Home = position,
 			HP = stats.HP,
 			MaxHP = stats.HP,
 			Armor = stats.Armor,
-			Damage = stats.Damage,
-			Range = stats.Range,
-			AttackSpeed = stats.AttackSpeed,
-			Ranged = true,
-			ShotFx = "Beam",
-			ShotHeight = 11,
-			FxColor = color,
-			Radius = 8,
+			MR = stats.MR,
+			Range = 0,
+			Damage = 0,
+			AttackSpeed = 0.1,
+			FxColor = Config.Teams[team].Color,
+			Radius = 9,
 		})
-		self.Cores[team] = core
 	end
 	self:UpdateProtection()
 end
 
--- Zweite Reihe erst angreifbar, wenn der Turm davor faellt; der Kern erst, wenn ein Turm der zweiten Reihe faellt
+local function standing(unit): boolean
+	return unit ~= nil and not unit.Dead
+end
+
+function LaneService:Tower(team: number, lane: string?, tier: number)
+	for _, tower in self.Towers do
+		if tower.Team == team and tower.Lane == lane and tower.Tier == tier then
+			return tower
+		end
+	end
+	return nil
+end
+
+function LaneService:Inhibitor(team: number, lane: string)
+	for _, inhibitor in self.Inhibitors do
+		if inhibitor.Team == team and inhibitor.Lane == lane then
+			return inhibitor
+		end
+	end
+	return nil
+end
+
+-- Reihenfolge wie im Original: Tier 1 -> 2 -> 3 -> Inhibitor -> Nexus-Tuerme -> Nexus
 function LaneService:UpdateProtection()
 	for _, tower in self.Towers do
-		if tower.Tier == 2 then
-			local protected = false
-			for _, other in self.Towers do
-				if other.Team == tower.Team and other.Lane == tower.Lane and other.Tier == 1 and not other.Dead then
-					protected = true
+		local protected = false
+		if tower.Lane and tower.Tier > 1 then
+			protected = standing(self:Tower(tower.Team, tower.Lane, tower.Tier - 1))
+		elseif not tower.Lane then
+			protected = true
+			for _, inhibitor in self.Inhibitors do
+				if inhibitor.Team == tower.Team and inhibitor.Dead then
+					protected = false
 				end
 			end
-			tower.Protected = protected
+		end
+		tower.Protected = protected
+		if not tower.Dead then
 			Combat:Sync(tower)
 		end
 	end
-	for team, core in self.Cores do
-		local protected = true
+	for _, inhibitor in self.Inhibitors do
+		inhibitor.Protected = standing(self:Tower(inhibitor.Team, inhibitor.Lane, 3))
+		if not inhibitor.Dead then
+			Combat:Sync(inhibitor)
+		end
+	end
+	for team, nexus in self.Nexus do
+		local protected = false
 		for _, tower in self.Towers do
-			if tower.Team == team and tower.Tier == 2 and tower.Dead then
-				protected = false
+			if tower.Team == team and tower.Tier == 4 and not tower.Dead then
+				protected = true
 			end
 		end
-		core.Protected = protected
-		Combat:Sync(core)
-		local barrier = core.Model and core.Model:FindFirstChild("Barrier") :: BasePart?
+		nexus.Protected = protected
+		Combat:Sync(nexus)
+		local barrier = nexus.Model and nexus.Model:FindFirstChild("Barrier") :: BasePart?
 		if barrier then
 			barrier.Transparency = if protected then 0 else 1
 		end
@@ -184,13 +255,17 @@ end
 
 ---------------------------------------------------------------- Wellen
 
-function LaneService:SpawnMinion(team: number, lane: string, kind: string, index: number)
-	local stats = Config.Minions[kind]
-	local points = lanePoints(lane, team)
-	local start = points[1] + Vector3.new(math.random(-2, 2), 0, math.random(-2, 2))
+function LaneService:SpawnMinion(team: number, lane: string, kind: string, index: number, start: Vector3?, pathIndex: number?)
+	local stats = Config.Minions[kind] or Config.Minions.Melee
+	local points = Config.LanePoints(lane, team)
+	local origin = start or points[1] + Vector3.new(math.random(-2, 2), 0, math.random(-2, 2))
 	local scale = 1 + Config.MinionGrowthPerWave * self.Wave
 	local hp = stats.HP * scale * (if self.Overtime then 1.5 else 1)
-	local model = self.Services.WorldService:MakeMinion(team, kind, start)
+	local damage = stats.Damage * scale
+	if kind == "Herald" then
+		hp, damage = 3500, 120
+	end
+	local model = self.Services.WorldService:MakeMinion(team, kind, origin)
 	local unit = Combat:Register({
 		Kind = "Minion",
 		Type = kind,
@@ -198,47 +273,76 @@ function LaneService:SpawnMinion(team: number, lane: string, kind: string, index
 		Team = team,
 		Lane = lane,
 		Path = points,
-		PathIndex = 2,
+		PathIndex = pathIndex or 2,
 		Model = model,
-		Home = start,
+		Home = origin,
 		HP = hp,
 		MaxHP = hp,
 		Armor = stats.Armor,
-		Damage = stats.Damage * scale,
-		Range = stats.Range,
+		MR = stats.MR,
+		Damage = damage,
+		Range = if kind == "Herald" then 8 else stats.Range,
 		AttackSpeed = stats.AttackSpeed,
 		Speed = stats.Speed,
 		Aggro = stats.Aggro,
 		Gold = stats.Gold,
 		XP = stats.XP,
-		Ranged = kind ~= "Melee",
+		Ranged = kind == "Caster" or kind == "Siege",
 		FxColor = Config.Teams[team].Color,
-		Radius = if kind == "Siege" then 2.2 else 1.3,
+		Radius = if kind == "Herald" then 3.5 elseif kind == "Siege" or kind == "Super" then 2.2 else 1.3,
 		Offset = ((index % 3) - 1) * 2.5,
 		DamageScale = if self.Overtime then 1.6 else 1,
 		Height = model.PrimaryPart.Position.Y,
 	})
+	if kind == "Herald" then
+		unit.Charge = true
+	end
+	unit.ModifyIncoming = function(target, _source, dealt, _opts)
+		if target.Empowered then
+			return dealt * 0.5
+		end
+		return dealt
+	end
 	table.insert(self.Minions, unit)
+	return unit
 end
 
 function LaneService:SpawnWave()
 	self.Wave += 1
 	local epoch = self.Epoch
-	local kinds = table.clone(Config.Wave)
-	if self.Wave % Config.SiegeEvery == 0 then
-		table.insert(kinds, "Siege")
-	end
-	for index, kind in kinds do
-		task.delay((index - 1) * 0.9, function()
-			if self.Epoch ~= epoch or not self.Running then
-				return
+	for team = 1, 2 do
+		local enemy = enemyOf(team)
+		for _, lane in MAP.LaneOrder do
+			local kinds = table.clone(Config.Wave)
+			if self.Wave % Config.SiegeEvery == 0 then
+				table.insert(kinds, 4, "Siege")
 			end
-			for team = 1, 2 do
-				for _, lane in MAP.LaneOrder do
-					self:SpawnMinion(team, lane, kind, index)
+			-- Faellt ein gegnerischer Inhibitor, kommen in dieser Lane Super-Minions
+			local inhibitor = self:Inhibitor(enemy, lane)
+			if inhibitor and inhibitor.Dead then
+				local allDown = true
+				for _, other in self.Inhibitors do
+					if other.Team == enemy and not other.Dead then
+						allDown = false
+					end
+				end
+				table.remove(kinds, 4)
+				table.insert(kinds, 1, "Super")
+				if allDown then
+					table.insert(kinds, 1, "Super")
 				end
 			end
-		end)
+			for index, kind in kinds do
+				task.delay((index - 1) * 0.8, function()
+					if self.Epoch == epoch and self.Running then
+						self:SpawnMinion(team, lane, kind, index)
+					end
+				end)
+			end
+		end
+	end
+	if self.Wave == 1 then
+		self.Services.Net.SendAnnounce("Minions have spawned!", Color3.fromRGB(240, 240, 255))
 	end
 end
 
@@ -249,47 +353,21 @@ function LaneService:SetOvertime()
 	end
 end
 
----------------------------------------------------------------- Monster
-
-function LaneService:SpawnMonster(id: string, position: Vector3)
-	local info = Config.Monsters[id]
-	local model = self.Services.WorldService:MakeMonster(id, position)
-	local unit = Combat:Register({
-		Kind = "Monster",
-		MonsterId = id,
-		Name = info.Name,
-		Team = 0,
-		Boss = info.Boss,
-		Model = model,
-		Home = position,
-		HP = info.HP,
-		MaxHP = info.HP,
-		Armor = info.Armor,
-		Damage = info.Damage,
-		Range = info.Range,
-		AttackSpeed = info.AttackSpeed,
-		Speed = 15,
-		Gold = info.Gold,
-		XP = info.XP,
-		Ranged = info.Range > 10,
-		FxColor = info.Color,
-		Radius = if info.Boss then 5 else 2.5,
-		Height = model.PrimaryPart.Position.Y,
-	})
-	model:SetAttribute("Boss", info.Boss == true)
-	table.insert(self.Monsters, unit)
-	if info.Boss then
-		self.Services.Net.SendAnnounce(`The {info.Name} has appeared!`, info.Color)
-	end
-end
-
-function LaneService:ScheduleMonster(id: string, position: Vector3, delay: number)
-	local epoch = self.Epoch
-	task.delay(delay, function()
-		if self.Epoch == epoch and self.Running then
-			self:SpawnMonster(id, position)
+-- Herold-Ramme: laeuft die naechste Lane entlang und rammt Tuerme
+function LaneService:SpawnHerald(team: number, position: Vector3)
+	local bestLane, bestIndex, bestDistance = "Mid", 2, math.huge
+	for _, lane in MAP.LaneOrder do
+		local points = Config.LanePoints(lane, team)
+		for i, point in points do
+			local distance = (point - position).Magnitude
+			if distance < bestDistance then
+				bestLane, bestIndex, bestDistance = lane, i, distance
+			end
 		end
-	end)
+	end
+	local unit = self:SpawnMinion(team, bestLane, "Herald", 2, position, math.min(bestIndex + 1, #Config.LanePoints(bestLane, team)))
+	self.Services.Net.SendAnnounce(`{Config.Teams[team].Name} summoned the Siege Herald!`, Config.Teams[team].Color)
+	return unit
 end
 
 ---------------------------------------------------------------- Ablauf
@@ -297,19 +375,13 @@ end
 function LaneService:StartMatch()
 	self.Running = true
 	local epoch = self.Epoch
-	for team = 1, 2 do
-		for _, camp in MAP.Camps do
-			self:ScheduleMonster(camp.Id, self.Services.WorldService.Mirror(camp.Position, team), 20)
-		end
-	end
-	for _, boss in MAP.Bosses do
-		self:ScheduleMonster(boss.Id, boss.Position, Config.Monsters[boss.Id].FirstSpawn or 120)
-	end
 	task.spawn(function()
-		task.wait(Config.FirstWaveDelay)
+		while self.Running and self.Epoch == epoch and elapsed() < Config.Timers.Minions do
+			task.wait(0.5)
+		end
 		while self.Running and self.Epoch == epoch do
 			self:SpawnWave()
-			task.wait(Config.WaveInterval)
+			task.wait(Config.Timers.WaveInterval)
 		end
 	end)
 end
@@ -342,40 +414,13 @@ function LaneService:OnMinionDeath(unit, killer)
 	removeFrom(self.Minions, unit)
 	local heroes = self.Services.HeroService
 	local position = Combat.Position(unit)
-	if killer and killer.Kind == "Hero" then
+	if killer and killer.Kind == "Hero" and unit.Type ~= "Herald" then
 		heroes:GiveGold(killer, unit.Gold, position)
 		killer.CreepScore = (killer.CreepScore or 0) + 1
+		heroes:OnUnitKilled(killer, unit)
 	end
-	heroes:ShareXP(if unit.Team == 1 then 2 else 1, position, unit.XP)
+	heroes:ShareXP(enemyOf(unit.Team), position, unit.XP or 0)
 	poof(self, unit)
-end
-
-function LaneService:OnMonsterDeath(unit, killer)
-	removeFrom(self.Monsters, unit)
-	local heroes = self.Services.HeroService
-	local position = Combat.Position(unit)
-	local info = Config.Monsters[unit.MonsterId]
-	poof(self, unit)
-	local team = killer and killer.Team or 0
-	if team == 0 then
-		self:ScheduleMonster(unit.MonsterId, unit.Home, info.Respawn)
-		return
-	end
-	if info.Boss then
-		for _, hero in heroes.Heroes do
-			if hero.Team == team then
-				heroes:GiveGold(hero, info.Gold, nil)
-			end
-		end
-		self.Services.Net.SendAnnounce(`{Config.Teams[team].Name} defeated the {info.Name}!`, Config.Teams[team].Color)
-		if info.Buff == "Might" then
-			heroes:GiveMight(team)
-		end
-	elseif killer.Kind == "Hero" then
-		heroes:GiveGold(killer, info.Gold, position)
-	end
-	heroes:ShareXP(team, position, info.XP)
-	self:ScheduleMonster(unit.MonsterId, unit.Home, info.Respawn)
 end
 
 local function rubble(position: Vector3, color: Color3)
@@ -385,7 +430,7 @@ local function rubble(position: Vector3, color: Color3)
 		folder.Name = "Rubble"
 		folder.Parent = workspace
 	end
-	for i = 1, 6 do
+	for i = 1, 7 do
 		local p = Instance.new("Part")
 		p.Anchored = true
 		p.CanCollide = false
@@ -397,13 +442,56 @@ local function rubble(position: Vector3, color: Color3)
 	end
 end
 
-function LaneService:OnTowerDeath(unit, killer)
+-- Gold fuer Gebaeude: Helden in der Naehe teilen sich das lokale Gold, alle bekommen das globale Gold
+function LaneService:StructureGold(unit, killer)
 	local heroes = self.Services.HeroService
-	local team = if unit.Team == 1 then 2 else 1
+	local team = enemyOf(unit.Team)
+	local near = {}
 	for _, hero in heroes.Heroes do
 		if hero.Team == team then
-			heroes:GiveGold(hero, unit.Gold, nil)
+			if (unit.GlobalGold or 0) > 0 then
+				heroes:GiveGold(hero, unit.GlobalGold, nil)
+			end
+			if Combat.Alive(hero) and Combat.Distance(hero, unit) <= 40 then
+				table.insert(near, hero)
+			end
 		end
+	end
+	if killer and killer.Kind == "Hero" and not table.find(near, killer) then
+		table.insert(near, killer)
+	end
+	if #near > 0 and (unit.Gold or 0) > 0 then
+		for _, hero in near do
+			heroes:GiveGold(hero, unit.Gold / #near, Combat.Position(unit))
+		end
+	end
+end
+
+local function hideModel(model: Model?)
+	if not model then
+		return
+	end
+	for _, child in model:GetDescendants() do
+		if child:IsA("BasePart") then
+			child.Transparency = 1
+			child.CanCollide = false
+		elseif child:IsA("Light") then
+			child.Enabled = false
+		end
+	end
+end
+
+function LaneService:OnTowerDeath(unit, killer)
+	local team = enemyOf(unit.Team)
+	self:StructureGold(unit, killer)
+	if not self.FirstTower then
+		self.FirstTower = true
+		if killer and killer.Kind == "Hero" then
+			self.Services.HeroService:GiveGold(killer, 150, Combat.Position(unit))
+		end
+		self.Services.Net.SendAnnounce("First Tower!", Config.Teams[team].Color)
+	else
+		self.Services.Net.SendAnnounce(`{Config.Teams[team].Name} destroyed a tower!`, Config.Teams[team].Color)
 	end
 	self.Services.Net.SendFx("Boom", { At = unit.Home, Color = unit.FxColor, Size = 16 })
 	Combat:Unregister(unit)
@@ -411,72 +499,142 @@ function LaneService:OnTowerDeath(unit, killer)
 		unit.Model:Destroy()
 	end
 	rubble(unit.Home, unit.FxColor)
-	local by = if killer and killer.Kind == "Hero" then killer.Name else Config.Teams[team].Name
-	self.Services.Net.SendAnnounce(`{by} destroyed a {Config.Teams[unit.Team].Name} tower!`, Config.Teams[team].Color)
+	if killer and killer.Kind == "Hero" then
+		self.Services.HeroService:OnTakedownStructure(killer)
+	end
 	self:UpdateProtection()
 	self.Services.MatchService:OnTowerDestroyed(team)
 end
 
-function LaneService:OnCoreDeath(unit, _killer)
-	self.Services.Net.SendFx("Boom", { At = unit.Home, Color = unit.FxColor, Size = 40 })
+function LaneService:OnInhibitorDeath(unit, killer)
+	local team = enemyOf(unit.Team)
+	self:StructureGold(unit, killer)
+	self.Services.Net.SendAnnounce(`{Config.Teams[team].Name} destroyed an inhibitor!`, Config.Teams[team].Color)
+	self.Services.Net.SendFx("Boom", { At = unit.Home, Color = unit.FxColor, Size = 20 })
+	hideModel(unit.Model)
 	if unit.Model then
-		for _, child in unit.Model:GetDescendants() do
-			if child:IsA("BasePart") then
-				child.Transparency = 1
-			end
-		end
+		unit.Model:SetAttribute("RespawnAt", Combat.Now() + Config.Timers.Inhibitor)
 	end
+	self:UpdateProtection()
+	local epoch = self.Epoch
+	task.delay(Config.Timers.Inhibitor, function()
+		if self.Epoch ~= epoch or not self.Running then
+			return
+		end
+		-- Wieder aufbauen
+		local index = table.find(self.Inhibitors, unit)
+		if index then
+			table.remove(self.Inhibitors, index)
+		end
+		Combat:Unregister(unit)
+		if unit.Model then
+			unit.Model:Destroy()
+		end
+		self:AddInhibitor(unit.Team, unit.Lane, unit.Home)
+		self:UpdateProtection()
+		self.Services.Net.SendAnnounce(`{Config.Teams[unit.Team].Name}'s inhibitor has respawned`, Config.Teams[unit.Team].Color)
+	end)
+end
+
+function LaneService:OnNexusDeath(unit, _killer)
+	self.Services.Net.SendFx("Boom", { At = unit.Home, Color = unit.FxColor, Size = 44 })
+	hideModel(unit.Model)
 	rubble(unit.Home, unit.FxColor)
-	self.Services.MatchService:EndMatch(if unit.Team == 1 then 2 else 1)
+	self.Services.MatchService:EndMatch(enemyOf(unit.Team))
 end
 
 ---------------------------------------------------------------- KI
 
--- Ein Held hat einen Gegner unter dessen Turm angegriffen: der Turm nimmt ihn ins Visier
+-- Ein Held greift einen Gegner an: Tuerme und Minions in der Naehe des Opfers helfen ihm
 function LaneService:OnHeroAttackedHero(attacker, victim)
+	local t = Combat.Now()
 	for _, tower in self.Towers do
-		if tower.Team == victim.Team and not tower.Dead and Combat.Distance(tower, attacker) <= tower.Range + 2 then
+		if tower.Team == victim.Team and not tower.Dead and Combat.Distance(tower, attacker) <= tower.Range + 2 and Combat.Visible(attacker, tower.Team) then
+			if tower.Target ~= attacker then
+				tower.Streak = 0
+			end
 			tower.Target = attacker
-			tower.AggroUntil = Combat.Now() + 3
+			tower.AggroUntil = t + 3
 		end
 	end
-	local core = self.Cores[victim.Team]
-	if core and not core.Dead and Combat.Distance(core, attacker) <= core.Range + 2 then
-		core.Target = attacker
-		core.AggroUntil = Combat.Now() + 3
+	for _, minion in self.Minions do
+		if minion.Team == victim.Team and (t - (minion.CallAt or 0)) > 2 and Combat.Distance(minion, attacker) <= 18 then
+			minion.Target = attacker
+			minion.CallAt = t
+		end
 	end
 end
 
-local function structureTick(structure)
+-- Platten: bis zur Platten-Zeit gibt jedes verlorene Fuenftel eines aeusseren Turms Gold
+local function checkPlates(self, tower, attacker)
+	if (tower.Plates or 0) <= 0 then
+		return
+	end
+	if elapsed() >= Config.Timers.Plates then
+		tower.Plates = 0
+		if tower.Model then
+			tower.Model:SetAttribute("Plates", 0)
+		end
+		return
+	end
+	local threshold = tower.MaxHP * (tower.Plates - 1) / 5
+	while tower.Plates > 0 and tower.HP <= threshold + 0.01 do
+		tower.Plates -= 1
+		threshold = tower.MaxHP * (tower.Plates - 1) / 5
+		local heroes = self.Services.HeroService
+		local near = {}
+		for _, hero in heroes.Heroes do
+			if hero.Team ~= tower.Team and Combat.Alive(hero) and Combat.Distance(hero, tower) <= 32 then
+				table.insert(near, hero)
+			end
+		end
+		if #near == 0 and attacker and attacker.Kind == "Hero" then
+			near = { attacker }
+		end
+		for _, hero in near do
+			heroes:GiveGold(hero, tower.PlateGold / #near, Combat.Position(tower))
+		end
+		if tower.Model then
+			tower.Model:SetAttribute("Plates", tower.Plates)
+		end
+		self.Services.Net.SendFx("Plate", { At = tower.Home, Color = tower.FxColor })
+	end
+end
+
+local function structureTick(self, structure)
 	if not Combat.Alive(structure) then
 		return
 	end
-	local now = Combat.Now()
+	local t = Combat.Now()
 	local target = structure.Target
 	local position = Combat.Position(structure)
-	local valid = target and Combat:Targetable(target) and Combat:InRange(structure, target)
-	if valid and target.Kind == "Hero" and (structure.AggroUntil or 0) < now then
+	local valid = target and Combat:Targetable(target, structure.Team) and Combat:InRange(structure, target)
+	if valid and target.Kind == "Hero" and (structure.AggroUntil or 0) < t then
 		-- Helden nur weiter beschiessen, wenn keine Minions im Weg sind
-		local minion = Combat:NearestEnemy(structure.Team, position, structure.Range, { Minion = true })
-		if minion then
+		if Combat:NearestEnemy(structure.Team, position, structure.Range, MINIONS) then
 			valid = false
 		end
 	end
 	if not valid then
-		target = Combat:NearestEnemy(structure.Team, position, structure.Range, { Minion = true }) or Combat:NearestEnemy(structure.Team, position, structure.Range, HERO_ONLY)
+		target = Combat:NearestEnemy(structure.Team, position, structure.Range, MINIONS) or Combat:NearestEnemy(structure.Team, position, structure.Range, HERO_ONLY)
+		if target ~= structure.Target then
+			structure.Streak = 0
+		end
 		structure.Target = target
-		structure.Streak = 0
 	end
 	if target and Combat:CanAttack(structure) then
-		local damage = structure.Damage
+		local damage = structure.BaseDamage + Config.TowerDamagePerMinute * elapsed() / 60
 		if target.Kind == "Minion" then
-			damage *= Config.TowerMinionDamage
-		elseif target.Kind == "Hero" then
-			-- Jeder weitere Treffer auf denselben Helden tut mehr weh (max. +60 %)
-			structure.Streak = math.min((structure.Streak or 0) + 1, 4)
-			damage *= 1 + (structure.Streak - 1) * 0.2
+			damage = target.MaxHP * (Config.TowerMinionShare[target.Type] or 0.3)
+			Combat:Attack(structure, target, function(victim)
+				Combat:Damage(structure, victim, damage, { Type = "True" })
+			end)
+		else
+			-- Jeder weitere Treffer auf denselben Helden tut mehr weh
+			structure.Streak = math.min((structure.Streak or 0) + 1, 1 + Config.TowerRampMax / Config.TowerRampPerShot)
+			damage *= 1 + (structure.Streak - 1) * Config.TowerRampPerShot
+			Combat:Attack(structure, target, nil, damage)
 		end
-		Combat:Attack(structure, target, damage)
 	end
 end
 
@@ -496,6 +654,9 @@ local function separation(unit, list): Vector3
 end
 
 local function moveUnit(unit, goal: Vector3, dt: number, extra: Vector3?)
+	if Combat.IsRooted(unit) then
+		return
+	end
 	local position = Combat.Position(unit)
 	local offset = goal - position
 	local distance = offset.Magnitude
@@ -508,11 +669,12 @@ local function moveUnit(unit, goal: Vector3, dt: number, extra: Vector3?)
 		step += extra * math.min(1, dt * 4)
 	end
 	local newPosition = position + step
-	newPosition = Vector3.new(math.clamp(newPosition.X, -MAP.HalfX, MAP.HalfX), 0, math.clamp(newPosition.Z, -MAP.HalfZ, MAP.HalfZ))
+	newPosition = Vector3.new(math.clamp(newPosition.X, -MAP.Half, MAP.Half), 0, math.clamp(newPosition.Z, -MAP.Half, MAP.Half))
 	local facing = if offset.Magnitude > 0.1 then offset.Unit else unit.Root.CFrame.LookVector
 	local height = Vector3.new(0, unit.Height or 1.5, 0)
 	unit.Root.CFrame = CFrame.lookAt(newPosition + height, newPosition + height + Vector3.new(facing.X, 0, facing.Z))
 end
+LaneService.MoveUnit = moveUnit
 
 local function face(unit, target)
 	local position = Combat.Position(unit)
@@ -522,18 +684,32 @@ local function face(unit, target)
 		unit.Root.CFrame = CFrame.lookAt(position + height, position + height + direction.Unit)
 	end
 end
+LaneService.Face = face
 
 local function minionTick(self, unit, dt: number)
 	if not Combat.Alive(unit) or Combat.IsStunned(unit) then
 		return
 	end
 	local position = Combat.Position(unit)
+	-- Baron-Segen: Minions neben einem gesegneten Helden sind staerker
+	local empowered = false
+	for _, hero in self.Services.HeroService.Heroes do
+		if hero.Team == unit.Team and hero.Buffs and hero.Buffs.Baron and Combat.Alive(hero) and Combat.Distance(hero, unit) <= 24 then
+			empowered = true
+			break
+		end
+	end
+	unit.Empowered = empowered
+	unit.DamageScale = (if self.Overtime then 1.6 else 1) * (if empowered then 1.5 else 1)
 	local target = unit.Target
-	if not (target and Combat:Targetable(target) and Combat.Distance(unit, target) <= unit.Aggro + 6) then
+	if unit.Charge then
+		-- Herold: nur Gebaeude
+		target = Combat:NearestEnemy(unit.Team, position, 30, Combat.STRUCTURES)
+	elseif not (target and Combat:Targetable(target, unit.Team) and Combat.Distance(unit, target) <= unit.Aggro + 8) then
 		target = Combat:NearestEnemy(unit.Team, position, unit.Aggro, NON_HERO) or Combat:NearestEnemy(unit.Team, position, unit.Aggro, MINION_TARGETS)
 		unit.Target = target
 	end
-	if target and target.Kind == "Hero" then
+	if target and target.Kind == "Hero" and (Combat.Now() - (unit.CallAt or 0)) > 2 then
 		-- Minions wechseln zu einem Minion, sobald einer in Reichweite ist
 		local minion = Combat:NearestEnemy(unit.Team, position, unit.Range + 2, NON_HERO)
 		if minion then
@@ -545,7 +721,15 @@ local function minionTick(self, unit, dt: number)
 		if Combat:InRange(unit, target) then
 			face(unit, target)
 			if Combat:CanAttack(unit) then
-				Combat:Attack(unit, target)
+				if unit.Charge and target.Kind == "Tower" and not unit.Charged then
+					-- Ramm-Angriff: grosser Schaden an einem Turm
+					unit.Charged = true
+					self.Services.Net.SendFx("Boom", { At = Combat.Position(target), Color = Color3.fromRGB(170, 90, 255), Size = 14 })
+					Combat:Damage(unit, target, 1800, { Type = "True" })
+					unit.NextAttack = Combat.Now() + 1.5
+				else
+					Combat:Attack(unit, target)
+				end
 			end
 		else
 			moveUnit(unit, Combat.Position(target), dt, separation(unit, self.Minions))
@@ -555,8 +739,8 @@ local function minionTick(self, unit, dt: number)
 	-- Der Lane folgen
 	local goal = unit.Path[unit.PathIndex]
 	if not goal then
-		local core = self.Cores[if unit.Team == 1 then 2 else 1]
-		goal = core and core.Home or position
+		local nexus = self.Nexus[enemyOf(unit.Team)]
+		goal = nexus and nexus.Home or position
 	else
 		local nextPoint = unit.Path[unit.PathIndex + 1]
 		local side = if nextPoint then (nextPoint - goal).Unit:Cross(Vector3.yAxis) else Vector3.zero
@@ -566,50 +750,6 @@ local function minionTick(self, unit, dt: number)
 		end
 	end
 	moveUnit(unit, goal, dt, separation(unit, self.Minions))
-end
-
-local function monsterTick(unit, dt: number)
-	if not Combat.Alive(unit) or Combat.IsStunned(unit) then
-		return
-	end
-	local target = unit.Target
-	local attacker = unit.LastAttacker
-	if not target and attacker and attacker.Kind == "Hero" and Combat:Targetable(attacker) then
-		target = attacker
-		unit.Target = attacker
-	end
-	if target then
-		local tooFar = (Combat.Position(target) - unit.Home).Magnitude > Config.LeashRange or (Combat.Position(unit) - unit.Home).Magnitude > Config.LeashRange
-		if not Combat:Targetable(target) or tooFar then
-			-- Zurueck nach Hause und voll heilen
-			unit.Target = nil
-			unit.LastAttacker = nil
-			unit.Returning = true
-			target = nil
-		end
-	end
-	if unit.Returning then
-		moveUnit(unit, unit.Home, dt)
-		unit.HP = math.min(unit.MaxHP, unit.HP + unit.MaxHP * 0.2 * dt)
-		Combat:Sync(unit)
-		if (Combat.Position(unit) - unit.Home).Magnitude < 1 then
-			unit.Returning = false
-			unit.HP = unit.MaxHP
-			unit.Damagers = {}
-			Combat:Sync(unit)
-		end
-		return
-	end
-	if target then
-		if Combat:InRange(unit, target) then
-			face(unit, target)
-			if Combat:CanAttack(unit) then
-				Combat:Attack(unit, target)
-			end
-		else
-			moveUnit(unit, Combat.Position(target), dt)
-		end
-	end
 end
 
 function LaneService:Start()
@@ -624,22 +764,16 @@ function LaneService:Start()
 		if not self.Running then
 			return
 		end
-		for _, tower in self.Towers do
-			structureTick(tower)
-		end
-		for _, core in self.Cores do
-			structureTick(core)
+		for _, tower in table.clone(self.Towers) do
+			structureTick(self, tower)
+			if not tower.Dead and tower.Tier == 1 then
+				checkPlates(self, tower, tower.LastAttacker)
+			end
 		end
 		for _, minion in table.clone(self.Minions) do
 			minionTick(self, minion, step)
 		end
-		for _, monster in table.clone(self.Monsters) do
-			monsterTick(monster, step)
-		end
 	end)
 end
-
-LaneService.StructureKinds = STRUCTURE_KINDS
-LaneService.TowerTargets = TOWER_TARGETS
 
 return LaneService
