@@ -270,15 +270,24 @@ if started2 and round.State == "Reveal" then
 	round:BeginPlay()
 	local murderer = byRole("Murderer")[1]
 	local spot = round.Map.Spawns[1]
-	for _, actor in round.Actors do
-		if actor ~= murderer and actor.Alive then
-			murderer.Model:PivotTo(spot + Vector3.new(0, 3, 0))
-			actor.Model:PivotTo(murderer.Root.CFrame * CFrame.new(0, 0, -2.5))
-			task.wait(Config.Knife.Cooldown + 0.05)
-			services.CombatService:Stab(murderer)
+	-- Ein Stich trifft den Naechsten, das kann auch ein anderer Bot am Spawn sein: so lange stechen, bis alle raus sind
+	for _ = 1, 12 do
+		local target
+		for _, actor in round.Actors do
+			if actor ~= murderer and actor.Alive then
+				target = actor
+				break
+			end
 		end
+		if not target or round.State ~= "Playing" then
+			break
+		end
+		murderer.Model:PivotTo(spot + Vector3.new(0, 3, 0))
+		target.Model:PivotTo(murderer.Root.CFrame * CFrame.new(0, 0, -2.5))
+		task.wait(Config.Knife.Cooldown + 0.05)
+		services.CombatService:Stab(murderer)
 	end
-	check("murderer wins", round.Winner == "Murderer", round.Winner)
+	check("murderer wins", round.Winner == "Murderer", `{round.Winner} {round.State}`)
 	pcall(round.Cleanup, round)
 else
 	check("start round 2", false)
