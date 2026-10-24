@@ -1,0 +1,108 @@
+name: Publish Mega Rainbow Obby
+
+on:
+  push:
+    branches: [main]
+    paths: [games/obby/**, .github/workflows/publish-obby.yml]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: games/obby
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # IDs aus roblox.json; fehlen sie, wird die Experience mit "Obby" im Namen unter den Experiences des API-Schluessels gesucht
+      - name: Resolve experience IDs
+        run: |
+          UNIVERSE_ID=$(jq -r '.universeId' roblox.json); PLACE_ID=$(jq -r '.placeId' roblox.json)
+          if [ -z "$UNIVERSE_ID" ] && [ -n "$ROBLOX_API_KEY" ]; then
+            CANDIDATES=$(curl -sS -X POST https://apis.roblox.com/api-keys/v1/introspect -H "Content-Type: application/json" \
+              -d "{\"apiKey\":\"$ROBLOX_API_KEY\"}" | jq -r '[.scopes[]?.targetParts[]?] | map(select(. != "*")) | unique | .[]')
+            TAKEN=$(cat ../../roblox.json ../*/roblox.json 2>/dev/null | jq -r '.universeId // empty' | sort -u)
+            LIST=""
+            for U in $CANDIDATES; do
+              NAME=$(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -r '.displayName // empty')
+              LIST="$LIST $U=$NAME;"
+              if echo "$NAME" | grep -qi "obby"; then UNIVERSE_ID=$U; fi
+            done
+            echo "::notice::Experiences of the key:$LIST"
+          fi
+          if [ -n "$UNIVERSE_ID" ] && [ -z "$PLACE_ID" ]; then
+            PLACE_ID=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$UNIVERSE_ID" | jq -r '.data[0].rootPlaceId // empty')
+            [ -z "$PLACE_ID" ] && PLACE_ID=$(curl -sS "https://develop.roblox.com/v1/universes/$UNIVERSE_ID" | jq -r '.rootPlaceId // empty')
+          fi
+          [ -z "$UNIVERSE_ID" ] && echo "::warning::No experience with 'Obby' in its name found for this API key yet - only building."
+          echo "::notice::Obby universe '$UNIVERSE_ID' / place '$PLACE_ID'"
+          echo "UNIVERSE_ID=$UNIVERSE_ID" >> "$GITHUB_ENV"
+          echo "PLACE_ID=$PLACE_ID" >> "$GITHUB_ENV"
+
+      - name: Install Rojo
+        run: |
+          curl -sSL -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
+          unzip -q rojo.zip
+          chmod +x rojo
+
+      - name: Build place file
+        run: ./rojo build default.project.json -o MegaRainbowObby.rbxlx
+
+      - name: Upload place file
+        uses: actions/upload-artifact@v4
+        with:
+          name: MegaRainbowObby
+          path: games/obby/MegaRainbowObby.rbxlx
+
+      # Name, Beschreibung und Servergroesse aus experience.json
+      - name: Configure experience
+        if: env.UNIVERSE_ID != '' && env.PLACE_ID != ''
+        continue-on-error: true
+        run: |
+          R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$UNIVERSE_ID?updateMask=displayName,description" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -c '{displayName: .name, description: .description}' experience.json)")
+          echo "::notice::universe: $(echo "$R" | head -c 300)"
+          R=$(curl -sS -X PATCH "https://apis.roblox.com/cloud/v2/universes/$UNIVERSE_ID/places/$PLACE_ID?updateMask=displayName,description,serverSize" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -c '{displayName: .name, description: .description, serverSize: .serverSize}' experience.json)")
+          echo "::notice::place: $(echo "$R" | head -c 300)"
+
+      # Fehlende Developer Products anlegen (Abgleich ueber den Namen). Das Spiel findet die IDs selbst ueber den Namen.
+      - name: Sync products
+        if: env.UNIVERSE_ID != ''
+        continue-on-error: true
+        run: |
+          BASE="https://apis.roblox.com/developer-products/v2/universes/$UNIVERSE_ID/developer-products"
+          curl -sS "$BASE/creator?pageSize=100" -H "x-api-key: $ROBLOX_API_KEY" -o existing.json
+          MAP="{}"
+          while IFS= read -r row; do
+            KEY=$(echo "$row" | jq -r '.key'); NAME=$(echo "$row" | jq -r '.name')
+            ID=$(jq -r --arg n "$NAME" '[.developerProducts[]? | select(.name == $n) | .productId][0] // empty' existing.json)
+            if [ -z "$ID" ]; then
+              RESP=$(curl -sS -X POST "$BASE" -H "x-api-key: $ROBLOX_API_KEY" \
+                -F "name=$NAME" \
+                -F "description=$(echo "$row" | jq -r '.description')" \
+                -F "price=$(echo "$row" | jq -r '.price')" \
+                -F "isForSale=true")
+              ID=$(echo "$RESP" | jq -r '.productId // empty')
+              [ -z "$ID" ] && echo "::warning::$KEY failed: $(echo "$RESP" | head -c 300)"
+              sleep 0.5
+            fi
+            MAP=$(echo "$MAP" | jq -c --arg k "$KEY" --arg v "$ID" '. + {($k): $v}')
+          done < <(jq -c '.[]' products.json)
+          echo "::notice::ProductIds: $MAP"
+
+      - name: Publish to Roblox
+        if: env.ROBLOX_API_KEY != '' && env.UNIVERSE_ID != '' && env.PLACE_ID != ''
+        run: |
+          curl --fail-with-body -sS -X POST \
+            "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Published" \
+            -H "x-api-key: ${ROBLOX_API_KEY}" \
+            -H "Content-Type: application/xml" \
+            --data-binary @MegaRainbowObby.rbxlx -o publish.json
+          echo "::notice::Published: $(cat publish.json)"

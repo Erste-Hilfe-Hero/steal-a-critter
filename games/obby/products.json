@@ -1,0 +1,11 @@
+[
+  {"key": "Pass_VIP", "name": "VIP", "description": "Golden name, VIP chat tag and the exclusive Golden VIP trail forever", "price": 199},
+  {"key": "Pass_DoubleJump", "name": "Double Jump", "description": "Jump again in mid-air forever", "price": 199},
+  {"key": "Pass_GravityCoil", "name": "Gravity Coil", "description": "Low-gravity coil: jump much higher forever", "price": 149},
+  {"key": "Pass_SpeedCoil", "name": "Speed Coil", "description": "Run much faster forever", "price": 99},
+  {"key": "Pass_TrailPack", "name": "Trail Pack", "description": "Unlock all 6 premium trails forever", "price": 149},
+  {"key": "SkipStage", "name": "Skip Stage", "description": "Instantly go to the next stage", "price": 19},
+  {"key": "Skip10", "name": "Skip 10 Stages", "description": "Instantly jump 10 stages ahead", "price": 129},
+  {"key": "Skip5", "name": "Skip 5 Stages", "description": "Instantly jump 5 stages ahead", "price": 79},
+  {"key": "KillAll", "name": "Kill Everyone", "description": "Troll! Everyone else on the server respawns at their checkpoint", "price": 49}
+]

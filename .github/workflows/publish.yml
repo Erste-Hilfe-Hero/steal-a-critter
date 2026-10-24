@@ -3,6 +3,8 @@ name: Publish to Roblox
 on:
   push:
     branches: [main]
+    # Die weiteren Spiele unter games/ haben eigene Workflows
+    paths-ignore: [games/**, .github/workflows/publish-*.yml, .github/workflows/products-*.yml]
   workflow_dispatch:
 
 jobs:
