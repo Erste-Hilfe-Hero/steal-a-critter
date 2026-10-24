@@ -1,0 +1,91 @@
+name: Upload icons and thumbnails
+
+# Laedt Icons und Thumbnails aller Spiele aus media.json hoch, nur mit dem API-Key:
+# - Startseiten-Kacheln (thumbnail-personalization-api, Scope universe.thumbnail:write)
+# - Icon + Thumbnails fuer jede Sprache ausser der Ausgangssprache (Lokalisierungs-API)
+# Das Haupt-Icon der Ausgangssprache (en) kann Roblox nur im Creator Hub setzen.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["media.json", "assets/**.png", "games/*/assets/**.png", ".github/workflows/media.yml"]
+
+jobs:
+  media:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload
+        run: |
+          set +e
+          B=https://apis.roblox.com
+          I18N=$B/legacy-game-internationalization/v1
+          HOME_API=$B/thumbnail-personalization-api/v1/universes
+          K="x-api-key: $ROBLOX_API_KEY"
+          note() { echo "::notice::$1: $(echo "$2" | tr -d '\n' | head -c 400)"; }
+
+          jq -c '.games[]' media.json | while read -r G; do
+            NAME=$(echo "$G" | jq -r .name); U=$(echo "$G" | jq -r .universeId)
+            ICON=$(echo "$G" | jq -r .icon); mapfile -t THUMBS < <(echo "$G" | jq -r '.thumbnails[]')
+            echo "::group::$NAME ($U)"
+
+            # 1) Startseiten-Kacheln: hochladen, auf Verarbeitung warten, aktive Konfiguration ersetzen
+            ARGS=(); for T in "${THUMBS[@]}"; do ARGS+=(-F "files=@$T;type=image/png"); done
+            R=$(curl -sS -X POST "$HOME_API/$U/thumbnails/uploads" -H "$K" "${ARGS[@]}")
+            note "$NAME home upload" "$R"
+            OPS=$(echo "$R" | jq -r '[.fileToOperationIdDict[]? // empty] | map("operationIds=" + .) | join("&")' 2>/dev/null)
+            IDS='[]'
+            if [ -n "$OPS" ]; then
+              for i in $(seq 1 30); do
+                S=$(curl -sS "$HOME_API/$U/thumbnails/uploads/status?$OPS" -H "$K")
+                IDS=$(echo "$S" | jq -c '[.uploadThumbnailStatusDict[]? | .homepageThumbnailId // empty]' 2>/dev/null || echo '[]')
+                [ "$(echo "$IDS" | jq length)" -ge "${#THUMBS[@]}" ] && break
+                sleep 2
+              done
+              note "$NAME home status" "$S"
+            fi
+            if [ "$(echo "$IDS" | jq length)" -gt 0 ]; then
+              C=$(curl -sS "$HOME_API/$U/personalization?status=Active" -H "$K")
+              CID=$(echo "$C" | jq -r '[.personalizedConfigs[]? | select(.personalizedConfigStatus != "Inactive")][0].id // empty' 2>/dev/null)
+              OLD=$(echo "$C" | jq -c '[.personalizedConfigs[]? | select(.id == "'"$CID"'") | .thumbnails[]?.homepageThumbnailId]' 2>/dev/null || echo '[]')
+              if [ -n "$CID" ]; then
+                R=$(curl -sS -X POST "$HOME_API/$U/personalization/update" -H "$K" -H 'Content-Type: application/json' \
+                  -d "$(jq -nc --arg id "$CID" --argjson ids "$IDS" '{id: $id, homepageThumbnailIds: $ids}')" -w ' HTTP %{http_code}')
+                note "$NAME home update" "$R"
+                # Alte Kacheln aufraeumen, damit sich nichts ansammelt
+                DEL=$(jq -nr --argjson old "$OLD" --argjson new "$IDS" '$old - $new | map("homepageThumbnailIds=" + .) | join("&")')
+                [ -n "$DEL" ] && note "$NAME home delete old" "$(curl -sS -X DELETE "$HOME_API/$U/thumbnails?$DEL" -H "$K" -w ' HTTP %{http_code}')"
+              else
+                R=$(curl -sS -X POST "$HOME_API/$U/personalization/create" -H "$K" -H 'Content-Type: application/json' \
+                  -d "$(jq -nc --argjson ids "$IDS" '{homepageThumbnailIds: $ids}')" -w ' HTTP %{http_code}')
+                note "$NAME home create" "$R"
+              fi
+            fi
+
+            # 2) Sprachen: als unterstuetzt eintragen, dann Icon + Thumbnails je Sprache
+            SRC=$(curl -sS "https://gameinternationalization.roblox.com/v1/source-language/games/$U" | jq -r '.languageCode // "en"')
+            LANGS=$(jq -r --arg src "$SRC" '.languages[] | select(. != $src)' media.json)
+            BODY=$(jq -c --arg src "$SRC" '[.languages[] | select(. != $src) | {languageCodeType: "Language", languageCode: ., delete: false}]' media.json)
+            note "$NAME supported languages" "$(curl -sS -X PATCH "$I18N/supported-languages/games/$U" -H "$K" -H 'Content-Type: application/json' -d "$BODY" -w ' HTTP %{http_code}')"
+            OK=0; FAIL=0
+            for L in $LANGS; do
+              R=$(curl -sS -X POST "$I18N/game-icon/games/$U/language-codes/$L" -H "$K" -F "request.files=@$ICON;type=image/png" -w ' HTTP %{http_code}')
+              if echo "$R" | grep -q 'HTTP 20'; then OK=$((OK+1)); else FAIL=$((FAIL+1)); note "$NAME icon $L" "$R"; fi
+              # Vorhandene Thumbnails dieser Sprache ersetzen statt anhaengen
+              for ID in $(curl -sS "https://gameinternationalization.roblox.com/v1/game-thumbnails/games/$U/images" \
+                  | jq -r --arg l "$L" '.data[]? | select(.languageCode == $l) | .mediaAssets[]?.mediaAssetId'); do
+                curl -sS -o /dev/null -X DELETE "$I18N/game-thumbnails/games/$U/language-codes/$L/images/$ID" -H "$K"
+              done
+              for T in "${THUMBS[@]}"; do
+                R=$(curl -sS -X POST "$I18N/game-thumbnails/games/$U/language-codes/$L/image" -H "$K" -F "gameThumbnailRequest.files=@$T;type=image/png" -w ' HTTP %{http_code}')
+                if echo "$R" | grep -q 'HTTP 20'; then OK=$((OK+1)); else FAIL=$((FAIL+1)); note "$NAME thumb $L" "$R"; fi
+              done
+              sleep 1
+            done
+            note "$NAME languages (source $SRC)" "$OK uploads ok, $FAIL failed"
+            echo "::endgroup::"
+          done
