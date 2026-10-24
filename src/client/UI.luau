@@ -15,27 +15,27 @@ local remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local UI = {}
 
-local TITLE_FONT = Enum.Font.FredokaOne
+local TITLE_FONT = Enum.Font.BuilderSansExtraBold
 local BODY_FONT = Enum.Font.BuilderSansBold
 local BASE_SIZE = Vector2.new(1000, 560)
 
 -- Farben passend zum Neon-Sonnenuntergang (Ladebildschirm, Welt)
 local THEME = {
-	Panel = Color3.fromRGB(30, 25, 52),
-	PanelDark = Color3.fromRGB(18, 15, 34),
-	Row = Color3.fromRGB(46, 39, 76),
-	Outline = Color3.fromRGB(10, 8, 22),
+	Panel = Color3.fromRGB(24, 24, 34),
+	PanelDark = Color3.fromRGB(16, 16, 24),
+	Row = Color3.fromRGB(36, 36, 50),
+	Outline = Color3.fromRGB(8, 8, 14),
 	Text = Color3.new(1, 1, 1),
-	Muted = Color3.fromRGB(195, 188, 225),
+	Muted = Color3.fromRGB(170, 172, 190),
 	Cash = Color3.fromRGB(110, 255, 130),
-	Gold = Color3.fromRGB(255, 200, 50),
-	Pink = Color3.fromRGB(255, 95, 175),
-	Green = Color3.fromRGB(55, 200, 95),
-	Purple = Color3.fromRGB(155, 85, 255),
-	Blue = Color3.fromRGB(40, 160, 255),
-	Orange = Color3.fromRGB(255, 140, 30),
-	Red = Color3.fromRGB(230, 60, 75),
-	Gray = Color3.fromRGB(95, 90, 118),
+	Gold = Color3.fromRGB(245, 195, 70),
+	Pink = Color3.fromRGB(235, 95, 150),
+	Green = Color3.fromRGB(46, 184, 104),
+	Purple = Color3.fromRGB(128, 92, 240),
+	Blue = Color3.fromRGB(52, 140, 235),
+	Orange = Color3.fromRGB(240, 140, 50),
+	Red = Color3.fromRGB(215, 64, 72),
+	Gray = Color3.fromRGB(72, 74, 90),
 }
 
 -- Symbol pro Shop-Eintrag (unbekannte Eintraege bekommen ein Geschenk)
@@ -86,9 +86,14 @@ local function outline(thickness: number, color: Color3?)
 	return create("UIStroke", { Thickness = thickness, Color = color or THEME.Outline, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
 end
 
+-- Feiner heller Rand fuer Flaechen (wirkt ruhiger als dicke schwarze Konturen)
+local function edge()
+	return create("UIStroke", { Thickness = 1, Color = Color3.new(1, 1, 1), Transparency = 0.86, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+end
+
 -- Weiss nach Grau multipliziert die Hintergrundfarbe: leichter 3D-Effekt, AutoButtonColor funktioniert weiter
 local function shine()
-	return create("UIGradient", { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(175, 175, 175)), Rotation = 90 })
+	return create("UIGradient", { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(222, 222, 222)), Rotation = 90 })
 end
 
 local function padding(x: number, y: number)
@@ -144,9 +149,7 @@ local function button(props, color: Color3): TextButton
 	props.AutoButtonColor = true
 	local result = create("TextButton", props, {
 		corner(12),
-		outline(2, THEME.Outline),
 		shine(),
-		create("UIStroke", { Thickness = 1.5, Color = THEME.Outline, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }),
 	}) :: TextButton
 	pressable(result)
 	return result
@@ -173,18 +176,18 @@ local function window(name: string, title: string, size: Vector2, color: Color3,
 		Visible = false,
 		ZIndex = 10,
 		Parent = parent,
-	}, { corner(18), outline(3, THEME.Outline), create("UIScale", { Name = "PopScale" }) }) :: Frame
+	}, { corner(16), edge(), create("UIScale", { Name = "PopScale" }) }) :: Frame
 	local header = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 58),
 		BackgroundColor3 = color,
 		Parent = frame,
-	}, { corner(18), shine() }) :: Frame
+	}, { corner(16), shine() }) :: Frame
 	-- Untere Ecken der Kopfzeile eckig machen
 	create("Frame", {
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.new(1, 0, 0, 18),
-		BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.3),
+		Size = UDim2.new(1, 0, 0, 16),
+		BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.13),
 		BorderSizePixel = 0,
 		Parent = header,
 	})
@@ -193,17 +196,17 @@ local function window(name: string, title: string, size: Vector2, color: Color3,
 		Size = UDim2.new(1, -80, 1, 0),
 		Text = title,
 		Font = TITLE_FONT,
-		TextSize = 30,
+		TextSize = 26,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 2,
 		Parent = header,
-	}, 2)
+	})
 	return frame, header
 end
 
 -- Kleine Info-Pille (Text mit Symbol); gibt Pille, Text und Rahmen zurueck
 local function chip(parent: Instance, order: number, color: Color3, textSize: number?): (Frame, TextLabel, UIStroke)
-	local stroke = outline(2, color) :: UIStroke
+	local stroke = create("UIStroke", { Thickness = 1, Color = color, Transparency = 0.45, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }) :: UIStroke
 	local frame = create("Frame", {
 		AutomaticSize = Enum.AutomaticSize.XY,
 		Size = UDim2.new(),
@@ -235,7 +238,7 @@ local toastCount = 0
 local function showToast(message: string, color: Color3?)
 	toastCount += 1
 	local accent = color or THEME.Text
-	local stroke = outline(2, accent)
+	local stroke = create("UIStroke", { Thickness = 1, Color = accent, Transparency = 0.4, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
 	local scale = create("UIScale", { Scale = 0.7 })
 	local toast = create("Frame", {
 		AutomaticSize = Enum.AutomaticSize.XY,
@@ -362,10 +365,10 @@ end
 local function buildShopRow(parent: Instance, kind: string, key: string, entry, color: Color3, order: number, featured: boolean?)
 	local row = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 78),
-		BackgroundColor3 = if featured then Color3.fromRGB(70, 52, 30) else THEME.Row,
+		BackgroundColor3 = if featured then Color3.fromRGB(52, 44, 32) else THEME.Row,
 		LayoutOrder = order,
 		Parent = parent,
-	}, { corner(14), outline(if featured then 2.5 else 1.5, if featured then THEME.Gold else THEME.Outline) })
+	}, { corner(12), if featured then outline(1.5, THEME.Gold) else edge() })
 
 	create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -376,8 +379,7 @@ local function buildShopRow(parent: Instance, kind: string, key: string, entry, 
 	}, {
 		corner(12),
 		shine(),
-		outline(1.5, THEME.Outline),
-		text({ Size = UDim2.fromScale(1, 1), Text = ICONS[key] or "🎁", TextSize = 32 }),
+		text({ Size = UDim2.fromScale(1, 1), Text = ICONS[key] or "🎁", TextSize = 30 }),
 	})
 
 	text({
@@ -471,7 +473,7 @@ local function showOffer(kind: string, key: string, reason: string)
 		BackgroundColor3 = THEME.Panel,
 		ZIndex = 15,
 		Parent = root,
-	}, { corner(16), outline(3, THEME.Gold) }) :: Frame
+	}, { corner(14), outline(1.5, THEME.Gold) }) :: Frame
 	offerCard = card
 	text({
 		Position = UDim2.fromOffset(14, 8),
@@ -489,7 +491,7 @@ local function showOffer(kind: string, key: string, reason: string)
 		Size = UDim2.fromOffset(54, 54),
 		BackgroundColor3 = THEME.Orange,
 		Parent = card,
-	}, { corner(12), shine(), outline(1.5, THEME.Outline), text({ Size = UDim2.fromScale(1, 1), Text = ICONS[key] or "🎁", TextSize = 30 }) })
+	}, { corner(12), shine(), text({ Size = UDim2.fromScale(1, 1), Text = ICONS[key] or "🎁", TextSize = 30 }) })
 	text({
 		Position = UDim2.fromOffset(78, 36),
 		Size = UDim2.new(1, -92, 0, 26),
@@ -597,9 +599,9 @@ function UI.Start()
 		LayoutOrder = 1,
 		Parent = top,
 	}, {
-		corner(18),
+		corner(16),
 		padding(22, 4),
-		outline(2.5, THEME.Outline),
+		edge(),
 		cashScale,
 		listLayout(Enum.FillDirection.Vertical, 0, Enum.HorizontalAlignment.Center),
 	})
@@ -612,7 +614,7 @@ function UI.Start()
 		TextColor3 = THEME.Cash,
 		LayoutOrder = 1,
 		Parent = cashPill,
-	}, 2.5)
+	})
 	local incomeRow = create("Frame", {
 		AutomaticSize = Enum.AutomaticSize.XY,
 		Size = UDim2.new(),
@@ -624,15 +626,16 @@ function UI.Start()
 		AutomaticSize = Enum.AutomaticSize.XY,
 		Size = UDim2.new(),
 		Text = "+$0/s",
-		TextSize = 19,
+		TextSize = 18,
+		TextColor3 = THEME.Muted,
 		LayoutOrder = 1,
 		Parent = incomeRow,
-	}, 1.5)
+	})
 	local multiplierLabel = text({
 		AutomaticSize = Enum.AutomaticSize.XY,
 		Size = UDim2.new(),
 		BackgroundTransparency = 0,
-		BackgroundColor3 = Color3.fromRGB(80, 60, 20),
+		BackgroundColor3 = Color3.fromRGB(60, 50, 26),
 		Text = "x1",
 		Font = TITLE_FONT,
 		TextSize = 16,
@@ -681,7 +684,7 @@ function UI.Start()
 		Visible = false,
 		ZIndex = 5,
 		Parent = root,
-	}, 3)
+	}, 2)
 	announceScale.Parent = announceLabel
 
 	toastContainer = create("Frame", {
@@ -712,7 +715,7 @@ function UI.Start()
 			Text = "",
 			LayoutOrder = order,
 			Parent = side,
-		}, { corner(18), outline(2.5, THEME.Outline), shine() }) :: TextButton
+		}, { corner(16), edge(), shine() }) :: TextButton
 		text({ Position = UDim2.fromOffset(0, 4), Size = UDim2.new(1, 0, 0, 40), Text = icon, TextSize = 32, Parent = result })
 		text({
 			AnchorPoint = Vector2.new(0, 1),
@@ -720,9 +723,9 @@ function UI.Start()
 			Size = UDim2.new(1, 0, 0, 20),
 			Text = caption,
 			Font = TITLE_FONT,
-			TextSize = 17,
+			TextSize = 15,
 			Parent = result,
-		}, 1.5)
+		})
 		local badge = text({
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(1, -6, 0, 6),
@@ -736,7 +739,7 @@ function UI.Start()
 			Parent = result,
 		})
 		create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = badge })
-		outline(2, THEME.Outline).Parent = badge
+		edge().Parent = badge
 		pressable(result)
 		return result, badge
 	end
@@ -815,7 +818,7 @@ function UI.Start()
 	backdrop.Activated:Connect(closeModal)
 
 	-- Shop mit drei Reitern
-	local shop, shopHeader = window("Shop", "🛒 SHOP", Vector2.new(660, 480), THEME.Green, root)
+	local shop, shopHeader = window("Shop", "SHOP", Vector2.new(660, 480), THEME.Green, root)
 	closeButton(shopHeader).Activated:Connect(closeModal)
 
 	local tabBar = create("Frame", {
@@ -866,14 +869,14 @@ function UI.Start()
 		return page
 	end
 
-	local passesPage = addTab("⭐ PASSES", THEME.Gold)
-	local boostsPage = addTab("🚀 BOOSTS", THEME.Blue)
-	local cashPage = addTab("💰 CASH", THEME.Green)
+	local passesPage = addTab("PASSES", THEME.Gold)
+	local boostsPage = addTab("BOOSTS", THEME.Blue)
+	local cashPage = addTab("CASH", THEME.Green)
 
 	-- Starter Pack ganz oben, verschwindet nicht, zeigt nach dem Kauf OWNED
-	sectionTitle(passesPage, "One time offer", THEME.Pink, 0)
+	sectionTitle(passesPage, "ONE-TIME OFFER", THEME.Pink, 0)
 	buildShopRow(passesPage, "Product", "StarterPack", Config.DevProducts.StarterPack, THEME.Pink, 1, true)
-	sectionTitle(passesPage, "Game Passes - yours forever", THEME.Gold, 2)
+	sectionTitle(passesPage, "GAME PASSES  ·  PERMANENT", THEME.Gold, 2)
 	for i, item in sortedEntries(Config.GamePasses) do
 		buildShopRow(passesPage, "Pass", item.Key, item.Entry, THEME.Gold, 2 + i)
 	end
@@ -882,7 +885,7 @@ function UI.Start()
 	end) do
 		buildShopRow(boostsPage, "Product", item.Key, item.Entry, THEME.Blue, i)
 	end
-	sectionTitle(cashPage, "Grows with your income!", THEME.Cash, 0)
+	sectionTitle(cashPage, "SCALES WITH YOUR INCOME", THEME.Cash, 0)
 	for i, item in sortedEntries(Config.DevProducts, function(entry)
 		return entry.Kind == "Cash"
 	end) do
@@ -891,7 +894,7 @@ function UI.Start()
 	selectTab(tabs[1])
 
 	-- Rebirth-Fenster
-	local rebirth, rebirthHeader = window("Rebirth", "♻️ REBIRTH", Vector2.new(420, 330), THEME.Purple, root)
+	local rebirth, rebirthHeader = window("Rebirth", "REBIRTH", Vector2.new(420, 330), THEME.Purple, root)
 	closeButton(rebirthHeader).Activated:Connect(closeModal)
 	local multiplierText = text({
 		Position = UDim2.fromOffset(16, 70),
@@ -901,11 +904,11 @@ function UI.Start()
 		TextSize = 40,
 		TextColor3 = THEME.Gold,
 		Parent = rebirth,
-	}, 2)
+	})
 	text({
 		Position = UDim2.fromOffset(16, 118),
 		Size = UDim2.new(1, -32, 0, 22),
-		Text = "income multiplier",
+		Text = "INCOME MULTIPLIER",
 		TextSize = 17,
 		TextColor3 = THEME.Muted,
 		Parent = rebirth,
@@ -916,7 +919,7 @@ function UI.Start()
 		BackgroundColor3 = THEME.PanelDark,
 		ClipsDescendants = true,
 		Parent = rebirth,
-	}, { corner(12), outline(2, THEME.Outline) })
+	}, { corner(12), edge() })
 	local progressFill = create("Frame", {
 		Size = UDim2.fromScale(0, 1),
 		BackgroundColor3 = THEME.Purple,
@@ -929,7 +932,7 @@ function UI.Start()
 		TextSize = 18,
 		ZIndex = 2,
 		Parent = progressBack,
-	}, 1.5)
+	}, 1)
 	text({
 		Position = UDim2.fromOffset(16, 192),
 		Size = UDim2.new(1, -32, 0, 22),
@@ -988,40 +991,40 @@ function UI.Start()
 			local lockedFor = player:GetAttribute("LockedFor") or 0
 			statusChip.Visible = carrying ~= nil or lockedFor > 0
 			if carrying then
-				statusLabel.Text = `🏃 Carrying {carrying} - run to your base!`
+				statusLabel.Text = `CARRYING {carrying}  ·  Run to your base!`
 				statusLabel.TextColor3 = THEME.Gold
 				statusStroke.Color = THEME.Gold
 			elseif lockedFor > 0 then
-				statusLabel.Text = `🔒 Base locked  {Format.Time(lockedFor)}`
+				statusLabel.Text = `BASE LOCKED  {Format.Time(lockedFor)}`
 				statusLabel.TextColor3 = Color3.fromRGB(120, 200, 255)
 				statusStroke.Color = Color3.fromRGB(120, 200, 255)
 			end
 
 			local rankColor = if player:GetAttribute("RankColor") then Color3.fromHex(player:GetAttribute("RankColor")) else THEME.Muted
 			local nextRank = player:GetAttribute("NextRank")
-			rankLabel.Text = `⭐ {player:GetAttribute("Rank") or "Newbie"}` .. (if nextRank then `  ·  next: {nextRank}` else "")
+			rankLabel.Text = `{string.upper(player:GetAttribute("Rank") or "Newbie")}` .. (if nextRank then `  ·  Next: {nextRank}` else "")
 			rankLabel.TextColor3 = rankColor
 			rankStroke.Color = rankColor
 
 			local friends = player:GetAttribute("FriendsHere") or 0
 			local referrals = player:GetAttribute("Referrals") or 0
 			local catalysts = player:GetAttribute("Catalysts") or 0
-			friendLabel.Text = `👥 {friends} friends here  +{math.floor((player:GetAttribute("FriendBoost") or 0) * 100)}%`
+			friendLabel.Text = `Friends {friends}  ·  +{math.floor((player:GetAttribute("FriendBoost") or 0) * 100)}%`
 			referralChip.Visible = referrals > 0
-			referralLabel.Text = `💌 {referrals} invited`
+			referralLabel.Text = `Invited {referrals}`
 			catalystChip.Visible = catalysts > 0
-			catalystLabel.Text = `🧪 {catalysts} catalyst` .. (if catalysts == 1 then "" else "s")
+			catalystLabel.Text = `Catalysts {catalysts}`
 
 			local revengeLeft = (player:GetAttribute("RevengeUntil") or 0) - now
 			revengeChip.Visible = revengeLeft > 0
 			if revengeLeft > 0 then
-				revengeLabel.Text = `⚔️ REVENGE on {player:GetAttribute("RevengeTarget") or "?"}  {Format.Time(revengeLeft)} - steal back instantly!`
+				revengeLabel.Text = `REVENGE  ·  {player:GetAttribute("RevengeTarget") or "?"}  {Format.Time(revengeLeft)}  ·  Steal back instantly`
 			end
 
 			local luckLeft = (workspace:GetAttribute("LuckUntil") or 0) - now
 			luckChip.Visible = luckLeft > 0
 			if luckLeft > 0 then
-				luckLabel.Text = `🍀 SERVER LUCK x{Config.ServerLuckMultiplier}  {Format.Time(luckLeft)}`
+				luckLabel.Text = `SERVER LUCK x{Config.ServerLuckMultiplier}  {Format.Time(luckLeft)}`
 			end
 
 			local eventName = workspace:GetAttribute("EventName")
@@ -1029,14 +1032,14 @@ function UI.Start()
 			local eventColor = THEME.Pink
 			local eventText = ""
 			if partyLeft > 0 then
-				eventText = `🎉 CASH PARTY by {workspace:GetAttribute("PartyBy") or "?"}: 2x CASH  {Format.Time(partyLeft)}`
+				eventText = `CASH PARTY  ·  2x CASH by {workspace:GetAttribute("PartyBy") or "?"}  {Format.Time(partyLeft)}`
 				eventColor = THEME.Cash
 			elseif eventName then
-				eventText = `🎊 EVENT: {eventName}  {Format.Time(math.max(0, (workspace:GetAttribute("EventEnds") or now) - now))}`
+				eventText = `EVENT  ·  {eventName}  {Format.Time(math.max(0, (workspace:GetAttribute("EventEnds") or now) - now))}`
 			else
 				local nextAt = workspace:GetAttribute("NextEventAt")
 				if nextAt then
-					eventText = `⏰ Free event in {Format.Time(math.max(0, nextAt - now))}`
+					eventText = `Next event in {Format.Time(math.max(0, nextAt - now))}`
 					eventColor = THEME.Muted
 				end
 			end
@@ -1047,7 +1050,7 @@ function UI.Start()
 
 			local current = 1 + rebirths * Config.RebirthMultiplierPer
 			local canRebirth = cost > 0 and cash >= cost
-			multiplierText.Text = `x{current}  ➡️  x{current + Config.RebirthMultiplierPer}`
+			multiplierText.Text = `x{current}   >   x{current + Config.RebirthMultiplierPer}`
 			progressFill.Size = UDim2.fromScale(if cost > 0 then math.clamp(cash / cost, 0, 1) else 0, 1)
 			progressText.Text = `{Format.Cash(cash)} / {Format.Cash(cost)}`
 			confirmRebirth.Text = if canRebirth or cost <= 0 then "REBIRTH" else `Need {Format.Cash(cost - cash)} more`
