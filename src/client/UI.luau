@@ -1,4 +1,5 @@
 -- Baut das komplette HUD per Code: Geldanzeige, Shop, Rebirth, Meldungen.
+local AdService = game:GetService("AdService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -214,12 +215,26 @@ function UI.Start()
 	local side = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 10, 0.5, 0),
-		Size = UDim2.fromOffset(120, 140),
+		Size = UDim2.fromOffset(120, 210),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, { create("UIListLayout", { Padding = UDim.new(0, 10) }) })
 	local shopButton = button({ Size = UDim2.new(1, 0, 0, 60), Text = "SHOP", Parent = side }, Color3.fromRGB(60, 200, 90))
 	local rebirthButton = button({ Size = UDim2.new(1, 0, 0, 60), Text = "REBIRTH", Parent = side }, Color3.fromRGB(160, 80, 255))
+	local adButton = button({ Size = UDim2.new(1, 0, 0, 60), Text = "FREE CASH (Ad)", Visible = false, Parent = side }, Color3.fromRGB(255, 140, 30))
+
+	-- Freiwillige Video-Werbung: Knopf nur zeigen, wenn Roblox gerade eine Werbung bereit hat
+	task.spawn(function()
+		while gui.Parent do
+			local ok, result = pcall(AdService.GetAdAvailabilityNowAsync, AdService, Enum.AdFormat.RewardedVideo)
+			adButton.Visible = ok and result and result.AdAvailabilityResult == Enum.AdAvailabilityResult.IsAvailable
+			task.wait(30)
+		end
+	end)
+	adButton.Activated:Connect(function()
+		adButton.Visible = false
+		remotes.WatchAd:FireServer()
+	end)
 
 	-- Shop-Fenster
 	local shop = create("Frame", {

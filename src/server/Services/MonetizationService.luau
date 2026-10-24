@@ -1,4 +1,5 @@
 -- Gamepasses, Developer Products (ProcessReceipt), Premium-Bonus und Server-Glueck.
+local AdService = game:GetService("AdService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -238,6 +239,30 @@ function MonetizationService:Start()
 	end)
 
 	-- Nur in Studio: Kaeufe von noch nicht angelegten Produkten simulieren
+	-- Rewarded Video Ads: die Belohnung kommt ueber ProcessReceipt (Produkt AdCash)
+	local lastAd = {}
+	services.Net.WatchAd.OnServerEvent:Connect(function(player)
+		local now = os.clock()
+		if now - (lastAd[player] or -math.huge) < Config.AdCooldown then
+			services.Net.SendNotify(player, "Next free cash in a few minutes!", RED)
+			return
+		end
+		lastAd[player] = now
+		local ok, result = pcall(function()
+			local reward = AdService:CreateAdRewardFromDevProductId(Config.DevProducts.AdCash.Id)
+			return AdService:ShowRewardedVideoAdAsync(player, reward)
+		end)
+		if not ok or result ~= Enum.ShowAdResult.ShowCompleted then
+			lastAd[player] = nil
+			if not ok then
+				warn("[Ads]", result)
+			end
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		lastAd[player] = nil
+	end)
+
 	services.Net.FakePurchase.OnServerEvent:Connect(function(player, kind, key)
 		if not (RunService:IsStudio() and Config.StudioFakePurchases) or typeof(key) ~= "string" then
 			return

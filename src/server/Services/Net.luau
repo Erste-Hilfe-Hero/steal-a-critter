@@ -17,6 +17,7 @@ Net.Notify = remote("Notify") -- Server -> ein Spieler
 Net.Announce = remote("Announce") -- Server -> alle
 Net.RequestRebirth = remote("RequestRebirth") -- Client -> Server
 Net.FakePurchase = remote("FakePurchase") -- Client -> Server (nur Studio)
+Net.WatchAd = remote("WatchAd") -- Client -> Server: Spieler will freiwillig eine Werbung sehen
 
 folder.Parent = ReplicatedStorage
 

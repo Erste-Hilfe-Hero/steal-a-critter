@@ -103,6 +103,8 @@ Config.DevProducts = {
 	-- Sofortkauf des sichtbaren Tiers auf dem Laufband (kein Zufall: der Spieler sieht genau, was er kauft)
 	InstantEpic = { Id = 3721859226, Kind = "InstantBuy", Rarity = "Epic", Name = "Instant Epic", Description = "Buy an Epic from the belt with Robux", PriceHint = 49, Hidden = true },
 	InstantLegendary = { Id = 3721859228, Kind = "InstantBuy", Rarity = "Legendary", Name = "Instant Legendary", Description = "Buy a Legendary from the belt with Robux", PriceHint = 149, Hidden = true },
+	-- Belohnung fuer freiwillige Video-Werbung (Rewarded Video Ad): Roblox zahlt dir pro angesehener Werbung
+	AdCash = { Id = 3721862820, Kind = "Cash", Minutes = 5, MinCash = 500, Name = "Free Cash", Description = "Watch a short video ad", PriceHint = 0, Hidden = true },
 	InstantMythic = { Id = 3721859230, Kind = "InstantBuy", Rarity = "Mythic", Name = "Instant Mythic", Description = "Buy a Mythic from the belt with Robux", PriceHint = 399, Hidden = true },
 }
 
@@ -124,6 +126,7 @@ Config.GuardianKickCooldown = 60
 
 -- In Studio Kaeufe mit ID 0 simulieren, damit alles testbar ist
 Config.StudioFakePurchases = true
+Config.AdCooldown = 180 -- Sekunden zwischen zwei Werbe-Belohnungen pro Spieler
 
 -- Lookup-Tabellen
 Config.UnitsById = {}
