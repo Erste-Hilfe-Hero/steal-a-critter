@@ -200,7 +200,7 @@ check("hero dies", victim.Dead == true and victim.RespawnAt ~= nil)
 -- Eine Minute spielen lassen
 task.wait(58)
 check("victim respawned", victim.Dead == false and combat.Alive(victim))
-check("waves spawned", lane.Wave >= 2, lane.Wave)
+check("waves spawned", lane.Wave >= 1, lane.Wave) -- erste Welle bei 0:30, die zweite erst bei 1:00
 local leveled, rich = 0, 0
 for _, hero in heroes.Heroes do
 	if hero.Level > 1 or hero.XP > 0 then
