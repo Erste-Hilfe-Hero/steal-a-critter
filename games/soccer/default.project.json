@@ -1,5 +1,5 @@
 {
-  "name": "turbo-soccer",
+  "name": "soccer-jam",
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {

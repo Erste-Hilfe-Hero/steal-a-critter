@@ -17,6 +17,7 @@ Net.Notify = remote("Notify") -- Server -> ein Spieler
 Net.Announce = remote("Announce") -- Server -> alle
 Net.MatchEvent = remote("MatchEvent") -- Server -> alle (Tor, Anstoss, Ende)
 Net.Results = remote("Results") -- Server -> ein Spieler (eigene Match-Bilanz)
+Net.Knockback = remote("Knockback") -- Server -> ein Spieler (umgehauen: Geschwindigkeit)
 Net.Offer = remote("Offer") -- Server -> ein Spieler (Kaufangebot zeigen)
 Net.Kick = remote("Kick") -- Client -> Server (power 0..1, Richtung)
 Net.Pass = remote("Pass") -- Client -> Server

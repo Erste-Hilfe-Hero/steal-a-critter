@@ -1,4 +1,4 @@
--- Eigener Ladebildschirm im Turbo-Stil: Navy mit schraegen Lime/Orange-Streifen,
+-- Eigener Ladebildschirm im Soccer-Jam-Stil: Navy mit schraegen Lime/Orange-Streifen,
 -- springender Ball mit Speed-Linien, Logo, Tipps und Fortschrittsbalken.
 local ContentProvider = game:GetService("ContentProvider")
 local Players = game:GetService("Players")
@@ -17,13 +17,13 @@ local ORANGE = Color3.fromRGB(255, 110, 30)
 local FONT = Enum.Font.LuckiestGuy
 
 local TIPS = {
-	"Hold SHOOT longer for a harder shot - aim with your camera!",
-	"Tackle the ball carrier to steal the ball. Timing is everything!",
-	"Every level gives you a skill point: Stamina, Strength, Agility, Dexterity, Tackle.",
-	"Shots that are too fast bounce off - level Dexterity to catch them!",
-	"Pass to teammates in front of you for an easy assist.",
-	"Come back every day: your daily coins grow with your streak!",
-	"Golden Goal: if it's a tie, the next goal wins!",
+	"Hold KICK for a harder shot - run sideways while kicking to CURVE the ball!",
+	"DISARM the ball carrier to steal the ball. Timing is everything!",
+	"Earn EXP every match and buy upgrades: Stamina, Strength, Agility, Dexterity, Disarm.",
+	"Hard enemy shots SMACK you down - level Dexterity to catch them instead!",
+	"Don't camp in the enemy box - the mascot will throw you out!",
+	"Long-distance goals give bonus EXP. Score from far away!",
+	"First team to 10 goals wins. Tied at the end? Golden Goal!",
 }
 
 local gui = Instance.new("ScreenGui")
@@ -74,13 +74,13 @@ logo.Size = UDim2.fromScale(0.8, 0.22)
 logo.BackgroundTransparency = 1
 logo.Rotation = -4
 logo.Parent = background
-local turbo = text({ Position = UDim2.fromScale(0.5, 0.3), Size = UDim2.fromScale(1, 0.55), Text = "TURBO", TextColor3 = LIME })
+local turbo = text({ Position = UDim2.fromScale(0.5, 0.3), Size = UDim2.fromScale(1, 0.55), Text = "SOCCER", TextColor3 = LIME })
 turbo.Parent = logo
 local turboStroke = Instance.new("UIStroke")
 turboStroke.Color = Color3.fromRGB(10, 14, 34)
 turboStroke.Thickness = 5
 turboStroke.Parent = turbo
-local soccer = text({ Position = UDim2.fromScale(0.5, 0.8), Size = UDim2.fromScale(0.8, 0.4), Text = "SOCCER", TextColor3 = ORANGE })
+local soccer = text({ Position = UDim2.fromScale(0.5, 0.8), Size = UDim2.fromScale(0.8, 0.4), Text = "JAM", TextColor3 = ORANGE })
 soccer.Parent = logo
 turboStroke:Clone().Parent = soccer
 

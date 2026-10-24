@@ -5,7 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 
-local ArenaService = { Services = nil :: any, Scoreboard = {} :: any, Goals = {} :: any }
+local ArenaService = { Services = nil :: any, Scoreboard = {} :: any, Goals = {} :: any, Mascots = {} :: any }
 
 local C = Config.Colors
 local HALF_L = Config.FieldLength / 2
@@ -94,7 +94,7 @@ local function buildPitch()
 		})
 	end
 	-- Boden rund ums Stadion
-	part({ Name = "Concourse", Size = Vector3.new(560, 4, 420), CFrame = CFrame.new(0, -2.2, 0), Color = Color3.fromRGB(40, 44, 70), Material = Enum.Material.Concrete, Parent = pitch })
+	part({ Name = "Concourse", Size = Vector3.new(760, 4, 600), CFrame = CFrame.new(0, -2.2, 0), Color = Color3.fromRGB(40, 44, 70), Material = Enum.Material.Concrete, Parent = pitch })
 
 	local lines = Instance.new("Folder")
 	lines.Name = "Lines"
@@ -112,7 +112,7 @@ end
 
 local function buildGoal(teamName: string)
 	local team = Config.Teams[teamName]
-	local side = team.Side -- Bolt verteidigt -X
+	local side = team.Side -- Blue verteidigt -X
 	local goal = Instance.new("Model")
 	goal.Name = teamName .. "Goal"
 	goal.Parent = folder
@@ -162,6 +162,35 @@ local function buildGoal(teamName: string)
 	ArenaService.Goals[teamName] = { Model = goal, Burst = burst, Side = side }
 end
 
+-- Maskottchen neben jedem Tor (wie im Original): grosser Block-Waechter in Teamfarbe
+local function buildMascot(teamName: string)
+	local team = Config.Teams[teamName]
+	local side = team.Side
+	local model = Instance.new("Model")
+	model.Name = teamName .. "Mascot"
+	local base = Vector3.new(side * (HALF_L + 4), 0, -(Config.GoalWidth / 2 + 16))
+	local facing = CFrame.lookAt(base, Vector3.new(0, 0, 0))
+	local function piece(name: string, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material?): Part
+		return part({ Name = name, Size = size, CFrame = facing * offset, Color = color, Material = material or Enum.Material.SmoothPlastic, CanCollide = false, Parent = model })
+	end
+	local body = piece("Body", Vector3.new(9, 11, 8), CFrame.new(0, 7.5, 0), team.Color)
+	piece("Belly", Vector3.new(6, 6, 0.4), CFrame.new(0, 6.5, -4.1), C.White)
+	for _, x in { -2.2, 2.2 } do
+		piece("Eye", Vector3.new(2.2, 2.6, 0.4), CFrame.new(x, 10.5, -4.1), C.White)
+		piece("Pupil", Vector3.new(1, 1.3, 0.3), CFrame.new(x, 10.3, -4.35), C.Navy)
+		piece("Horn", Vector3.new(1.2, 3.5, 1.2), CFrame.new(x * 1.3, 14.5, 0) * CFrame.Angles(0, 0, math.rad(-x * 8)), C.Gold, Enum.Material.Neon)
+		piece("Foot", Vector3.new(3, 2, 4), CFrame.new(x, 1, -0.5), team.Dark)
+	end
+	piece("Mouth", Vector3.new(4, 0.8, 0.3), CFrame.new(0, 8.2, -4.1), C.Navy)
+	model.PrimaryPart = body
+	model.Parent = folder
+	local eye = Instance.new("Attachment")
+	eye.Name = "Eye"
+	eye.Position = Vector3.new(0, 3, -4)
+	eye.Parent = body
+	ArenaService.Mascots[teamName] = { Model = model, Body = body, Eye = eye }
+end
+
 local function buildWalls()
 	local walls = Instance.new("Folder")
 	walls.Name = "Walls"
@@ -177,7 +206,7 @@ local function buildWalls()
 	part({ Name = "Ceiling", Size = Vector3.new(WALL_X * 2 + 4, 2, WALL_Z * 2 + 4), CFrame = CFrame.new(0, height, 0), Transparency = 1, Parent = walls })
 
 	-- Sichtbare Banden mit Werbetexten im Spielstil
-	local slogans = { "TURBO SOCCER", "KICK HARD", "LEVEL UP", "GOAL!", "TURBO SOCCER", "PLAY FAIR" }
+	local slogans = { "SOCCER JAM", "CURVE IT", "UPGRADE", "GOAL!", "SOCCER JAM", "DISARM" }
 	local index = 0
 	local function board(cf: CFrame, length: number)
 		local segments = math.max(1, math.floor(length / 40))
@@ -227,7 +256,7 @@ local function buildStands()
 	-- Hinter den Toren: LED-Waende mit Logo
 	for _, sx in { -1, 1 } do
 		local screen = part({ Name = "Screen", Size = Vector3.new(2, 18, 90), CFrame = CFrame.new(sx * (WALL_X + 14), 14, 0), Color = C.Navy, Parent = stands })
-		surfaceText(screen, if sx < 0 then Enum.NormalId.Right else Enum.NormalId.Left, "TURBO SOCCER", C.Lime, C.Navy)
+		surfaceText(screen, if sx < 0 then Enum.NormalId.Right else Enum.NormalId.Left, "SOCCER JAM", C.Lime, C.Navy)
 	end
 end
 
@@ -284,13 +313,13 @@ local function buildScoreboard()
 		label.Parent = frame
 		return label
 	end
-	text("Title", UDim2.fromScale(0.05, 0.03), UDim2.fromScale(0.9, 0.18), C.Lime, "TURBO SOCCER")
-	ArenaService.Scoreboard.Bolt = text("Bolt", UDim2.fromScale(0.04, 0.25), UDim2.fromScale(0.3, 0.5), Config.Teams.Bolt.Color, "0")
-	ArenaService.Scoreboard.Blaze = text("Blaze", UDim2.fromScale(0.66, 0.25), UDim2.fromScale(0.3, 0.5), Config.Teams.Blaze.Color, "0")
+	text("Title", UDim2.fromScale(0.05, 0.03), UDim2.fromScale(0.9, 0.18), C.Lime, "SOCCER JAM")
+	ArenaService.Scoreboard.Blue = text("Blue", UDim2.fromScale(0.04, 0.25), UDim2.fromScale(0.3, 0.5), Config.Teams.Blue.Color, "0")
+	ArenaService.Scoreboard.Red = text("Red", UDim2.fromScale(0.66, 0.25), UDim2.fromScale(0.3, 0.5), Config.Teams.Red.Color, "0")
 	ArenaService.Scoreboard.Time = text("Time", UDim2.fromScale(0.35, 0.3), UDim2.fromScale(0.3, 0.3), C.White, "4:00")
 	ArenaService.Scoreboard.Status = text("Status", UDim2.fromScale(0.05, 0.78), UDim2.fromScale(0.9, 0.18), C.Orange, "WARM UP")
-	text("BoltName", UDim2.fromScale(0.04, 0.72), UDim2.fromScale(0.3, 0.08), Config.Teams.Bolt.Color, "BOLT")
-	text("BlazeName", UDim2.fromScale(0.66, 0.72), UDim2.fromScale(0.3, 0.08), Config.Teams.Blaze.Color, "BLAZE")
+	text("BlueName", UDim2.fromScale(0.04, 0.72), UDim2.fromScale(0.3, 0.08), Config.Teams.Blue.Color, "BLUE")
+	text("RedName", UDim2.fromScale(0.66, 0.72), UDim2.fromScale(0.3, 0.08), Config.Teams.Red.Color, "RED")
 end
 
 local function buildLighting()
@@ -334,6 +363,9 @@ function ArenaService:Build()
 		buildGoal(teamName)
 	end
 	buildWalls()
+	for _, teamName in Config.TeamOrder do
+		buildMascot(teamName)
+	end
 	buildStands()
 	buildLights()
 	buildScoreboard()
@@ -355,6 +387,34 @@ function ArenaService:FormationPosition(teamName: string, slot: number): Vector3
 	local spot = Config.Formation[((slot - 1) % #Config.Formation) + 1]
 	local side = Config.Teams[teamName].Side
 	return Vector3.new(side * spot.x * (HALF_L - 6), Config.GroundY + 3, spot.z * (HALF_W - 8))
+end
+
+-- Maskottchen schleudert einen Camper weg: kurzer Energiestrahl
+function ArenaService:MascotStomp(teamName: string, target: Vector3)
+	local mascot = self.Mascots[teamName]
+	if not mascot then
+		return
+	end
+	local from = mascot.Eye.WorldPosition
+	local beam = Instance.new("Part")
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CanQuery = false
+	beam.Material = Enum.Material.Neon
+	beam.Color = Config.Teams[teamName].Color
+	beam.Size = Vector3.new(0.8, 0.8, (target - from).Magnitude)
+	beam.CFrame = CFrame.lookAt((from + target) / 2, target)
+	beam.Parent = folder
+	task.delay(0.25, function()
+		beam:Destroy()
+	end)
+end
+
+-- Ist diese Position im Strafraum vor dem Tor von teamName?
+function ArenaService:InGoalZone(teamName: string, position: Vector3): boolean
+	local side = Config.Teams[teamName].Side
+	local depth = position.X * side
+	return depth > HALF_L - Config.MascotZoneDepth and depth < HALF_L + Config.GoalDepth and math.abs(position.Z) < Config.MascotZoneWidth / 2
 end
 
 -- Torlinien-Mitte des Tores, das dieses Team verteidigt

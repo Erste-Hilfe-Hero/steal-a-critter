@@ -1,4 +1,5 @@
--- XP, Level, Skillpunkte, Coins, Kick-Trails, taegliche Belohnung und Namensschilder.
+-- Account-XP/Level, Coins, Kick-Trails, taegliche Belohnung und Namensschilder,
+-- dazu wie im Original die Match-EXP: Upgrades werden pro Match mit EXP gekauft und danach zurueckgesetzt.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -6,6 +7,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local ProgressService = { Services = nil :: any }
 
 local C = Config.Colors
+local match = {} -- [Player] = { EXP = number, Skills = { [id] = level }, BoughtEXP = number }
 
 function ProgressService:Init(services)
 	self.Services = services
@@ -19,6 +21,18 @@ local function hasPass(player: Player, key: string): boolean
 	return player:GetAttribute("Pass_" .. key) == true
 end
 
+local function xpMultiplier(player: Player): number
+	local d = data(player)
+	local multiplier = 1
+	if hasPass(player, "DoubleXP") then
+		multiplier += 1
+	end
+	if d and d.BoostUntil > os.time() then
+		multiplier += 1
+	end
+	return multiplier
+end
+
 ---------------------------------------------------------------- Attribute fuer das HUD
 
 function ProgressService:Refresh(player: Player)
@@ -30,8 +44,6 @@ function ProgressService:Refresh(player: Player)
 	player:SetAttribute("XP", d.XP)
 	player:SetAttribute("XPNeeded", Config.XPForLevel(d.Level))
 	player:SetAttribute("Coins", d.Coins)
-	player:SetAttribute("SkillPoints", d.SkillPoints)
-	player:SetAttribute("BoughtPoints", d.BoughtPoints)
 	player:SetAttribute("Trail", d.Trail)
 	player:SetAttribute("BoostUntil", d.BoostUntil)
 	player:SetAttribute("Goals", d.Goals)
@@ -41,10 +53,15 @@ function ProgressService:Refresh(player: Player)
 		table.insert(owned, id)
 	end
 	player:SetAttribute("OwnedTrails", table.concat(owned, ","))
-	local bonus = if hasPass(player, "ProBoots") then 1 else 0
-	for _, skill in Config.Skills do
-		player:SetAttribute("Base_" .. skill.Id, d.Skills[skill.Id])
-		player:SetAttribute("Skill_" .. skill.Id, d.Skills[skill.Id] + bonus)
+	local m = match[player]
+	if m then
+		player:SetAttribute("EXP", m.EXP)
+		player:SetAttribute("BoughtEXP", m.BoughtEXP)
+		local bonus = if hasPass(player, "ProBoots") then 1 else 0
+		for _, skill in Config.Skills do
+			player:SetAttribute("Base_" .. skill.Id, m.Skills[skill.Id])
+			player:SetAttribute("Skill_" .. skill.Id, m.Skills[skill.Id] + bonus)
+		end
 	end
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
@@ -58,31 +75,108 @@ function ProgressService:GetSkill(player: Player, skillId: string): number
 	return player:GetAttribute("Skill_" .. skillId) or 0
 end
 
----------------------------------------------------------------- XP und Coins
+---------------------------------------------------------------- Match-EXP und Upgrades
+
+function ProgressService:StartEXP(player: Player): number
+	local d = data(player)
+	local level = if d then d.Level else 1
+	return Config.StartEXP + math.min(Config.MaxLevelEXP, (level - 1) * Config.StartEXPPerLevel) + (if hasPass(player, "VIP") then Config.VIPStartEXP else 0)
+end
+
+-- Neues Match: Upgrades auf 0, Start-EXP gutschreiben
+function ProgressService:ResetMatch(player: Player)
+	local skills = {}
+	for _, skill in Config.Skills do
+		skills[skill.Id] = 0
+	end
+	match[player] = { EXP = self:StartEXP(player), Skills = skills, BoughtEXP = 0 }
+	self:Refresh(player)
+end
+
+function ProgressService:AddEXP(player: Player, amount: number, raw: boolean?): number
+	local m = match[player]
+	if not m then
+		return 0
+	end
+	if not raw then
+		amount = math.floor(amount * xpMultiplier(player))
+	end
+	m.EXP += amount
+	self:Refresh(player)
+	return amount
+end
+
+function ProgressService:Upgrade(player: Player, skillId: string)
+	local m = match[player]
+	if not m or m.Skills[skillId] == nil then
+		return
+	end
+	local level = m.Skills[skillId]
+	if level >= Config.MaxSkill then
+		self.Services.Net.SendNotify(player, "This upgrade is maxed!", C.Orange)
+		return
+	end
+	local cost = Config.UpgradeCost(level)
+	if m.EXP < cost then
+		self.Services.Net.Offer:FireClient(player, "MatchEXP")
+		return
+	end
+	m.EXP -= cost
+	m.Skills[skillId] = level + 1
+	self:Refresh(player)
+end
+
+function ProgressService:MaxUpgrades(player: Player)
+	local m = match[player]
+	if not m then
+		return
+	end
+	for id in m.Skills do
+		m.Skills[id] = Config.MaxSkill
+	end
+	self:Refresh(player)
+end
+
+function ProgressService:BuyEXPPrice(player: Player): number
+	local m = match[player]
+	return Config.BuyEXPBase + Config.BuyEXPStep * (if m then m.BoughtEXP else 0)
+end
+
+function ProgressService:BuyEXP(player: Player)
+	local d = data(player)
+	local m = match[player]
+	if not d or not m then
+		return
+	end
+	local price = self:BuyEXPPrice(player)
+	if d.Coins < price then
+		self.Services.Net.Offer:FireClient(player, "Coins")
+		return
+	end
+	d.Coins -= price
+	m.BoughtEXP += 1
+	m.EXP += Config.BuyEXPAmount
+	self.Services.Net.SendNotify(player, `+{Config.BuyEXPAmount} EXP!`, C.Lime)
+	self:Refresh(player)
+end
+
+---------------------------------------------------------------- Account-XP und Coins
 
 function ProgressService:AddXP(player: Player, amount: number): number
 	local d = data(player)
 	if not d then
 		return 0
 	end
-	local multiplier = 1
-	if hasPass(player, "DoubleXP") then
-		multiplier += 1
-	end
-	if d.BoostUntil > os.time() then
-		multiplier += 1
-	end
-	amount = math.floor(amount * multiplier)
+	amount = math.floor(amount * xpMultiplier(player))
 	d.XP += amount
 	local levels = 0
 	while d.XP >= Config.XPForLevel(d.Level) do
 		d.XP -= Config.XPForLevel(d.Level)
 		d.Level += 1
-		d.SkillPoints += 1
 		levels += 1
 	end
 	if levels > 0 then
-		self.Services.Net.SendNotify(player, `LEVEL {d.Level}! +{levels} skill point{if levels > 1 then "s" else ""}`, C.Lime)
+		self.Services.Net.SendNotify(player, `ACCOUNT LEVEL {d.Level}! More start EXP every match`, C.Lime)
 		self.Services.Net.MatchEvent:FireClient(player, "LevelUp", { Level = d.Level })
 	end
 	self:Refresh(player)
@@ -109,21 +203,24 @@ function ProgressService:AddCoins(player: Player, amount: number, raw: boolean?)
 	return amount
 end
 
--- Belohnung aus Config.Rewards; gibt die tatsaechlich vergebenen Werte zurueck
-function ProgressService:Reward(player: Player, kind: string): (number, number)
+-- Belohnung: Account-XP/Coins aus Config.Rewards und Match-EXP aus Config.EXP.
+-- Gibt (XP, Coins, EXP) zurueck.
+function ProgressService:Reward(player: Player, kind: string, bonusEXP: number?): (number, number, number)
 	local def = Config.Rewards[kind]
-	if not def then
-		return 0, 0
+	local xp = if def then self:AddXP(player, def.XP) else 0
+	local coins = if def then self:AddCoins(player, def.Coins) else 0
+	local baseEXP = (Config.EXP[kind] or 0) + (bonusEXP or 0)
+	local exp = if baseEXP > 0 then self:AddEXP(player, baseEXP) else 0
+	if exp > 0 then
+		self.Services.Net.MatchEvent:FireClient(player, "EXP", { Amount = exp, Kind = kind })
 	end
-	local xp = self:AddXP(player, def.XP)
-	local coins = self:AddCoins(player, def.Coins)
-	return xp, coins
+	return xp, coins, exp
 end
 
 function ProgressService:AddStat(player: Player, key: string, amount: number)
 	local d = data(player)
 	if d then
-		d[key] += amount
+		d[key] = (d[key] or 0) + amount
 		self:Refresh(player)
 	end
 end
@@ -139,58 +236,8 @@ function ProgressService:FinishMatch(player: Player, won: boolean)
 	end
 end
 
----------------------------------------------------------------- Skills
-
-function ProgressService:Upgrade(player: Player, skillId: string)
-	local d = data(player)
-	if not d or d.Skills[skillId] == nil then
-		return
-	end
-	if d.SkillPoints <= 0 then
-		self.Services.Net.Offer:FireClient(player, "SkillPoints")
-		return
-	end
-	if d.Skills[skillId] >= Config.MaxSkill then
-		self.Services.Net.SendNotify(player, "This skill is maxed!", C.Orange)
-		return
-	end
-	d.SkillPoints -= 1
-	d.Skills[skillId] += 1
-	self:Refresh(player)
-end
-
-function ProgressService:PointPrice(player: Player): number
-	local d = data(player)
-	return Config.BuyPointBase + Config.BuyPointStep * (if d then d.BoughtPoints else 0)
-end
-
-function ProgressService:BuyPoint(player: Player)
-	local d = data(player)
-	if not d then
-		return
-	end
-	local price = self:PointPrice(player)
-	if d.Coins < price then
-		self.Services.Net.Offer:FireClient(player, "Coins")
-		return
-	end
-	d.Coins -= price
-	d.BoughtPoints += 1
-	d.SkillPoints += 1
-	self.Services.Net.SendNotify(player, "+1 skill point!", C.Lime)
-	self:Refresh(player)
-end
-
-function ProgressService:ResetSkills(player: Player)
-	local d = data(player)
-	if not d then
-		return
-	end
-	for id, level in d.Skills do
-		d.SkillPoints += level
-		d.Skills[id] = 0
-	end
-	self:Refresh(player)
+function ProgressService:OnPlayerRemoving(player: Player)
+	match[player] = nil
 end
 
 ---------------------------------------------------------------- Trails
@@ -313,7 +360,7 @@ function ProgressService:OnPlayerReady(player: Player)
 			end
 		end)
 	end
-	self:Refresh(player)
+	self:ResetMatch(player)
 end
 
 function ProgressService:Start()
@@ -324,7 +371,7 @@ function ProgressService:Start()
 		end
 	end)
 	net.BuyPoint.OnServerEvent:Connect(function(player)
-		self:BuyPoint(player)
+		self:BuyEXP(player)
 	end)
 	net.Trail.OnServerEvent:Connect(function(player, id)
 		if typeof(id) == "string" then
