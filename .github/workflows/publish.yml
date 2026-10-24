@@ -46,6 +46,13 @@ jobs:
               PLACE_ID=$(jq -r '.data[0].rootPlace.id // empty' games.json)
             fi
           fi
+          if [ -z "$PLACE_ID" ] && [ -n "$USER_ID" ]; then
+            # Auch private Spiele: Places im Inventar des Benutzers (Asset-Typ 9)
+            curl -sS "https://inventory.roblox.com/v2/users/$USER_ID/inventory/9?limit=10&sortOrder=Desc" -o places.json
+            echo "::notice::Inventory places: $(head -c 400 places.json)"
+            echo "::notice::Games accessFilter=1: $(curl -sS "https://games.roblox.com/v2/users/$USER_ID/games?accessFilter=1&limit=10" | head -c 300)"
+            PLACE_ID=$(jq -r '.data[0].assetId // empty' places.json)
+          fi
           if [ -n "$PLACE_ID" ] && [ -z "$UNIVERSE_ID" ]; then
             UNIVERSE_ID=$(curl -sS "https://apis.roblox.com/universes/v1/places/$PLACE_ID/universe" | jq -r '.universeId // empty')
           fi
