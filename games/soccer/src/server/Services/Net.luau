@@ -18,6 +18,7 @@ Net.Announce = remote("Announce") -- Server -> alle
 Net.MatchEvent = remote("MatchEvent") -- Server -> alle (Tor, Anstoss, Ende)
 Net.Results = remote("Results") -- Server -> ein Spieler (eigene Match-Bilanz)
 Net.Knockback = remote("Knockback") -- Server -> ein Spieler (umgehauen: Geschwindigkeit)
+Net.Sound = remote("Sound") -- Server -> alle (Soundeffekt: Name, Position, Tonhoehe, Lautstaerke)
 Net.Offer = remote("Offer") -- Server -> ein Spieler (Kaufangebot zeigen)
 Net.Kick = remote("Kick") -- Client -> Server (power 0..1, Richtung)
 Net.Pass = remote("Pass") -- Client -> Server
@@ -36,6 +37,11 @@ end
 
 function Net.SendAnnounce(text: string, color: Color3?)
 	Net.Announce:FireAllClients(text, color)
+end
+
+-- Ohne Position spielt der Sound ueberall gleich laut (Pfiff, Hupe)
+function Net.PlaySound(name: string, position: Vector3?, pitch: number?, volume: number?)
+	Net.Sound:FireAllClients(name, position, pitch, volume)
 end
 
 return Net

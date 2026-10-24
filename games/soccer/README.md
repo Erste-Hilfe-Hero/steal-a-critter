@@ -8,12 +8,17 @@ Arcade-Fußball wie der alte CS-1.6-Mod "Soccer Jam", nachgebaut für Roblox: al
 - **Ball annehmen**: hinlaufen, der Ball klebt am Fuß. **Schießen**: Klick/KICK halten lädt die Kraft auf, Zielen mit der Kamera.
 - **Curve Ball**: beim Schuss seitlich laufen, der Ball zieht eine Kurve.
 - **Smack**: ein harter gegnerischer Schuss haut dich um, wenn deine Dexterity zu niedrig ist. Mit hoher Dexterity fängst du ihn.
-- **Disarm** (F/Q/DISARM): dem Ballführenden den Ball abnehmen. **Passen** (E/PASS) zum besten Mitspieler in Blickrichtung. **Turbo** (Shift/R/TURBO) mit Ausdauer-Balken.
+- **Disarm** (F/Q/DISARM, Klick ohne Ball): mit Zielhilfe auf den Ballführenden zusprinten und ihm den Ball direkt abnehmen. **Passen** (E/PASS) zum besten Mitspieler in Blickrichtung. **Turbo** (Shift/R/TURBO) mit Ausdauer-Balken.
 - **Maskottchen** vor jedem Tor: wer zu lange im gegnerischen Strafraum campt, wird rausgeworfen.
 - **Ball-Reset**: liegt der Ball 25 Sekunden unberührt, geht er zurück in die Mitte.
 - **Match**: 8 Minuten oder bis ein Team 10 Tore hat, bei Gleichstand **Golden Goal**. Danach Ergebnis mit Auszeichnungen (Top Scorer, Playmaker, Thief, Wall, Smacker).
 - **EXP pro Match** wie im Original: Tor 300 (+Bonus für Distanz), Assist 150, Steal 100, Save 150, Smack 80, Ausweichen 40. Damit kaufst du **5 Upgrades**: Stamina, Strength, Agility, Dexterity, Disarm (je 5 Stufen). Upgrades und EXP werden jedes Match zurückgesetzt.
 - Dauerhaft: Account-Level, Coins, Kick-Trails, tägliche Coins mit Serie, Leaderboard.
+
+## HUD und Sounds
+
+- **TV-Anzeige oben rechts** wie beim echten Fußball: RED : BLUE, Spielzeit, Ballbesitz-Balken und Team-Statistik (Ballbesitz, Schüsse, Steals, Saves, Smacks). Antippen klappt die Statistik ein.
+- **Sounds** (selbst erzeugt mit `assets/make_sounds.py`): Anpfiff/Abpfiff, Schuss, Tor-Hupe mit Jubel, Publikums-Atmosphäre, "Ooh" bei Smacks, Disarm-Wusch, Countdown-Piepen. `.github/workflows/sounds-soccer.yml` lädt sie als Audio hoch; die IDs kommen nach `src/shared/SoundIds.json`. Solange eine ID 0 ist, spielt ein eingebauter Roblox-Sound.
 
 ## Look
 
