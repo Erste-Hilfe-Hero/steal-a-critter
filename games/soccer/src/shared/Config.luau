@@ -82,11 +82,11 @@ Config.DashSpeed = 62
 -- Bei 0 Leben ist man K.O. (umgekippt, kein Blut) und kommt nach ein paar Sekunden an der Startposition zurueck.
 Config.MaxHP = 100
 Config.Knife = {
-	Slash = { Damage = 15, Backstab = 45, Range = 7, Windup = 0, Window = 0.3, Cooldown = 0.45 },
-	Stab = { Damage = 65, Backstab = 195, Range = 6.5, Windup = 0.2, Window = 0.25, Cooldown = 1.2 },
+	Slash = { Damage = 15, Backstab = 45, Range = 10, Windup = 0, Window = 0.4, Cooldown = 0.45 },
+	Stab = { Damage = 65, Backstab = 195, Range = 9, Windup = 0.2, Window = 0.35, Cooldown = 1.2 },
 }
 Config.BackstabDot = 0.45 -- so weit muss das Opfer vom Angreifer wegschauen
-Config.HuntDistance = 14 -- wie im Original: Schaden nur, wenn der Angreifer nah am Ball ist (kein "Hunting")
+Config.HuntDistance = 45 -- wie im Original: Schaden nur, wenn der Angreifer nah am Ball ist (kein "Hunting")
 -- Messer-Treffer am Ballfuehrer: Chance, dass er den Ball verliert (Original: 5 % + 6 % je Disarm-Stufe)
 function Config.DisarmChance(level: number): number
 	return 0.12 + level * 0.08
