@@ -178,6 +178,7 @@ function ProgressService:AddXP(player: Player, amount: number): number
 	if levels > 0 then
 		self.Services.Net.SendNotify(player, `ACCOUNT LEVEL {d.Level}! More start EXP every match`, C.Lime)
 		self.Services.Net.MatchEvent:FireClient(player, "LevelUp", { Level = d.Level })
+		task.spawn(self.Services.ExtrasService.OnLevelUp, self.Services.ExtrasService, player, d.Level)
 	end
 	self:Refresh(player)
 	return amount

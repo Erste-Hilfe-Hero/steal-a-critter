@@ -50,6 +50,9 @@ local CUES = {
 	Bounce = { "kick", 0.5, 0.75 },
 	Jump = { "steal", 0.35, 1.3 },
 	Call = { "beep", 0.5, 1.25 },
+	Post = { "kick", 0.9, 1.9 },
+	HitMarker = { "gotball", 0.35, 1.8 },
+	Quest = { "levelup", 0.5, 1.2 },
 }
 
 local group = Instance.new("SoundGroup")
@@ -160,6 +163,22 @@ function Sounds.StartCrowd()
 	sound.Parent = SoundService
 	sound:Play()
 	crowd = sound
+end
+
+-- Publikum: Lautstaerke aus den Einstellungen (0..1) mal "Swell" (lauter, wenn der Ball vors Tor kommt)
+local crowdSetting, crowdSwell = 1, 1
+local function applyCrowd()
+	if crowd then
+		crowd.Volume = 0.25 * crowdSetting * crowdSwell
+	end
+end
+function Sounds.SetCrowdVolume(value: number)
+	crowdSetting = value
+	applyCrowd()
+end
+function Sounds.SetCrowdSwell(value: number)
+	crowdSwell = value
+	applyCrowd()
 end
 
 return Sounds

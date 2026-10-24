@@ -190,6 +190,34 @@ local function grantProduct(player: Player, key: string): boolean
 		end
 		services.Net.SendAnnounce(`{player.DisplayName} activated {string.upper(product.Name)}!`, if product.Kind == "Rage" then C.Red else C.Cyan)
 		return true
+	elseif product.Kind == "RocketShot" then
+		player:SetAttribute("RocketShots", (player:GetAttribute("RocketShots") or 0) + product.Shots)
+		services.Net.SendNotify(player, `ROCKET SHOT x{product.Shots}! Your next kicks are 60% harder`, C.Orange)
+		return true
+	elseif product.Kind == "TeamBoost" then
+		local team = player:GetAttribute("Team")
+		if not team then
+			return false
+		end
+		local attribute = "TeamBoostUntil_" .. team
+		workspace:SetAttribute(attribute, math.max(workspace:GetServerTimeNow(), workspace:GetAttribute(attribute) or 0) + product.Seconds)
+		services.Net.SendAnnounce(`{player.DisplayName} gave team {string.upper(team)} a SPEED BOOST!`, Config.Teams[team].Color)
+		return true
+	elseif product.Kind == "Giant" then
+		services.ExtrasService:Giant(player, product.Seconds)
+		return true
+	elseif product.Kind == "RespawnNow" then
+		-- K.O.: sofort aufstehen, sonst fuer den naechsten K.O. aufheben
+		local actor = services.MatchService:ActorForPlayer(player)
+		if actor and services.CombatService:IsKO(actor) then
+			services.CombatService:Revive(actor)
+			services.Net.SendNotify(player, "Back in the game!", C.Lime)
+		else
+			data.RespawnTokens = (data.RespawnTokens or 0) + 1
+			player:SetAttribute("RespawnTokens", data.RespawnTokens)
+			services.Net.SendNotify(player, "Respawn saved for your next knockout!", C.Lime)
+		end
+		return true
 	elseif product.Kind == "StarterPack" then
 		services.ProgressService:AddCoins(player, product.Coins, true)
 		services.ProgressService:AddEXP(player, product.EXP, true)

@@ -575,6 +575,13 @@ local kit = Kit.new({
 		"Stamina gives +20 max HP per level. Your own alien heals you near your goal.",
 		"Long-distance goals give bonus EXP. Score from far away!",
 		"First team to 10 goals wins. Tied at the end? Golden Goal!",
+		"Do your DAILY QUESTS for free coins - a new set every day!",
+		"Watch out for the GOLDEN BALL: goals with it count DOUBLE!",
+		"3 sword hits in a row = COMBO with +50% damage.",
+		"Knock out 3 enemies without falling for a KILLING SPREE bonus!",
+		"Collect coins and unlock new KATANA skins in the SWORDS menu.",
+		"Score 3 goals in one match for a HAT-TRICK bonus of 500 coins!",
+		"Out of the fight for 5 seconds? Your health slowly comes back.",
 	},
 	WaitForCharacter = true,
 })

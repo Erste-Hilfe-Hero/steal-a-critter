@@ -8,6 +8,7 @@ local TextChatService = game:GetService("TextChatService")
 local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Extras = require(script.Extras)
 local Sounds = require(script.Sounds)
 local UI = require(script.UI)
 local Viewmodel = require(script.Viewmodel)
@@ -236,6 +237,10 @@ RunService.RenderStepped:Connect(function(dt)
 	if Config.Active(player, "RageUntil") then
 		speed *= Config.RageFactor
 	end
+	-- Team Boost (Produkt eines Mitspielers): ganzes Team schneller
+	if (workspace:GetAttribute("TeamBoostUntil_" .. (player:GetAttribute("Team") or "")) or 0) > serverNow() then
+		speed *= Config.TeamBoostFactor
+	end
 	if wantsSprint then
 		speed *= Config.SprintFactor
 	end
@@ -358,12 +363,26 @@ if player.Character then
 end
 applyView()
 
+Extras.Start({
+	SetFov = function(fov: number)
+		baseFov = fov
+	end,
+	SetFirstPerson = function(on: boolean)
+		if firstPerson ~= on then
+			firstPerson = on
+			applyView()
+		end
+	end,
+})
+
 local function styleViewmodel()
 	local team = Config.Teams[player:GetAttribute("Team") or ""]
-	Viewmodel.SetStyle(if team then team.Color else Color3.fromRGB(40, 60, 140), player:GetAttribute("Pass_GoldenKnife") == true)
+	local skin = Config.SwordSkinsById[player:GetAttribute("SwordSkin") or "classic"]
+	Viewmodel.SetStyle(if team then team.Color else Color3.fromRGB(40, 60, 140), player:GetAttribute("Pass_GoldenKnife") == true, skin and skin.Color, skin and skin.Material)
 end
 player:GetAttributeChangedSignal("Team"):Connect(styleViewmodel)
 player:GetAttributeChangedSignal("Pass_GoldenKnife"):Connect(styleViewmodel)
+player:GetAttributeChangedSignal("SwordSkin"):Connect(styleViewmodel)
 styleViewmodel()
 
 -- Messer vor der Kamera, nach der Kamera aktualisiert
@@ -381,7 +400,7 @@ local function hideOwnTag(character: Model)
 		return
 	end
 	local function check(child: Instance)
-		if child:IsA("BillboardGui") and child.Name == "NameTag" then
+		if child:IsA("BillboardGui") and (child.Name == "NameTag" or child.Name == "TitleTag") then
 			child.Enabled = false
 		end
 	end

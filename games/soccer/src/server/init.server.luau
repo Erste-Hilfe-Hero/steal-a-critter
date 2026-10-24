@@ -11,9 +11,10 @@ local Services = {
 	BotService = require(script.Services.BotService),
 	MatchService = require(script.Services.MatchService),
 	MonetizationService = require(script.Services.MonetizationService),
+	ExtrasService = require(script.Services.ExtrasService),
 }
 
-local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService" }
+local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService", "ExtrasService" }
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
@@ -36,6 +37,7 @@ local function onPlayerAdded(player: Player)
 	Services.ProgressService:OnPlayerReady(player)
 	Services.MatchService:OnPlayerReady(player)
 	Services.MonetizationService:OnPlayerReady(player)
+	Services.ExtrasService:OnPlayerReady(player)
 
 	player.CharacterAdded:Connect(function(character)
 		task.spawn(Services.MatchService.OnCharacterAdded, Services.MatchService, player, character)

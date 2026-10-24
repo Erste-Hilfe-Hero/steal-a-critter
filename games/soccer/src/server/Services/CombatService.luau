@@ -58,6 +58,11 @@ function CombatService:IsKO(actor): boolean
 	return (actor.KOUntil or 0) > now()
 end
 
+-- Heilung (Regeneration ausserhalb des Kampfes)
+function CombatService:AddHP(actor, amount: number)
+	setHP(actor, math.min(actor.MaxHP or Config.MaxHP, actor.HP + amount))
+end
+
 -- Volle Leben; Stamina-Upgrades zaehlen ab dem naechsten Heilen (wie im Original nach dem Respawn)
 function CombatService:Heal(actor)
 	actor.MaxHP = Config.MaxHPFor(self.Services.MatchService:Skill(actor, "Stamina"))
@@ -95,15 +100,54 @@ local function giveKnife(actor)
 		p.Parent = knife
 		return p
 	end
+	-- Klinge: Golden-Katana-Pass schlaegt den gewaehlten Skin
 	local golden = hasPass(actor, "GoldenKnife")
-	local bladeColor = if golden then Color3.fromRGB(255, 200, 40) else Color3.fromRGB(215, 225, 235)
-	local bladeMaterial = if golden then Enum.Material.Neon else Enum.Material.Metal
+	local skin = Config.SwordSkinsById[actor.Player and actor.Player:GetAttribute("SwordSkin") or "classic"] or Config.SwordSkins[1]
+	local bladeColor = if golden then Color3.fromRGB(255, 200, 40) else skin.Color
+	local bladeMaterial = if golden then Enum.Material.Neon else skin.Material
 	piece(Vector3.new(0.28, 0.3, 1.5), CFrame.new(0, -0.35, 0.25), Color3.fromRGB(25, 25, 28), Enum.Material.Fabric)
 	piece(Vector3.new(0.3, 0.32, 0.25), CFrame.new(0, -0.35, 0.95), Config.Teams[actor.Team].Color, Enum.Material.SmoothPlastic)
 	piece(Vector3.new(0.9, 0.9, 0.12), CFrame.new(0, -0.35, -0.55), Color3.fromRGB(200, 160, 60), Enum.Material.Metal)
-	piece(Vector3.new(0.08, 0.32, 4.4), CFrame.new(0, -0.3, -2.8), bladeColor, bladeMaterial)
+	local blade = piece(Vector3.new(0.08, 0.32, 4.4), CFrame.new(0, -0.3, -2.8), bladeColor, bladeMaterial)
 	piece(Vector3.new(0.09, 0.08, 4.4), CFrame.new(0, -0.48, -2.8), Color3.fromRGB(245, 248, 255), bladeMaterial)
+	-- Schwert-Spur: leuchtet nur waehrend eines Schwungs
+	local a0 = Instance.new("Attachment")
+	a0.Position = Vector3.new(0, 0, -0.4)
+	a0.Parent = blade
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, 0, -2.2)
+	a1.Parent = blade
+	local trail = Instance.new("Trail")
+	trail.Name = "SwordTrail"
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Color = ColorSequence.new(bladeColor)
+	trail.LightEmission = 0.7
+	trail.Lifetime = 0.18
+	trail.Transparency = NumberSequence.new(0.3, 1)
+	trail.Enabled = false
+	trail.Parent = blade
 	knife.Parent = actor.Model
+end
+
+-- Neuer Skin gewaehlt: Schwert neu bauen
+function CombatService:RefreshSword(actor)
+	local old = actor.Model:FindFirstChild("Knife")
+	if old then
+		old:Destroy()
+	end
+	giveKnife(actor)
+end
+
+local function showTrail(actor, seconds: number)
+	local knife = actor.Model:FindFirstChild("Knife")
+	local trail = knife and knife:FindFirstChild("SwordTrail", true) :: Trail?
+	if trail then
+		trail.Enabled = true
+		task.delay(seconds, function()
+			trail.Enabled = false
+		end)
+	end
 end
 
 function CombatService:Setup(actor)
@@ -148,9 +192,19 @@ local function knockOut(victim, attacker, kind: string)
 	services.MatchService:OnKO(attacker, victim, kind)
 	local koUntil = victim.KOUntil
 	task.delay(koSeconds, function()
-		if victim.KOUntil ~= koUntil or not services.MatchService:IsActor(victim) then
-			return
+		if victim.KOUntil == koUntil then
+			CombatService:Revive(victim)
 		end
+	end)
+end
+
+-- Wieder aufstehen (nach Ablauf der K.O.-Zeit oder sofort mit "Respawn Now")
+function CombatService:Revive(victim)
+	local services = self.Services
+	if not services.MatchService:IsActor(victim) then
+		return
+	end
+	do
 		victim.KOUntil = 0
 		victim.Model:SetAttribute("KOUntil", 0)
 		victim.Humanoid.PlatformStand = false
@@ -164,7 +218,7 @@ local function knockOut(victim, attacker, kind: string)
 		if not victim.Player then
 			victim.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end
-	end)
+	end
 end
 
 -- kind: "Slash", "Stab" oder "Smack"
@@ -205,8 +259,9 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 		if Config.Active(attacker.Player, "RageUntil") then
 			amount *= Config.RageFactor
 		end
-		amount = math.floor(amount + 0.5)
+		amount = math.floor(self.Services.ExtrasService:ModifyDamage(attacker, victim, amount, kind) + 0.5)
 	end
+	victim.LastHurt = now()
 	local dealt = math.min(victim.HP, amount)
 	local hp = math.max(0, victim.HP - amount)
 	setHP(victim, hp)
@@ -214,7 +269,7 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 	if attacker and (kind == "Slash" or kind == "Stab") and hasPass(attacker, "VampireKnife") and not self:IsKO(attacker) then
 		setHP(attacker, math.min(attacker.MaxHP or Config.MaxHP, attacker.HP + math.floor(dealt * Config.VampireHeal)))
 	end
-	self.Services.Net.MatchEvent:FireAllClients("Damage", { Model = victim.Model, Amount = amount, Backstab = backstab == true })
+	self.Services.Net.MatchEvent:FireAllClients("Damage", { Model = victim.Model, Amount = amount, Backstab = backstab == true, Attacker = attacker and attacker.Model })
 	if hp <= 0 then
 		knockOut(victim, attacker, kind)
 	end
@@ -262,6 +317,7 @@ function CombatService:Swing(actor, kind: string, aim: Vector3?): boolean
 	local aimFlat = if typeof(aim) == "Vector3" and aim == aim then flat(aim) else nil
 	swings[actor] = { Kind = kind, Starts = now() + def.Windup, Ends = now() + def.Windup + def.Window, Aim = if aimFlat and aimFlat.Magnitude > 0.5 then aimFlat else nil }
 	playAnimation(actor, kind)
+	showTrail(actor, def.Windup + def.Window)
 	self.Services.Net.PlaySound(kind, actor.Root.Position)
 	return true
 end
@@ -321,13 +377,15 @@ local function resolveSwings()
 			local def = Config.Knife[swing.Kind]
 			-- Spieler zielen mit der Kamera (Ego-Sicht): Blickrichtung vom Client, sonst die des Koerpers
 			local look = swing.Aim or flat(actor.Root.CFrame.LookVector)
+			-- Riesen-Modus (Produkt): laengere Reichweite
+			local range = def.Range + (if Config.Active(actor.Player, "GiantUntil") then Config.GiantReach else 0)
 			local best, bestDistance = nil, math.huge
 			swing.Hit = swing.Hit or {}
 			for _, other in match:GetActors() do
 				if other.Team ~= actor.Team and not CombatService:IsKO(other) and other.Root.Parent and not swing.Hit[other] then
 					local offset = other.Root.Position - actor.Root.Position
 					local distance = Vector3.new(offset.X, 0, offset.Z).Magnitude
-					if distance <= def.Range and math.abs(offset.Y) < 8 and (distance < 4 or look:Dot(flat(offset)) > def.Arc) then
+					if distance <= range and math.abs(offset.Y) < 8 and (distance < 4 or look:Dot(flat(offset)) > def.Arc) then
 						if def.Cleave then
 							-- Katana-Schwung: trifft jeden Gegner im Bogen einmal
 							swing.Hit[other] = true
