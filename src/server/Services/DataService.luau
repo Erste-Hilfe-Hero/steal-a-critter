@@ -17,6 +17,7 @@ local function defaultData()
 		Cash = Config.StartCash,
 		Rebirths = 0,
 		Units = {}, -- ["1"] = "blobby" (Slot -> Unit-Id)
+		Passes = {}, -- [PassKey] = true (dauerhaft gekaufte Vorteile)
 		Receipts = {}, -- [PurchaseId] = true
 		ReceiptOrder = {},
 		TotalEarned = 0,

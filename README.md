@@ -43,7 +43,7 @@ src/shared/Format.luau
 src/server/init.server.luau     ← Startpunkt
 src/server/Services/
   DataService.luau              ← Speichern (DataStore, Autosave, BindToClose)
-  WorldService.luau             ← baut Map, Laufband, 8 Basen per Code
+  WorldService.luau             ← baut Map, Laufband und eine Basis pro Spieler (8–24) per Code
   PlotService.luau              ← Basis-Zuweisung, Sperre
   UnitService.luau              ← Laufband, Kaufen, Einkommen, Klauen, Slap, Rebirth
   UnitFactory.luau              ← Kreaturen-Modelle
@@ -57,7 +57,7 @@ src/client/UI.luau              ← HUD, Shop, Rebirth-Fenster, Meldungen
 1. **Roblox Studio** und **Rojo** installieren (Studio-Plugin + CLI: <https://rojo.space>).
 2. In diesem Ordner `rojo serve` ausführen. Dann in Studio einen leeren **Baseplate**-Place öffnen, im Rojo-Plugin auf **Connect** klicken und die Baseplate löschen (die Map wird per Code gebaut).
 3. **Testen:** Play drücken. Alle Shop-Käufe werden in Studio simuliert, solange die IDs 0 sind. Zum Klauen: *Test → Clients and Servers → 2 Players → Start*.
-4. **Veröffentlichen:** *File → Publish to Roblox*. Dann unter *Game Settings → Security* **"Enable Studio Access to API Services"** einschalten (zum Speichern) und *Places → Max Players* auf **8** setzen (es gibt 8 Basen).
+4. **Veröffentlichen:** *File → Publish to Roblox*. Dann unter *Game Settings → Security* **"Enable Studio Access to API Services"** einschalten (zum Speichern) (die Anzahl der Basen passt sich automatisch an Max Players an, bis 24).
 5. **Produkte anlegen:** Im Creator Hub unter *Monetization → Passes* und *Developer Products* jeden Eintrag aus `Config.luau` anlegen, ein Icon hochladen und den Preis setzen. Dann die IDs in `Config.GamePasses` / `Config.DevProducts` eintragen.
 6. Unter *Monetization* **Private Servers** aktivieren (z. B. 100 R$/Monat) für zusätzliche passive Einnahmen.
 

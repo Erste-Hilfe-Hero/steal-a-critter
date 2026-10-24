@@ -82,26 +82,28 @@ Config.Units = {
 }
 
 -- Gamepasses: einmal kaufen, fuer immer behalten. PriceHint = empfohlener Preis in Robux.
+-- Id = echte Gamepass-ID (optional). ProductId = Developer Product, das dauerhaft gespeichert wird
+-- (per API angelegt, weil der API-Schluessel keine Gamepasses erstellen darf).
 Config.GamePasses = {
-	VIP = { Id = 0, Name = "VIP", Description = "x1.5 income forever + VIP chat tag", PriceHint = 249, Order = 1 },
-	DoubleCash = { Id = 0, Name = "2x Cash", Description = "Double all income forever", PriceHint = 399, Order = 2 },
-	ExtraSlots = { Id = 0, Name = "+4 Base Slots", Description = "Hold 4 more critters in your base", PriceHint = 299, Order = 3 },
-	FastSteal = { Id = 0, Name = "Fast Steal", Description = "Steal in 1 second instead of 2.5", PriceHint = 199, Order = 4 },
-	SpeedCoil = { Id = 0, Name = "Speed Coil", Description = "Run faster forever - escape with loot", PriceHint = 149, Order = 5 },
+	VIP = { Id = 0, ProductId = 3721859195, Name = "VIP", Description = "x1.5 income forever + VIP chat tag", PriceHint = 249, Order = 1 },
+	DoubleCash = { Id = 0, ProductId = 3721859198, Name = "2x Cash", Description = "Double all income forever", PriceHint = 399, Order = 2 },
+	ExtraSlots = { Id = 0, ProductId = 3721859204, Name = "+4 Base Slots", Description = "Hold 4 more critters in your base", PriceHint = 299, Order = 3 },
+	FastSteal = { Id = 0, ProductId = 3721859207, Name = "Fast Steal", Description = "Steal in 1 second instead of 2.5", PriceHint = 199, Order = 4 },
+	SpeedCoil = { Id = 0, ProductId = 3721859211, Name = "Speed Coil", Description = "Run faster forever - escape with loot", PriceHint = 149, Order = 5 },
 }
 
 -- Developer Products: beliebig oft kaufbar.
 -- Cash-Pakete skalieren mit dem Einkommen des Spielers, damit sie nie wertlos werden.
 Config.DevProducts = {
-	CashSmall = { Id = 0, Kind = "Cash", Minutes = 10, MinCash = 1_000, Name = "Cash Bag", Description = "10 minutes of income", PriceHint = 49, Order = 1 },
-	CashMedium = { Id = 0, Kind = "Cash", Minutes = 60, MinCash = 10_000, Name = "Cash Crate", Description = "1 hour of income", PriceHint = 199, Order = 2 },
-	CashLarge = { Id = 0, Kind = "Cash", Minutes = 360, MinCash = 100_000, Name = "Cash Vault", Description = "6 hours of income", PriceHint = 699, Order = 3 },
-	LockBase = { Id = 0, Kind = "Lock", Seconds = 300, Name = "5 Min Base Lock", Description = "Nobody can steal from you for 5 minutes", PriceHint = 39, Order = 4 },
-	ServerLuck = { Id = 0, Kind = "ServerLuck", Seconds = 900, Name = "Server Luck x3", Description = "15 min: rare critters spawn 3x more for EVERYONE", PriceHint = 199, Order = 5 },
+	CashSmall = { Id = 3721859213, Kind = "Cash", Minutes = 10, MinCash = 1_000, Name = "Cash Bag", Description = "10 minutes of income", PriceHint = 49, Order = 1 },
+	CashMedium = { Id = 3721859216, Kind = "Cash", Minutes = 60, MinCash = 10_000, Name = "Cash Crate", Description = "1 hour of income", PriceHint = 199, Order = 2 },
+	CashLarge = { Id = 3721859218, Kind = "Cash", Minutes = 360, MinCash = 100_000, Name = "Cash Vault", Description = "6 hours of income", PriceHint = 699, Order = 3 },
+	LockBase = { Id = 3721859219, Kind = "Lock", Seconds = 300, Name = "5 Min Base Lock", Description = "Nobody can steal from you for 5 minutes", PriceHint = 39, Order = 4 },
+	ServerLuck = { Id = 3721859223, Kind = "ServerLuck", Seconds = 900, Name = "Server Luck x3", Description = "15 min: rare critters spawn 3x more for EVERYONE", PriceHint = 199, Order = 5 },
 	-- Sofortkauf des sichtbaren Tiers auf dem Laufband (kein Zufall: der Spieler sieht genau, was er kauft)
-	InstantEpic = { Id = 0, Kind = "InstantBuy", Rarity = "Epic", Name = "Instant Epic", Description = "Buy an Epic from the belt with Robux", PriceHint = 49, Hidden = true },
-	InstantLegendary = { Id = 0, Kind = "InstantBuy", Rarity = "Legendary", Name = "Instant Legendary", Description = "Buy a Legendary from the belt with Robux", PriceHint = 149, Hidden = true },
-	InstantMythic = { Id = 0, Kind = "InstantBuy", Rarity = "Mythic", Name = "Instant Mythic", Description = "Buy a Mythic from the belt with Robux", PriceHint = 399, Hidden = true },
+	InstantEpic = { Id = 3721859226, Kind = "InstantBuy", Rarity = "Epic", Name = "Instant Epic", Description = "Buy an Epic from the belt with Robux", PriceHint = 49, Hidden = true },
+	InstantLegendary = { Id = 3721859228, Kind = "InstantBuy", Rarity = "Legendary", Name = "Instant Legendary", Description = "Buy a Legendary from the belt with Robux", PriceHint = 149, Hidden = true },
+	InstantMythic = { Id = 3721859230, Kind = "InstantBuy", Rarity = "Mythic", Name = "Instant Mythic", Description = "Buy a Mythic from the belt with Robux", PriceHint = 399, Hidden = true },
 }
 
 -- In Studio Kaeufe mit ID 0 simulieren, damit alles testbar ist

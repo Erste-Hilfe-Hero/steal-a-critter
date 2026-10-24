@@ -127,10 +127,12 @@ local function buildShopRow(parent: Instance, kind: string, key: string, entry, 
 		Parent = row,
 	}, color)
 
-	if entry.Id ~= 0 then
+	-- Pass ohne Gamepass-ID wird als dauerhaftes Developer Product verkauft
+	local productId = if kind == "Pass" and entry.Id == 0 then entry.ProductId else nil
+	if entry.Id ~= 0 or productId then
 		task.spawn(function()
-			local infoType = if kind == "Pass" then Enum.InfoType.GamePass else Enum.InfoType.Product
-			local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, entry.Id, infoType)
+			local infoType = if kind == "Pass" and not productId then Enum.InfoType.GamePass else Enum.InfoType.Product
+			local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, productId or entry.Id, infoType)
 			if ok and info and info.PriceInRobux then
 				buy.Text = "R$ " .. info.PriceInRobux
 			end
@@ -153,7 +155,9 @@ local function buildShopRow(parent: Instance, kind: string, key: string, entry, 
 		if kind == "Pass" and player:GetAttribute("Pass_" .. key) then
 			return
 		end
-		if entry.Id ~= 0 then
+		if productId then
+			MarketplaceService:PromptProductPurchase(player, productId)
+		elseif entry.Id ~= 0 then
 			if kind == "Pass" then
 				MarketplaceService:PromptGamePassPurchase(player, entry.Id)
 			else

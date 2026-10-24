@@ -23,6 +23,12 @@ for key, pass in Config.GamePasses do
 		passKeyById[pass.Id] = key
 	end
 end
+local passKeyByProductId = {}
+for key, pass in Config.GamePasses do
+	if pass.ProductId then
+		passKeyByProductId[pass.ProductId] = key
+	end
+end
 for key, product in Config.DevProducts do
 	if product.Id ~= 0 then
 		productKeyById[product.Id] = key
@@ -78,6 +84,10 @@ local function grantPass(player: Player, key: string)
 end
 
 function MonetizationService:LoadPasses(player: Player)
+	local data = self.Services.DataService:Get(player)
+	for key in (data and data.Passes or {}) do
+		player:SetAttribute("Pass_" .. key, true)
+	end
 	for key, pass in Config.GamePasses do
 		if pass.Id ~= 0 then
 			local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.Id)
@@ -158,6 +168,17 @@ local function processReceipt(info)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 	if services.DataService:HasReceipt(player, info.PurchaseId) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	local passKey = passKeyByProductId[info.ProductId]
+	if passKey then
+		data.Passes[passKey] = true
+		grantPass(player, passKey)
+		services.DataService:RecordReceipt(player, info.PurchaseId)
+		data.RobuxSpent += info.CurrencySpent or 0
+		if not services.DataService:Save(player) then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
 		return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	local key = productKeyById[info.ProductId]
