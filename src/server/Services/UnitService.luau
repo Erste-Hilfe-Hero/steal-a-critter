@@ -460,9 +460,14 @@ function UnitService:Fuse(player: Player, slotKey: string)
 			end
 		end
 	end
-	if #partners < 2 or (models[slotKey] and models[slotKey]:GetAttribute("BeingStolen")) then
-		notify(player, `You need 3x {info.Name} to fuse!`, RED)
+	local useCatalyst = #partners == 1 and (data.Catalysts or 0) > 0
+	if (#partners < 2 and not useCatalyst) or (models[slotKey] and models[slotKey]:GetAttribute("BeingStolen")) then
+		notify(player, `You need 3x {info.Name} to fuse!` .. (if #partners == 1 then " (or 2x with a Fusion Catalyst from the shop)" else ""), RED)
 		return
+	end
+	if useCatalyst then
+		data.Catalysts -= 1
+		player:SetAttribute("Catalysts", data.Catalysts)
 	end
 	for _, key in partners do
 		self:RemoveBaseUnit(player, key)
@@ -475,6 +480,35 @@ function UnitService:Fuse(player: Player, slotKey: string)
 	if result.Fusion >= 2 then
 		self.Services.Net.SendAnnounce(`{player.DisplayName} fused a {result.Name}!`, Color3.fromRGB(180, 80, 255))
 	end
+end
+
+-- Verwandelt die wertvollste Kreatur der Basis, die noch eine schwaechere Mutation hat.
+-- Gibt den neuen Namen zurueck oder nil, wenn es keine passende Kreatur gibt.
+function UnitService:MutateBest(player: Player, mutationName: string): string?
+	local data = self.Services.DataService:Get(player)
+	local target = Units.MutationsByName[mutationName]
+	if not data or not target then
+		return nil
+	end
+	local models = baseUnits[player] or {}
+	local bestKey, bestInfo = nil, nil
+	for key, code in data.Units do
+		local info = Units.Info(code)
+		local current = if info and info.Mutation then info.Mutation.Multiplier else 1
+		local model = models[key]
+		if info and current < target.Multiplier and model and not model:GetAttribute("BeingStolen") then
+			if not bestInfo or info.Income > bestInfo.Income then
+				bestKey, bestInfo = key, info
+			end
+		end
+	end
+	if not bestKey or not bestInfo then
+		return nil
+	end
+	local code = Units.Encode(bestInfo.Id, target.Name, bestInfo.Fusion)
+	self:RemoveBaseUnit(player, bestKey)
+	self:GiveUnit(player, code, bestKey)
+	return Units.Info(code).Name
 end
 
 function UnitService:HasRevenge(player: Player, target: Player): boolean
@@ -589,6 +623,8 @@ end
 function UnitService:OnPlayerReady(player: Player)
 	baseUnits[player] = {}
 	local data = self.Services.DataService:Get(player)
+	player:SetAttribute("StarterPack", data.StarterPack == true)
+	player:SetAttribute("Catalysts", data.Catalysts or 0)
 	for slotKey in data.Units do
 		self:PlaceBaseUnit(player, slotKey)
 	end

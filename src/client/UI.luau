@@ -141,20 +141,22 @@ local function buildShopRow(parent: Instance, kind: string, key: string, entry, 
 		end)
 	end
 
-	if kind == "Pass" then
+	-- Passes und Einmal-Angebote (Starter Pack) zeigen OWNED, sobald gekauft
+	local ownedAttribute = if kind == "Pass" then "Pass_" .. key else entry.OwnedAttribute
+	if ownedAttribute then
 		local function refreshOwned()
-			if player:GetAttribute("Pass_" .. key) then
+			if player:GetAttribute(ownedAttribute) then
 				buy.Text = "OWNED"
 				buy.BackgroundColor3 = Color3.fromRGB(90, 90, 100)
 				buy.Active = false
 			end
 		end
 		refreshOwned()
-		player:GetAttributeChangedSignal("Pass_" .. key):Connect(refreshOwned)
+		player:GetAttributeChangedSignal(ownedAttribute):Connect(refreshOwned)
 	end
 
 	buy.Activated:Connect(function()
-		if kind == "Pass" and player:GetAttribute("Pass_" .. key) then
+		if ownedAttribute and player:GetAttribute(ownedAttribute) then
 			return
 		end
 		if productId then
@@ -274,6 +276,9 @@ function UI.Start()
 		Parent = shop,
 	}, { create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }) })
 
+	-- Starter Pack ganz oben, verschwindet nicht, zeigt nach dem Kauf OWNED
+	label({ Size = UDim2.new(1, -10, 0, 30), Text = "Best Value (one time)", TextColor3 = Color3.fromRGB(120, 255, 120), Parent = list })
+	buildShopRow(list, "Product", "StarterPack", Config.DevProducts.StarterPack, Color3.fromRGB(60, 200, 90))
 	label({ Size = UDim2.new(1, -10, 0, 30), Text = "Game Passes (forever)", TextColor3 = Color3.fromRGB(255, 200, 40), Parent = list })
 	for _, item in sortedEntries(Config.GamePasses) do
 		buildShopRow(list, "Pass", item.Key, item.Entry, Color3.fromRGB(255, 170, 30))
@@ -358,6 +363,10 @@ function UI.Start()
 				local nextAt = workspace:GetAttribute("NextEventAt")
 				eventLabel.Text = if nextAt then `Next free event in {Format.Time(math.max(0, nextAt - now))}` else ""
 			end
+			local partyLeft = (workspace:GetAttribute("PartyEnds") or 0) - now
+			if partyLeft > 0 then
+				eventLabel.Text = `CASH PARTY by {workspace:GetAttribute("PartyBy") or "?"}: 2x CASH  {Format.Time(partyLeft)}`
+			end
 
 			local revengeLeft = (player:GetAttribute("RevengeUntil") or 0) - now
 			revengeLabel.Visible = revengeLeft > 0
@@ -367,7 +376,9 @@ function UI.Start()
 
 			local friends = player:GetAttribute("FriendsHere") or 0
 			local referrals = player:GetAttribute("Referrals") or 0
+			local catalysts = player:GetAttribute("Catalysts") or 0
 			friendLabel.Text = `Friends here: {friends} (+{math.floor((player:GetAttribute("FriendBoost") or 0) * 100)}%)   Invited: {referrals}`
+				.. (if catalysts > 0 then `   Catalysts: {catalysts}` else "")
 
 			local current = 1 + rebirths * Config.RebirthMultiplierPer
 			rebirthInfo.Text = `Cost: {Format.Cash(cost)}\nRebirth multiplier: x{current} -> x{current + Config.RebirthMultiplierPer}\nResets your cash and critters.`

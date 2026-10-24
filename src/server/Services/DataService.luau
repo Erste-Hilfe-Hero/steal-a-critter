@@ -30,6 +30,8 @@ local function defaultData()
 		RobuxSpent = 0,
 		ReferredBy = 0, -- UserId des Einladenden (0 = keiner)
 		Referrals = 0, -- Anzahl eingeladener neuer Spieler
+		StarterPack = false, -- Starter Pack gekauft (nur einmal)
+		Catalysts = 0, -- Fusion Catalysts: naechste Fusion braucht nur 2 Kreaturen
 	}
 end
 

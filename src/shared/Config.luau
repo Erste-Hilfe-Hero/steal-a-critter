@@ -105,6 +105,13 @@ Config.DevProducts = {
 	InstantLegendary = { Id = 3721859228, Kind = "InstantBuy", Rarity = "Legendary", Name = "Instant Legendary", Description = "Buy a Legendary from the belt with Robux", PriceHint = 149, Hidden = true },
 	-- Belohnung fuer freiwillige Video-Werbung (Rewarded Video Ad): Roblox zahlt dir pro angesehener Werbung
 	AdCash = { Id = 3721862820, Kind = "Cash", Minutes = 5, MinCash = 500, Name = "Free Cash", Description = "Watch a short video ad", PriceHint = 0, Hidden = true },
+	-- Neue Produkte: alles festgelegt, kein Zufall (der Spieler weiss genau, was er bekommt)
+	StarterPack = { Id = 3721871752, Kind = "StarterPack", Cash = 25_000, Name = "Starter Pack", Description = "One time only: 25K cash + a Golden Epic critter", PriceHint = 79, Order = 0, OwnedAttribute = "StarterPack", Hidden = true },
+	GoldenTouch = { Id = 3721871757, Kind = "Mutate", Mutation = "Golden", Name = "Golden Touch", Description = "Turn your best critter Golden (x2 income)", PriceHint = 99, Order = 6 },
+	DiamondTouch = { Id = 3721871761, Kind = "Mutate", Mutation = "Diamond", Name = "Diamond Touch", Description = "Turn your best critter Diamond (x4 income)", PriceHint = 249, Order = 7 },
+	RainbowTouch = { Id = 3721871765, Kind = "Mutate", Mutation = "Rainbow", Name = "Rainbow Touch", Description = "Turn your best critter Rainbow (x10 income)", PriceHint = 599, Order = 8 },
+	FusionCatalyst = { Id = 3721871770, Kind = "Catalyst", Name = "Fusion Catalyst", Description = "Next fusion needs only 2 identical critters", PriceHint = 79, Order = 9 },
+	CashParty = { Id = 3721871773, Kind = "CashParty", Seconds = 300, Name = "Cash Party", Description = "5 min DOUBLE CASH for the whole server", PriceHint = 149, Order = 10 },
 	InstantMythic = { Id = 3721859230, Kind = "InstantBuy", Rarity = "Mythic", Name = "Instant Mythic", Description = "Buy a Mythic from the belt with Robux", PriceHint = 399, Hidden = true },
 }
 
@@ -138,6 +145,10 @@ Config.Events = {
 Config.DailyRewardBase = 500
 Config.DailyRewardStreakBonus = 0.5 -- +50% pro Tag in Folge
 Config.DailyRewardMaxStreak = 7
+
+-- Rangliste in der Lobby
+Config.LeaderboardStore = "TopEarned_v1"
+Config.LeaderboardSize = 10
 
 -- Freunde & Einladungen
 Config.FriendBoostPer = 0.1 -- +10 % Einkommen pro Freund im selben Server

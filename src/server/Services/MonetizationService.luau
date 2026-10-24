@@ -159,6 +159,50 @@ local function grantProduct(player: Player, key: string): boolean
 			task.spawn(services.UnitService.GiveUnit, services.UnitService, player, typeId, slot, model)
 			services.Net.SendAnnounce(`{player.DisplayName} bought a {product.Rarity} {Units.Info(typeId).Name}!`, Config.RaritiesByName[product.Rarity].Color)
 		end
+	elseif kind == "StarterPack" then
+		local data = services.DataService:Get(player)
+		if data.StarterPack then
+			-- Schon gekauft (z.B. zweites Geraet): trotzdem fair liefern, nur ohne zweite Kreatur
+			services.DataService:AddCash(player, product.Cash * 2)
+			services.Net.SendNotify(player, `You already had the Starter Pack, so you got {Format.Cash(product.Cash * 2)} instead!`, GOLD)
+			return true
+		end
+		data.StarterPack = true
+		player:SetAttribute("StarterPack", true)
+		services.DataService:AddCash(player, product.Cash)
+		local epic
+		for _, def in Config.Units do
+			if def.Rarity == "Epic" then
+				epic = def.Id
+				break
+			end
+		end
+		local code = Units.Encode(epic, "Golden", 0)
+		local slot = services.UnitService:FindFreeSlot(player)
+		if slot then
+			task.spawn(services.UnitService.GiveUnit, services.UnitService, player, code, slot)
+		else
+			services.DataService:AddCash(player, Units.Info(code).Price * 2)
+		end
+		services.Net.SendNotify(player, `Starter Pack: +{Format.Cash(product.Cash)} and a {Units.Info(code).Name}!`, GOLD)
+	elseif kind == "Mutate" then
+		local result = services.UnitService:MutateBest(player, product.Mutation)
+		if result then
+			services.Net.SendAnnounce(`{player.DisplayName} created a {result}!`, Units.MutationsByName[product.Mutation].Color)
+		else
+			-- Nichts zum Verwandeln: grosszuegig in Cash liefern
+			local income = player:GetAttribute("IncomePerSec") or 0
+			local amount = math.max(10_000, income * 60 * 30) * Units.MutationsByName[product.Mutation].Multiplier
+			services.DataService:AddCash(player, amount)
+			services.Net.SendNotify(player, `No critter to upgrade, so you got {Format.Cash(amount)} instead!`, GOLD)
+		end
+	elseif kind == "Catalyst" then
+		local data = services.DataService:Get(player)
+		data.Catalysts = (data.Catalysts or 0) + 1
+		player:SetAttribute("Catalysts", data.Catalysts)
+		services.Net.SendNotify(player, "Fusion Catalyst ready: your next fusion needs only 2 identical critters!", GOLD)
+	elseif kind == "CashParty" then
+		services.EventService:StartParty(product.Seconds, player.DisplayName)
 	else
 		warn("[Monetization] Unbekannter Produkttyp", kind)
 		return false

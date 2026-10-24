@@ -54,13 +54,13 @@ local services = {}
 local ok, err = pcall(function()
 	local s = folder.Services
 	services.Net = require(s.Net)
-	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService" } do
+	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService" } do
 		services[name] = require(s[name])
 	end
 end)
 check("require services", ok, err)
 
-local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService" }
+local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService" }
 if ok then
 	ok, err = pcall(function()
 		for _, name in ORDER do
@@ -107,6 +107,9 @@ if ok then
 	end)
 	check("start services", ok, err)
 	check("event timer set", workspace:GetAttribute("NextEventAt") ~= nil)
+	check("leaderboard built", workspace:FindFirstChild("Leaderboard") ~= nil)
+	ok, err = pcall(services.EventService.StartParty, services.EventService, 1, "Test")
+	check("cash party", ok and services.EventService:IsActive("DoubleCash"), err)
 	task.wait(8)
 	local belt = workspace:FindFirstChild("BeltUnits")
 	local count = belt and #belt:GetChildren() or 0

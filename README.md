@@ -47,6 +47,14 @@ Die Features antworten direkt auf die häufigsten Spieler-Beschwerden über "Ste
 
 Kaufabwicklung: `ProcessReceipt` mit Kaufhistorie gegen doppelte Vergabe und sofortigem Speichern. Gekauft ist immer geliefert: Wenn die Basis voll ist, gibt es Cash statt der Kreatur.
 
+### Neue Produkte (fair: kein Zufall, keine Zeitdruck-Tricks)
+
+- **Starter Pack** (79 R$, einmalig): 25K Cash + Golden-Epic-Critter.
+- **Golden / Diamond / Rainbow Touch** (99 / 249 / 599 R$): verwandelt die wertvollste Kreatur der Basis. Ohne passende Kreatur gibt es Cash statt nichts.
+- **Fusion Catalyst** (79 R$): nächste Fusion braucht nur 2 gleiche Kreaturen.
+- **Cash Party** (149 R$): 5 Minuten Double Cash für den ganzen Server, mit Namen angekündigt.
+- **Rangliste** „Richest Critter Bosses“ neben dem Spawn (OrderedDataStore `TopEarned_v1`, alle 2 Minuten).
+
 ## Projektstruktur (Rojo)
 
 ```

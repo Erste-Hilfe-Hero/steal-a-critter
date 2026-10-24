@@ -9,13 +9,41 @@ local EventService = { Services = nil :: any }
 
 local activeId: string? = nil
 local activeUntil = 0
+local partyUntil = 0 -- gekaufte Cash Party (Double Cash fuer alle)
 
 function EventService:Init(services)
 	self.Services = services
 end
 
 function EventService:IsActive(id: string): boolean
+	if id == "DoubleCash" and os.clock() < partyUntil then
+		return true
+	end
 	return activeId == id and os.clock() < activeUntil
+end
+
+local function refreshIncomes()
+	for _, player in Players:GetPlayers() do
+		EventService.Services.UnitService:UpdateIncome(player)
+	end
+end
+
+-- Cash Party: ein Spieler schenkt dem ganzen Server Double Cash (wird mit Namen angekuendigt)
+function EventService:StartParty(seconds: number, buyerName: string)
+	local now = os.clock()
+	partyUntil = math.max(now, partyUntil) + seconds
+	workspace:SetAttribute("PartyEnds", workspace:GetServerTimeNow() + (partyUntil - now))
+	workspace:SetAttribute("PartyBy", buyerName)
+	self.Services.Net.SendAnnounce(`{buyerName} started a CASH PARTY: DOUBLE CASH for everyone!`, Color3.fromRGB(120, 255, 120))
+	refreshIncomes()
+	local myEnd = partyUntil
+	task.delay(partyUntil - now + 0.1, function()
+		if partyUntil == myEnd then
+			workspace:SetAttribute("PartyEnds", nil)
+			workspace:SetAttribute("PartyBy", nil)
+			refreshIncomes()
+		end
+	end)
 end
 
 local function startEvent(event)
