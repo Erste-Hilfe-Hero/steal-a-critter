@@ -92,78 +92,104 @@ local function gradient(colors: { Color3 }, name: string?): UIGradient
 	return g
 end
 
-local function textLabel(parent: Instance, text: string, y: number, height: number, color: Color3): TextLabel
+local RAINBOW = { Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 210, 60), Color3.fromRGB(80, 230, 110), Color3.fromRGB(80, 160, 255), Color3.fromRGB(200, 90, 255) }
+local GOLD = { Color3.fromRGB(255, 240, 140), Color3.fromRGB(255, 170, 0) }
+
+local function textLabel(parent: Instance, name: string, y: number, height: number, font: Enum.Font, strokeThickness: number): TextLabel
 	local label = Instance.new("TextLabel")
+	label.Name = name
 	label.BackgroundTransparency = 1
 	label.Position = UDim2.fromScale(0, y)
 	label.Size = UDim2.fromScale(1, height)
-	label.Font = Enum.Font.FredokaOne
+	label.Font = font
 	label.TextScaled = true
-	label.RichText = true
-	label.Text = text
-	label.TextColor3 = color
+	label.Text = ""
+	label.TextColor3 = Color3.new(1, 1, 1)
 	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 2
+	stroke.Thickness = strokeThickness
+	stroke.Color = Color3.fromRGB(20, 16, 34)
 	stroke.Parent = label
 	label.Parent = parent
 	return label
 end
 
-function CosmeticService:UpdateNameTag(player: Player)
-	local character = player.Character
-	local head = character and character:FindFirstChild("Head")
-	if not head then
-		return
-	end
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-	end
-	local old = head:FindFirstChild("NameTag")
+local function setGradient(label: TextLabel, colors: { Color3 }?)
+	local old = label:FindFirstChild("Animated")
 	if old then
 		old:Destroy()
 	end
+	if colors then
+		gradient(colors, "Animated").Parent = label
+	end
+end
 
+-- Schild haengt am Charakter (nicht im Kopf) und folgt per Adornee, damit es einen Kopftausch beim Avatar-Laden uebersteht
+local function ensureNameTag(character: Model): BillboardGui?
+	local existing = character:FindFirstChild("NameTag")
+	if existing then
+		return existing :: BillboardGui
+	end
+	local head = character:FindFirstChild("Head")
+	if not head then
+		return nil
+	end
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "NameTag"
-	gui.Size = UDim2.fromOffset(220, 72)
-	gui.StudsOffset = Vector3.new(0, 2.6, 0)
+	gui.Adornee = head
+	gui.Size = UDim2.fromScale(7, 2.1)
+	gui.StudsOffset = Vector3.new(0, 2.7, 0)
 	gui.MaxDistance = 90
 	gui.LightInfluence = 0
+	textLabel(gui, "Rank", 0, 0.27, Enum.Font.GothamBlack, 1.5)
+	textLabel(gui, "PlayerName", 0.27, 0.45, Enum.Font.FredokaOne, 2.5)
+	textLabel(gui, "Progress", 0.74, 0.26, Enum.Font.GothamBold, 1.5)
+	gui.Parent = character
+	character.ChildAdded:Connect(function(child)
+		if child.Name == "Head" and child:IsA("BasePart") then
+			gui.Adornee = child
+		end
+	end)
+	return gui
+end
 
+-- Texte im bestehenden Schild aktualisieren (kein Neuaufbau, kein Flackern)
+function CosmeticService:UpdateNameTag(player: Player)
+	local character = player.Character
+	local gui = character and character:FindFirstChild("NameTag")
+	if not gui then
+		return
+	end
 	local rank = player:GetAttribute("Rank") or "Newbie"
 	local rankColor = Color3.fromHex(tostring(player:GetAttribute("RankColor") or "#C8C8C8"))
 	local isOwner = rank == "Owner"
 	local isVip = self:HasPass(player, "VIP")
 
-	-- Zeile 1: Rang (Owner = animierter Regenbogen, den der Client dreht)
-	local rankLabel = textLabel(gui, `[{string.upper(rank)}]`, 0, 0.3, if isOwner then Color3.new(1, 1, 1) else rankColor)
-	if isOwner then
-		gradient({ Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 210, 60), Color3.fromRGB(80, 230, 110), Color3.fromRGB(80, 160, 255), Color3.fromRGB(200, 90, 255) }, "Animated").Parent = rankLabel
-	end
+	-- Zeile 1: Rang (Owner = Regenbogen, den der Client dreht)
+	local rankLabel = gui.Rank :: TextLabel
+	rankLabel.Text = string.upper(rank)
+	rankLabel.TextColor3 = if isOwner then Color3.new(1, 1, 1) else rankColor
+	setGradient(rankLabel, if isOwner then RAINBOW else nil)
 
-	-- Zeile 2: Name, VIP in Gold mit Krone, Premium mit Abzeichen
+	-- Zeile 2: Name, VIP in Gold mit Krone, Premium mit Stern
 	local name = player.DisplayName
-	if isVip then
+	if isVip or isOwner then
 		name = "👑 " .. name
 	end
 	if Config.PremiumBadge and player.MembershipType == Enum.MembershipType.Premium then
 		name ..= " ⭐"
 	end
-	local nameLabel = textLabel(gui, name, 0.28, 0.42, Color3.new(1, 1, 1))
-	if isOwner then
-		gradient({ Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 210, 60), Color3.fromRGB(80, 160, 255) }, "Animated").Parent = nameLabel
-	elseif isVip then
-		gradient({ Color3.fromRGB(255, 240, 120), Color3.fromRGB(255, 170, 0) }, "Animated").Parent = nameLabel
-	end
+	local nameLabel = gui.PlayerName :: TextLabel
+	nameLabel.Text = name
+	setGradient(nameLabel, if isOwner then RAINBOW elseif isVip then GOLD else nil)
 
 	-- Zeile 3: Fortschritt
 	local data = self.Services.DataService:Get(player)
-	local world = Config.WorldForStage(data and data.Stage or 1)
+	local stage = data and data.Stage or 1
+	local world = Config.WorldForStage(stage)
 	local wins = data and data.Wins or 0
-	textLabel(gui, `Stage {data and data.Stage or 1} · {world.Name}` .. (if wins > 0 then ` · 🏆{wins}` else ""), 0.72, 0.26, Color3.fromRGB(230, 230, 240))
-
-	gui.Parent = head
+	local progress = gui.Progress :: TextLabel
+	progress.Text = `Stage {stage}  ·  {world.Name}` .. (if wins > 0 then `  ·  🏆 {wins}` else "")
+	progress.TextColor3 = world.Accent:Lerp(Color3.new(1, 1, 1), 0.45)
 end
 
 ---------------------------------------------------------------- Coils
@@ -266,6 +292,7 @@ function CosmeticService:Refresh(player: Player)
 	end
 	if player.Character then
 		applyTrail(player, player.Character, data.Trail)
+		ensureNameTag(player.Character)
 		self:UpdateNameTag(player)
 	end
 	self:GiveTools(player)
@@ -273,8 +300,25 @@ end
 
 function CosmeticService:OnCharacterAdded(player: Player, character: Model)
 	removeCoilForce(player)
-	character:WaitForChild("Head")
-	character:WaitForChild("HumanoidRootPart")
+	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	-- Roblox tauscht beim Laden des Avatars Koerperteile aus: erst danach Trail und Schild anbringen
+	if not player:HasAppearanceLoaded() then
+		local loaded = false
+		local connection = player.CharacterAppearanceLoaded:Connect(function()
+			loaded = true
+		end)
+		local deadline = os.clock() + 10
+		while not loaded and os.clock() < deadline and character.Parent do
+			task.wait(0.1)
+		end
+		connection:Disconnect()
+	end
+	character:WaitForChild("Head", 10)
+	character:WaitForChild("HumanoidRootPart", 10)
+	if player.Character ~= character then
+		return
+	end
 	self:Refresh(player)
 end
 

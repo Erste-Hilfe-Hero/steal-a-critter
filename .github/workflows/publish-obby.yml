@@ -119,3 +119,32 @@ jobs:
             --data-binary @MegaRainbowObby.rbxlx -o publish.json -w "%{http_code}")
           echo "::notice::Publish HTTP $CODE: $(head -c 600 publish.json)"
           [ "$CODE" = "200" ]
+
+      # Fuehrt tests/smoke.luau im gerade veroeffentlichten Place aus (Open Cloud Luau Execution)
+      - name: Smoke test in Roblox
+        if: env.ROBLOX_API_KEY != '' && env.UNIVERSE_ID != '' && env.PLACE_ID != ''
+        run: |
+          VERSION=$(jq -r '.versionNumber // empty' publish.json)
+          BASE="https://apis.roblox.com/cloud/v2/universes/$UNIVERSE_ID/places/$PLACE_ID"
+          [ -n "$VERSION" ] && BASE="$BASE/versions/$VERSION"
+          curl -sS -X POST "$BASE/luau-execution-session-tasks" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -n --rawfile s tests/smoke.luau '{script: $s, timeout: "180s"}')" -o task.json
+          TASK=$(jq -r '.path // empty' task.json)
+          if [ -z "$TASK" ]; then echo "::error::create failed: $(head -c 400 task.json)"; exit 1; fi
+          for i in $(seq 1 60); do
+            sleep 5
+            curl -sS "https://apis.roblox.com/cloud/v2/$TASK" -H "x-api-key: $ROBLOX_API_KEY" -o state.json
+            STATE=$(jq -r '.state' state.json)
+            [ "$STATE" = "COMPLETE" ] || [ "$STATE" = "FAILED" ] || [ "$STATE" = "CANCELLED" ] && break
+          done
+          echo "::notice::smoke state: $STATE"
+          if [ "$STATE" = "COMPLETE" ]; then
+            jq -r '.output.results[0] // ""' state.json | while IFS= read -r line; do
+              case "$line" in FAIL*) echo "::error::$line";; SUMMARY*) echo "::notice::$line";; esac
+            done
+            jq -r '.output.results[0] // ""' state.json | head -1 | grep -q "^SUMMARY: 0 failed" || exit 1
+          else
+            echo "::error::$(jq -c '.error' state.json | head -c 600)"
+            curl -sS "https://apis.roblox.com/cloud/v2/$TASK/logs" -H "x-api-key: $ROBLOX_API_KEY" | head -c 1500 | tr '\n' ' ' | sed 's/^/::notice::logs: /'
+            exit 1
+          fi
