@@ -1,10 +1,12 @@
--- Alle Sounds im Soccer-Jam-Stil: Schuss, Pfiff, Tor-Hupe, Publikum, Disarm, Smack, Countdown.
+-- Alle Sounds im Soccer-Jam-Stil: Schuss, Aufprall, Ballannahme, Pfiff, Tor-Sirene, Publikum, Messer,
+-- Smack, Level-up, Alien-Zap und der Stadionsprecher (eigene Nachbauten, keine Original-Dateien).
 -- Die eigenen Sounds (assets/make_sounds.py) stehen in SoundIds.json; solange eine ID 0 ist,
 -- springt ein eingebauter Roblox-Sound ein.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 
 local SoundIds = require(ReplicatedStorage.Shared.SoundIds)
+local VoiceLines = require(ReplicatedStorage.Shared.VoiceLines)
 
 local Sounds = {}
 
@@ -16,6 +18,10 @@ local FALLBACK = {
 	whistle = "rbxasset://sounds/electronicpingshort.wav",
 	whistle_end = "rbxasset://sounds/electronicpingshort.wav",
 	horn = "rbxasset://sounds/victory.wav",
+	siren = "rbxasset://sounds/victory.wav",
+	gotball = "rbxasset://sounds/button.wav",
+	levelup = "rbxasset://sounds/electronicpingshort.wav",
+	zap = "rbxasset://sounds/electronicpingshort.wav",
 	slash = "rbxasset://sounds/swordslash.wav",
 	stab = "rbxasset://sounds/swordlunge.wav",
 }
@@ -37,6 +43,13 @@ local CUES = {
 	Stab = { "stab", 0.7, 0.9 },
 	Hit = { "smack", 0.5, 1.6 },
 	Go = { "beep", 0.6, 1.5 },
+	Siren = { "siren", 0.6, 1 },
+	GotBall = { "gotball", 0.5, 1 },
+	LevelUp = { "levelup", 0.6, 1 },
+	Zap = { "zap", 0.7, 1 },
+	Bounce = { "kick", 0.5, 0.75 },
+	Jump = { "steal", 0.35, 1.3 },
+	Call = { "beep", 0.5, 1.25 },
 }
 
 local group = Instance.new("SoundGroup")
@@ -83,6 +96,52 @@ function Sounds.Play(name: string, position: Vector3?, pitch: number?, volume: n
 		if sound.Parent then
 			(if holder == SoundService then sound else holder):Destroy()
 		end
+	end)
+end
+
+-- Stadionsprecher: ein Satz aus announcer.ogg (Startzeit und Laenge aus VoiceLines)
+local announcerId = SoundIds.announcer
+local current: Sound? = nil
+function Sounds.Say(line: string)
+	local segment = VoiceLines[line]
+	if not segment or not announcerId or announcerId == 0 then
+		return
+	end
+	task.spawn(function()
+		if current then
+			current:Destroy()
+		end
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxassetid://" .. announcerId
+		sound.Volume = 1
+		sound.SoundGroup = group
+		sound.Parent = SoundService
+		current = sound
+		local deadline = os.clock() + 3
+		while not sound.IsLoaded and os.clock() < deadline and sound.Parent do
+			task.wait()
+		end
+		if not sound.Parent then
+			return
+		end
+		sound.TimePosition = segment[1]
+		sound:Play()
+		task.wait(segment[2])
+		sound:Destroy()
+		if current == sound then
+			current = nil
+		end
+	end)
+end
+
+-- Ansage-Datei frueh laden, damit die erste Durchsage nicht haengt
+if announcerId and announcerId ~= 0 then
+	task.spawn(function()
+		local preload = Instance.new("Sound")
+		preload.SoundId = "rbxassetid://" .. announcerId
+		pcall(function()
+			game:GetService("ContentProvider"):PreloadAsync({ preload })
+		end)
 	end)
 end
 

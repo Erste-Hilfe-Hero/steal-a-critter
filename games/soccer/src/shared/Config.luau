@@ -74,10 +74,7 @@ Config.CurveRate = 1.4 -- Kurvenball: Drehung der Flugbahn in rad/s bei vollem E
 Config.CurveTime = 1.1
 Config.SmackSpeed = 75 -- schnellere gegnerische Schuesse hauen Spieler um (wie im Original, nur ohne Schaden)
 Config.SmackStun = 1.6
-Config.BallReturnSeconds = 25 -- unberuehrter Ball kommt zur Mitte zurueck
-Config.TackleWindow = 0.7 -- so lange nach dem Druecken zaehlt ein Disarm (gleicht Netz-Verzoegerung aus)
-Config.TackleAssistRange = 20 -- Disarm zielt automatisch auf den Ballfuehrer in dieser Naehe
-Config.StealProtect = 0.9 -- so lange kann einem frisch erkaempften Ball niemand wieder abnehmen
+Config.BallReturnSeconds = 30 -- unberuehrter Ball kommt zur Mitte zurueck
 Config.StunTime = 1.2
 Config.DashSpeed = 62
 
@@ -89,7 +86,20 @@ Config.Knife = {
 	Stab = { Damage = 65, Backstab = 195, Range = 6.5, Windup = 0.2, Window = 0.25, Cooldown = 1.2 },
 }
 Config.BackstabDot = 0.45 -- so weit muss das Opfer vom Angreifer wegschauen
-Config.KOSeconds = 3
+Config.HuntDistance = 14 -- wie im Original: Schaden nur, wenn der Angreifer nah am Ball ist (kein "Hunting")
+-- Messer-Treffer am Ballfuehrer: Chance, dass er den Ball verliert (Original: 5 % + 6 % je Disarm-Stufe)
+function Config.DisarmChance(level: number): number
+	return 0.12 + level * 0.08
+end
+-- Stamina gibt wie im Original mehr Leben
+function Config.MaxHPFor(stamina: number): number
+	return Config.MaxHP + stamina * 20
+end
+-- Powerplay: jeder Pass zu einem anderen Mitspieler (bis 5) macht die Schuesse des Teams staerker
+Config.MaxPowerPlay = 5
+Config.PowerPlayBonus = 0.06 -- +6 % Schussstaerke je Stufe
+Config.LongJumpCooldown = 5 -- Sprung beim Seitwaerts-Laufen: doppelt so weit (wie im Original)
+Config.KOSeconds = 2
 Config.SpawnProtect = 2 -- so lange nach dem Zurueckkommen unverwundbar
 function Config.SmackDamage(speed: number): number
 	-- Harte Schuesse tun weh wie im Original: 20 bis 60 Schaden je nach Tempo
@@ -97,19 +107,23 @@ function Config.SmackDamage(speed: number): number
 end
 
 -- Maskottchen bewachen ihr Tor: Gegner ohne Ball, die zu lange im Strafraum stehen, werden weggeschleudert
-Config.MascotZoneDepth = 34
-Config.MascotZoneWidth = 80
-Config.MascotPatience = 3
+-- Wie im Original: das Alien-Maskottchen zappt jede Sekunde einen Gegner im Kreis vor seinem Tor (8-12 Schaden);
+-- wer mit dem Ball in den Kreis laeuft, ist sofort K.O. Tore muessen also von ausserhalb geschossen werden.
+-- Eigene Spieler im Kreis (Torwart) heilen sich langsam.
+Config.AlienRadius = 40
+Config.AlienInterval = 1
+Config.AlienDamage = { 8, 12 }
+Config.KeeperRegen = 6 -- Leben pro Sekunde im eigenen Kreis
 
 ---------------------------------------------------------------- Upgrades (wie im Original mit Match-EXP: Stamina, Strength, Agility, Dexterity, Disarm)
 
 Config.MaxSkill = 5
 Config.Skills = {
-	{ Id = "Stamina", Name = "Stamina", Description = "More turbo, faster recovery", Color = Color3.fromRGB(120, 255, 140) },
+	{ Id = "Stamina", Name = "Stamina", Description = "+20 max health (after your next knockout or kickoff) and more turbo", Color = Color3.fromRGB(120, 255, 140) },
 	{ Id = "Strength", Name = "Strength", Description = "Harder, faster kicks", Color = Color3.fromRGB(255, 110, 30) },
 	{ Id = "Agility", Name = "Agility", Description = "Run faster", Color = Color3.fromRGB(40, 200, 255) },
 	{ Id = "Dexterity", Name = "Dexterity", Description = "Grab the ball from further away, catch hard shots", Color = Color3.fromRGB(255, 205, 50) },
-	{ Id = "Disarm", Name = "Disarm", Description = "Steal the ball more often and from further away", Color = Color3.fromRGB(200, 120, 255) },
+	{ Id = "Disarm", Name = "Disarm", Description = "Knife hits knock the ball away from the carrier more often", Color = Color3.fromRGB(200, 120, 255) },
 }
 
 -- EXP-Kosten der naechsten Stufe (0 -> 1 kostet 150, 4 -> 5 kostet 750)
@@ -152,15 +166,6 @@ function Config.PickupRange(level: number): number
 end
 function Config.CatchSpeed(level: number): number
 	return 62 + level * 9 -- schnellere Baelle prallen ab oder hauen um
-end
-function Config.TackleRange(level: number): number
-	return 8.5 + level * 0.8
-end
-function Config.TackleCooldown(level: number): number
-	return 2 - level * 0.2
-end
-function Config.TackleChance(disarm: number, dexterity: number): number
-	return math.clamp(0.75 + (disarm - dexterity) * 0.06, 0.45, 0.97)
 end
 
 ---------------------------------------------------------------- Account-Fortschritt (bleibt gespeichert)

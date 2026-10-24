@@ -170,7 +170,6 @@ function MatchService:AddActor(model: Model, team: string, player: Player?, skil
 		Name = name,
 		Slot = 0,
 		StunnedUntil = 0,
-		TackleReadyAt = 0,
 	}
 	actors[model] = actor
 	rebuildList()
@@ -317,6 +316,16 @@ function MatchService:OnTackle(actor, victim)
 	end
 	if victim.Player then
 		self.Services.Net.SendNotify(victim.Player, `{actor.Name} took the ball!`, Config.Colors.Orange)
+	end
+end
+
+-- Messertreffer hat dem Ballfuehrer den Ball aus dem Fuss geschlagen
+function MatchService:OnDisarm(actor, victim)
+	if actor.Player then
+		self.Services.Net.SendNotify(actor.Player, `DISARMED {victim.Name}!`, Config.Colors.Lime)
+	end
+	if victim.Player then
+		self.Services.Net.SendNotify(victim.Player, `{actor.Name} knocked the ball away!`, Config.Colors.Orange)
 	end
 end
 
@@ -542,40 +551,6 @@ function MatchService:Start()
 				setState("Waiting")
 				self:Rebalance()
 				task.wait(1)
-			end
-		end
-	end)
-	-- Maskottchen: Gegner ohne Ball, die zu lange im eigenen Strafraum stehen, werden weggeschleudert
-	task.spawn(function()
-		local camping = {} -- [actor] = Sekunden im gegnerischen Strafraum
-		while true do
-			task.wait(0.25)
-			if state ~= "Playing" then
-				table.clear(camping)
-				continue
-			end
-			local carrier = self.Services.BallService.Carrier
-			local seen = {}
-			for _, actor in actorList do
-				local enemyGoal = if actor.Team == "Blue" then "Red" else "Blue"
-				if actor ~= carrier and self.Services.ArenaService:InGoalZone(enemyGoal, actor.Root.Position) then
-					seen[actor] = true
-					camping[actor] = (camping[actor] or 0) + 0.25
-					if camping[actor] >= Config.MascotPatience then
-						camping[actor] = 0
-						local side = Config.Teams[enemyGoal].Side
-						self.Services.ArenaService:MascotStomp(enemyGoal, actor.Root.Position)
-						self.Services.BallService:Knock(actor, Vector3.new(-side * 80, 45, 0), 1.2)
-						if actor.Player then
-							self.Services.Net.SendNotify(actor.Player, "The mascot doesn't like goal campers!", Config.Colors.Orange)
-						end
-					end
-				end
-			end
-			for actor in camping do
-				if not seen[actor] then
-					camping[actor] = nil
-				end
 			end
 		end
 	end)

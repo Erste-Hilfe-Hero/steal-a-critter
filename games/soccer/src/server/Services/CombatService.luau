@@ -1,6 +1,7 @@
 -- Messer wie in Soccer Jam: Slash und Stab mit den Schadenswerten aus CS 1.6, von hinten (Backstab) dreifach.
 -- Harte Schuesse (Smack) machen auch Schaden. Bei 0 Leben ist man K.O.: man kippt um (kein Blut),
 -- verliert den Ball und steht nach Config.KOSeconds an der eigenen Startposition wieder auf.
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -37,7 +38,7 @@ local function updateTag(actor)
 	local back = tag and tag:FindFirstChild("HP")
 	local bar = back and back:FindFirstChild("Bar") :: Frame?
 	if bar then
-		local fraction = actor.HP / Config.MaxHP
+		local fraction = actor.HP / (actor.MaxHP or Config.MaxHP)
 		bar.Size = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
 		bar.BackgroundColor3 = if fraction > 0.5 then Color3.fromRGB(90, 230, 90) elseif fraction > 0.25 then Config.Colors.Orange else Config.Colors.Red
 	end
@@ -53,8 +54,11 @@ function CombatService:IsKO(actor): boolean
 	return (actor.KOUntil or 0) > now()
 end
 
+-- Volle Leben; Stamina-Upgrades zaehlen ab dem naechsten Heilen (wie im Original nach dem Respawn)
 function CombatService:Heal(actor)
-	setHP(actor, Config.MaxHP)
+	actor.MaxHP = Config.MaxHPFor(self.Services.MatchService:Skill(actor, "Stamina"))
+	actor.Model:SetAttribute("MaxHP", actor.MaxHP)
+	setHP(actor, actor.MaxHP)
 end
 
 -- Spielzeug-Messer in die rechte Hand (Griff in Teamfarbe)
@@ -92,7 +96,6 @@ function CombatService:Setup(actor)
 	actor.KOUntil = 0
 	actor.KnifeReadyAt = 0
 	actor.SpawnProtectUntil = 0
-	actor.Model:SetAttribute("MaxHP", Config.MaxHP)
 	actor.Model:SetAttribute("KOUntil", 0)
 	self:Heal(actor)
 	giveKnife(actor)
@@ -157,6 +160,23 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 	if attacker and attacker.Team == victim.Team then
 		return
 	end
+	-- Wie im Original: mit dem Messer nur in Ballnaehe Schaden machen, kein Jagen quer uebers Feld
+	if attacker and (kind == "Slash" or kind == "Stab") then
+		local ball = self.Services.BallService.Ball :: BasePart
+		if (attacker.Root.Position - ball.Position).Magnitude > Config.HuntDistance and (victim.Root.Position - ball.Position).Magnitude > Config.HuntDistance then
+			if attacker.Player and (attacker.HuntWarnedAt or 0) < now() - 2 then
+				attacker.HuntWarnedAt = now()
+				self.Services.Net.SendNotify(attacker.Player, "No hunting! Knife only works near the ball.", Config.Colors.Orange)
+			end
+			return
+		end
+		-- Treffer am Ballfuehrer: Chance, dass er den Ball verliert
+		if self.Services.BallService.Carrier == victim and math.random() < Config.DisarmChance(self.Services.MatchService:Skill(attacker, "Disarm")) then
+			if self.Services.BallService:Disarm(attacker, victim) then
+				self.Services.MatchService:OnDisarm(attacker, victim)
+			end
+		end
+	end
 	local hp = math.max(0, victim.HP - amount)
 	setHP(victim, hp)
 	self.Services.Net.MatchEvent:FireAllClients("Damage", { Model = victim.Model, Amount = amount, Backstab = backstab == true })
@@ -216,6 +236,45 @@ local function isBehind(attacker, victim): boolean
 	return flat(victim.Root.CFrame.LookVector):Dot(toVictim) > Config.BackstabDot
 end
 
+-- Alien-Maskottchen: jede Sekunde einen Gegner im Kreis vor dem eigenen Tor zappen,
+-- ein gegnerischer Ballfuehrer im Kreis ist sofort K.O.; eigene Spieler im Kreis heilen sich
+local function alienTick()
+	if not playing() then
+		return
+	end
+	local services = CombatService.Services
+	local arena = services.ArenaService
+	local carrier = services.BallService.Carrier
+	for _, teamName in Config.TeamOrder do
+		local goal = arena:GoalCenter(teamName)
+		local targets = {}
+		local victim = nil
+		for _, actor in services.MatchService:GetActors() do
+			local offset = actor.Root.Position - goal
+			if Vector3.new(offset.X, 0, offset.Z).Magnitude < Config.AlienRadius and not CombatService:IsKO(actor) then
+				if actor.Team ~= teamName then
+					if actor == carrier then
+						victim = actor
+					else
+						table.insert(targets, actor)
+					end
+				elseif actor.HP < (actor.MaxHP or Config.MaxHP) then
+					setHP(actor, math.min(actor.MaxHP or Config.MaxHP, actor.HP + Config.KeeperRegen * Config.AlienInterval))
+				end
+			end
+		end
+		if victim then
+			arena:MascotStomp(teamName, victim.Root.Position)
+			CombatService:Damage(victim, victim.HP, nil, "Alien")
+		elseif #targets > 0 then
+			local target = targets[math.random(1, #targets)]
+			arena:MascotStomp(teamName, target.Root.Position)
+			services.Net.PlaySound("Zap", target.Root.Position)
+			CombatService:Damage(target, math.random(Config.AlienDamage[1], Config.AlienDamage[2]), nil, "Alien")
+		end
+	end
+end
+
 local function resolveSwings()
 	local t = now()
 	local match = CombatService.Services.MatchService
@@ -250,12 +309,54 @@ end
 
 function CombatService:Start()
 	RunService.Heartbeat:Connect(resolveSwings)
+	task.spawn(function()
+		while true do
+			task.wait(Config.AlienInterval)
+			local ok, err = pcall(alienTick)
+			if not ok then
+				warn("[Combat] Alien:", err)
+			end
+		end
+	end)
 	local net = self.Services.Net
 	net.Stab.OnServerEvent:Connect(function(player)
 		local actor = self.Services.MatchService:ActorForPlayer(player)
 		if actor then
 			self:Swing(actor, "Stab")
 		end
+	end)
+	-- Pass fordern wie im Original (ALT): ein "!" ueber dem Kopf fuer 2 Sekunden
+	local lastCall = {}
+	net.CallPass.OnServerEvent:Connect(function(player)
+		local actor = self.Services.MatchService:ActorForPlayer(player)
+		local head = actor and actor.Model and actor.Model:FindFirstChild("Head")
+		if not head or os.clock() - (lastCall[player] or 0) < 2 then
+			return
+		end
+		lastCall[player] = os.clock()
+		local gui = Instance.new("BillboardGui")
+		gui.Name = "PassCall"
+		gui.Size = UDim2.fromOffset(60, 60)
+		gui.StudsOffset = Vector3.new(0, 5.2, 0)
+		gui.AlwaysOnTop = true
+		gui.MaxDistance = 400
+		local mark = Instance.new("TextLabel")
+		mark.Size = UDim2.fromScale(1, 1)
+		mark.BackgroundTransparency = 1
+		mark.Text = "!"
+		mark.TextScaled = true
+		mark.Font = Enum.Font.FredokaOne
+		mark.TextColor3 = Config.Teams[actor.Team] and Config.Teams[actor.Team].Color or Color3.new(1, 1, 1)
+		mark.TextStrokeTransparency = 0
+		mark.Parent = gui
+		gui.Parent = head
+		self.Services.Net.PlaySound("Call", head.Position)
+		task.delay(2, function()
+			gui:Destroy()
+		end)
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		lastCall[player] = nil
 	end)
 end
 

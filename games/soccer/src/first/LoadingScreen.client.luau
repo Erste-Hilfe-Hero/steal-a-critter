@@ -18,11 +18,16 @@ local FONT = Enum.Font.LuckiestGuy
 
 local TIPS = {
 	"Hold KICK for a harder shot - run sideways while kicking to CURVE the ball!",
-	"KNIFE the ball carrier to steal the ball. Hit them from BEHIND for triple damage!",
+	"Classic first person with your knife - press V (or VIEW) to switch to third person.",
+	"KNIFE the ball carrier to make him drop the ball. Hit them from BEHIND for triple damage!",
+	"No hunting: the knife only hurts near the ball!",
+	"Pass to new teammates to build a POWERPLAY - up to x5 kick power!",
+	"Jump while strafing for a LONG JUMP. Press T (or !) to call for a pass.",
 	"STAB is slow but strong - a backstab knocks anyone out instantly!",
 	"Earn EXP every match and buy upgrades: Stamina, Strength, Agility, Dexterity, Disarm.",
 	"Hard enemy shots SMACK you down - level Dexterity to catch them instead!",
-	"Don't camp in the enemy box - the mascot will throw you out!",
+	"Stay out of the enemy goal zone - the ALIEN zaps you and kills ball carriers instantly!",
+	"Stamina gives +20 max HP per level. Your own alien heals you near your goal.",
 	"Long-distance goals give bonus EXP. Score from far away!",
 	"First team to 10 goals wins. Tied at the end? Golden Goal!",
 }

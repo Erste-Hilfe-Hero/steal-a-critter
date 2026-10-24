@@ -185,6 +185,15 @@ function UI.Announce(text: string, color: Color3?, seconds: number?)
 	end)
 end
 
+-- Fadenkreuz in der Ego-Sicht (wie in CS)
+local crosshair: Frame
+local powerPlayLabel: TextLabel
+function UI.SetCrosshair(on: boolean)
+	if crosshair then
+		crosshair.Visible = on
+	end
+end
+
 ---------------------------------------------------------------- Anzeigetafel
 
 local scoreLabels = {} :: any
@@ -362,7 +371,7 @@ local function buildBars()
 			AnchorPoint = Vector2.new(0, 1),
 			Position = UDim2.new(0, 10, 1, -8),
 			Size = UDim2.fromOffset(620, 18),
-			Text = "Hold CLICK: kick (run sideways to curve)  |  E: pass  |  CLICK/F: knife + disarm  |  RIGHT-CLICK/G: stab  |  SHIFT/R: turbo",
+			Text = "Hold CLICK: kick  |  E: pass  |  CLICK/F: knife  |  RIGHT-CLICK/G: stab  |  SHIFT: turbo  |  T: call pass  |  V: view  |  jump while strafing: long jump",
 			Font = BODY,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextColor3 = Color3.fromRGB(220, 230, 255),
@@ -404,8 +413,8 @@ function UI.KillFeed(info)
 	local function teamColor(team)
 		return if team and Config.Teams[team] then Config.Teams[team].Color else C.White
 	end
-	local how = if info.Kind == "Smack" then "SMACK" elseif info.Kind == "Stab" then "STAB" else "KNIFE"
-	local left = if info.Attacker then info.Attacker else ""
+	local how = if info.Kind == "Smack" then "SMACK" elseif info.Kind == "Stab" then "STAB" elseif info.Kind == "Alien" then "ALIEN" else "KNIFE"
+	local left = if info.Attacker then info.Attacker elseif info.Kind == "Alien" then "MASCOT" else ""
 	label({ Position = UDim2.fromOffset(6, 3), Size = UDim2.new(0.42, -6, 1, -6), Text = left, Font = BODY, TextColor3 = teamColor(info.AttackerTeam), TextXAlignment = Enum.TextXAlignment.Right, Parent = line })
 	label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.new(0.16, 0, 1, -6), Text = how, Font = BODY, TextColor3 = C.Gold, Parent = line })
 	label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -6, 0, 3), Size = UDim2.new(0.42, -6, 1, -6), Text = info.Victim, Font = BODY, TextColor3 = teamColor(info.VictimTeam), TextXAlignment = Enum.TextXAlignment.Left, Parent = line })
@@ -438,10 +447,10 @@ local function buildTouch()
 	local small = math.min(viewport.X, viewport.Y) <= 500
 	-- {rechter Abstand, unterer Abstand, Groesse}
 	local layout = if small
-		then { Shoot = { 110, 14, 84 }, Tackle = { 24, 98, 64 }, Pass = { 120, 104, 60 }, Sprint = { 204, 16, 60 }, Stab = { 30, 168, 52 } }
-		else { Shoot = { 180, 26, 128 }, Tackle = { 48, 222, 100 }, Pass = { 200, 166, 92 }, Sprint = { 320, 26, 96 }, Stab = { 56, 334, 80 } }
-	local colors = { Shoot = C.Lime, Tackle = C.Orange, Pass = C.Cyan, Sprint = Color3.fromRGB(170, 120, 255), Stab = C.Red }
-	local texts = { Shoot = "KICK", Tackle = "KNIFE", Pass = "PASS", Sprint = "TURBO", Stab = "STAB" }
+		then { Shoot = { 110, 14, 84 }, Tackle = { 24, 98, 64 }, Pass = { 120, 104, 60 }, Sprint = { 204, 16, 60 }, Stab = { 30, 168, 52 }, Call = { 200, 84, 46 }, View = { 34, 228, 44 } }
+		else { Shoot = { 180, 26, 128 }, Tackle = { 48, 222, 100 }, Pass = { 200, 166, 92 }, Sprint = { 320, 26, 96 }, Stab = { 56, 334, 80 }, Call = { 316, 132, 68 }, View = { 64, 424, 64 } }
+	local colors = { Shoot = C.Lime, Tackle = C.Orange, Pass = C.Cyan, Sprint = Color3.fromRGB(170, 120, 255), Stab = C.Red, Call = C.Gold, View = PANEL }
+	local texts = { Shoot = "KICK", Tackle = "KNIFE", Pass = "PASS", Sprint = "TURBO", Stab = "STAB", Call = "!", View = "VIEW" }
 	for name, spec in layout do
 		local b = create("TextButton", {
 			Name = name,
@@ -451,7 +460,7 @@ local function buildTouch()
 			BackgroundColor3 = colors[name],
 			BackgroundTransparency = 0.1,
 			Text = texts[name],
-			TextColor3 = if name == "Shoot" then C.Navy else C.White,
+			TextColor3 = if name == "Shoot" or name == "Call" then C.Navy else C.White,
 			Font = FONT,
 			TextScaled = true,
 			AutoButtonColor = false,
@@ -884,6 +893,13 @@ function UI.Start()
 	})
 	announceLabel = label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.62), Size = UDim2.fromOffset(800, 52), Text = "", Visible = false, StrokeThickness = 3, Parent = root })
 
+	local crossGui = create("ScreenGui", { Name = "Crosshair", ResetOnSpawn = false, IgnoreGuiInset = true, Parent = player:WaitForChild("PlayerGui") })
+	crosshair = create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 1, Visible = false, Parent = crossGui }, {
+		create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(2, 22), BackgroundColor3 = C.Lime, BorderSizePixel = 0 }),
+		create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(22, 2), BackgroundColor3 = C.Lime, BorderSizePixel = 0 }),
+	})
+	powerPlayLabel = label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 362), Size = UDim2.fromOffset(330, 26), Text = "", Visible = false, Parent = root })
+
 	buildScoreboard()
 	feed = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 196), Size = UDim2.fromOffset(330, 160), BackgroundTransparency = 1, Parent = root }, {
 		create("UIListLayout", { Padding = UDim.new(0, 3), HorizontalAlignment = Enum.HorizontalAlignment.Right }),
@@ -915,7 +931,15 @@ function UI.Start()
 		while true do
 			updateScoreboard()
 			local character = player.Character
-			UI.SetHP(character and character:GetAttribute("HP") or Config.MaxHP, Config.MaxHP)
+			local maxHP = character and character:GetAttribute("MaxHP") or Config.MaxHP
+			UI.SetHP(character and character:GetAttribute("HP") or maxHP, maxHP)
+			local ppTeam = workspace:GetAttribute("PowerPlayTeam")
+			local pp = workspace:GetAttribute("PowerPlay") or 0
+			powerPlayLabel.Visible = ppTeam ~= nil and pp > 0
+			if powerPlayLabel.Visible then
+				powerPlayLabel.Text = `{string.upper(ppTeam)} POWERPLAY x{pp}`
+				powerPlayLabel.TextColor3 = if Config.Teams[ppTeam] then Config.Teams[ppTeam].Color else C.White
+			end
 			local boost = (player:GetAttribute("BoostUntil") or 0) - os.time()
 			profile.Boost.Visible = boost > 0
 			if boost > 0 then
