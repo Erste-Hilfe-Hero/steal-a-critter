@@ -69,11 +69,19 @@ jobs:
             # 2) Sprachen: als unterstuetzt eintragen, dann Icon + Thumbnails je Sprache
             SRC=$(curl -sS "https://gameinternationalization.roblox.com/v1/source-language/games/$U" | jq -r '.languageCode // "en"')
             LANGS=$(jq -r --arg src "$SRC" '.languages[] | select(. != $src)' media.json)
-            BODY=$(jq -c --arg src "$SRC" '[.languages[] | select(. != $src) | {languageCodeType: "Language", languageCode: ., delete: false}]' media.json)
-            note "$NAME supported languages" "$(curl -sS -X PATCH "$I18N/supported-languages/games/$U" -H "$K" -H 'Content-Type: application/json' -d "$BODY" -w ' HTTP %{http_code}')"
+            # Einzeln eintragen, damit ein unbekannter Code nicht alle anderen blockiert
+            for L in $LANGS; do
+              R=$(curl -sS -X PATCH "$I18N/supported-languages/games/$U" -H "$K" -H 'Content-Type: application/json' \
+                -d "[{\"languageCodeType\":\"Language\",\"languageCode\":\"$L\",\"delete\":false}]" -w ' HTTP %{http_code}')
+              echo "$R" | grep -q 'HTTP 20' || note "$NAME add language $L" "$R"
+            done
+            note "$NAME supported now" "$(curl -sS "https://gameinternationalization.roblox.com/v1/supported-languages/games/$U" | jq -c '[.data[]?.languageCode]')"
             OK=0; FAIL=0
             for L in $LANGS; do
-              R=$(curl -sS -X POST "$I18N/game-icon/games/$U/language-codes/$L" -H "$K" -F "request.files=@$ICON;type=image/png" -w ' HTTP %{http_code}')
+              for TRY in 1 2; do
+                R=$(curl -sS -X POST "$I18N/game-icon/games/$U/language-codes/$L" -H "$K" -F "request.files=@$ICON;type=image/png" -w ' HTTP %{http_code}')
+                echo "$R" | grep -q 'HTTP 5' || break; sleep 3
+              done
               if echo "$R" | grep -q 'HTTP 20'; then OK=$((OK+1)); else FAIL=$((FAIL+1)); note "$NAME icon $L" "$R"; fi
               # Vorhandene Thumbnails dieser Sprache ersetzen statt anhaengen
               for ID in $(curl -sS "https://gameinternationalization.roblox.com/v1/game-thumbnails/games/$U/images" \

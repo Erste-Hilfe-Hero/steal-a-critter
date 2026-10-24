@@ -4,26 +4,55 @@
       "name": "Steal a Critter",
       "universeId": "3003317051",
       "icon": "assets/icon.png",
-      "thumbnails": ["assets/thumbnail.png", "assets/variants/thumbnail_b_mythic.png", "assets/variants/thumbnail_c_revenge.png"]
+      "thumbnails": [
+        "assets/thumbnail.png",
+        "assets/variants/thumbnail_b_mythic.png",
+        "assets/variants/thumbnail_c_revenge.png"
+      ]
     },
     {
       "name": "Mega Rainbow Obby",
       "universeId": "10772778395",
       "icon": "games/obby/assets/icon.png",
-      "thumbnails": ["games/obby/assets/thumbnail.png"]
+      "thumbnails": [
+        "games/obby/assets/thumbnail.png"
+      ]
     },
     {
       "name": "Critter Hatch Simulator",
       "universeId": "10772778924",
       "icon": "games/petsim/assets/icon.png",
-      "thumbnails": ["games/petsim/assets/thumbnail.png", "games/petsim/assets/thumbnail_golden.png"]
+      "thumbnails": [
+        "games/petsim/assets/thumbnail.png",
+        "games/petsim/assets/thumbnail_golden.png"
+      ]
     },
     {
       "name": "Magic Garden Tycoon",
       "universeId": "10772779164",
       "icon": "games/tycoon/assets/icon.png",
-      "thumbnails": ["games/tycoon/assets/thumbnail.png"]
+      "thumbnails": [
+        "games/tycoon/assets/thumbnail.png"
+      ]
     }
   ],
-  "languages": ["es", "pt", "fr", "de", "it", "ru", "ja", "ko", "zh-cn", "zh-tw", "tr", "th", "id", "pl", "vi", "ar"]
+  "languages": [
+    "en",
+    "es",
+    "pt",
+    "fr",
+    "de",
+    "it",
+    "ru",
+    "ja",
+    "ko",
+    "zh-hans",
+    "zh-hant",
+    "tr",
+    "th",
+    "id",
+    "pl",
+    "vi",
+    "ar"
+  ]
 }
