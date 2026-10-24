@@ -17,6 +17,17 @@ Ein spielbares Grundgerüst im Genre **"Steal a ..."** (Vorbild: *Steal a Brainr
 4. **Verteidigen:** Diebe mit dem Slap-Tool schlagen, dann fällt die Beute zurück. Oder die Basis sperren (45 s gratis, danach 30 s Abklingzeit).
 5. **Rebirth:** Cash und Kreaturen zurücksetzen und dafür dauerhaft +0,5x Einkommen bekommen.
 
+## Was das Spiel im Genre einzigartig macht
+
+Die Features antworten direkt auf die häufigsten Spieler-Beschwerden über "Steal a Brainrot" (Verlust wertvoller Figuren, Griefing, Pay-to-win) und auf das, was dort am meisten Spieler bringt (Events).
+
+- **Diebstahl-Versicherung:** Wer bestohlen wird, bekommt sofort 25 % des Werts zurück.
+- **Rache:** 90 s lang kommt das Opfer durch die Sperre des Diebes und klaut mit 0,5 s Haltezeit zurück.
+- **Kreaturen-Fusion:** 3 gleiche Kreaturen in der Basis werden mit [F] zu einer Stufe ★ fusioniert (x3,5 Einkommen, bis ★★★).
+- **Mutationen:** Golden (x2), Diamond (x4), Rainbow (x10, Farbe läuft durch) auf dem Laufband.
+- **Gratis-Server-Events** alle 8 Minuten für 2 Minuten: Golden Hour, Critter Rush, Lucky Belt, Double Cash.
+- **Tägliche Belohnung** mit Serie (bis +300 % am 7. Tag).
+
 ## Monetarisierung (eingebaut)
 
 | Typ | Produkt | Preisvorschlag | Wirkung |
@@ -74,7 +85,7 @@ src/client/UI.luau              ← HUD, Shop, Rebirth-Fenster, Meldungen
 ## Nächste Ausbaustufen (größter Hebel zuerst)
 
 1. **Optik:** Bessere Kreaturen-Modelle (eigene Meshes), Sounds, Partikel beim Kaufen und Klauen. Die Namen der Kreaturen können bleiben.
-2. **Daily Rewards + Gruppen-Bonus** (Spieler der Gruppe beitreten lassen = kostenlose Push-Benachrichtigungen durch Updates).
+2. **Gruppen-Bonus** (Spieler der Gruppe beitreten lassen = kostenlose Push-Benachrichtigungen durch Updates).
 3. **Index/Sammelbuch** aller Kreaturen. Sammeltrieb erhöht die Spielzeit.
 4. **Offline-Einkommen** (gedeckelt), damit Spieler zurückkommen.
 5. **ProfileStore** statt eigenem DataService, sobald das Spiel wächst (verhindert Datenverlust beim Serverwechsel).
