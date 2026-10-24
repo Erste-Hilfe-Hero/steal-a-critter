@@ -101,7 +101,19 @@ if ok then
 			car:Destroy()
 		end
 	end
+	-- Laeuft hier ueberhaupt Physik? Ein frei fallendes Teil verraet es.
+	local probe = Instance.new("Part")
+	probe.Position = Vector3.new(0, 900, 0)
+	probe.Parent = workspace
+	task.wait(1)
+	local physics = probe.Position.Y < 899
+	probe:Destroy()
 	local driveOk, driveErr = pcall(function()
+		if not physics then
+			-- Manche Ausfuehrungsumgebungen simulieren keine Physik: dann nur Hinweis, kein Fehler
+			table.insert(results, "INFO physics not simulated here, drive test skipped")
+			return
+		end
 		local def = Config.CarsById.cruiser
 		local car = services.VehicleService.BuildCar(def)
 		local start = Vector3.new(Config.RoadLine(3) + 9, 0, Config.BlockCenter(2, 2).Z)
@@ -115,10 +127,7 @@ if ok then
 		velocity.PlaneVelocity = Vector2.new(0, -50)
 		task.wait(1.5)
 		local moved = (base.Position - start).Magnitude
-		if moved < 0.5 then
-			-- Manche Ausfuehrungsumgebungen simulieren keine Physik: dann nur Hinweis, kein Fehler
-			table.insert(results, "INFO physics not simulated here, drive test skipped")
-		else
+		do
 			check("car drives", moved > 30, string.format("%.1f studs", moved))
 			check("car stays on ground", base.Position.Y > -2 and base.Position.Y < 6, string.format("y=%.2f", base.Position.Y))
 			check("car upright", base.CFrame.UpVector.Y > 0.95, string.format("%.2f", base.CFrame.UpVector.Y))
