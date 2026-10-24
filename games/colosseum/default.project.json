@@ -1,0 +1,33 @@
+{
+  "name": "colosseum-catcher",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": true
+      }
+    },
+    "ReplicatedFirst": {
+      "LoadingScreen": {
+        "$path": "src/first/LoadingScreen.client.luau"
+      }
+    }
+  }
+}
