@@ -77,23 +77,6 @@
       ]
     },
     {
-      "name": "Turbo City",
-      "universeId": "10772779320",
-      "icon": "games/city/assets/icon.png",
-      "thumbnails": [
-        "games/city/assets/thumbnail.png",
-        "games/city/assets/thumbnail_heist.png"
-      ]
-    },
-    {
-      "name": "Lanebreakers",
-      "universeId": "10772779235",
-      "icon": "games/moba/assets/icon.png",
-      "thumbnails": [
-        "games/moba/assets/thumbnail.png"
-      ]
-    },
-    {
       "name": "surf_ski",
       "universeId": "10772779420",
       "icon": "games/surf/assets/icon.png",
