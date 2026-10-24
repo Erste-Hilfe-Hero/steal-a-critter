@@ -364,12 +364,15 @@ function BotService:Init(services)
 	folder.Parent = workspace
 end
 
+-- Paused: Bots denken nicht (nur fuer gestellte Szenen im Smoke-Test)
+BotService.Paused = false
+
 function BotService:Start()
 	task.spawn(function()
 		while true do
 			task.wait(0.25)
 			for _, bot in table.clone(bots) do
-				if bot.Alive and not bot.Busy then
+				if bot.Alive and not bot.Busy and not self.Paused then
 					-- Pathfinding wartet, deshalb denkt jeder Bot in seinem eigenen Thread
 					bot.Busy = true
 					task.spawn(function()

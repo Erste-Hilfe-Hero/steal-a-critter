@@ -132,6 +132,8 @@ end
 
 local round = services.RoundService
 round.Testing = true
+-- Runde 1 und 2 sind gestellte Szenen: Bots duerfen dabei nicht selbst laufen oder schiessen
+services.BotService.Paused = true
 local started, startErr = pcall(round.StartRound, round)
 check("start round with bots", started and round.State == "Reveal", if started then round.State else startErr)
 
@@ -283,6 +285,7 @@ else
 end
 
 -- Bots laufen eine Weile ohne Fehler (Denk-Schleife, Pathfinding)
+services.BotService.Paused = false
 local started3 = pcall(round.StartRound, round)
 if started3 and round.State == "Reveal" then
 	round:BeginPlay()
