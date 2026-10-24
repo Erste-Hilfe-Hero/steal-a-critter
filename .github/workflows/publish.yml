@@ -21,6 +21,14 @@ jobs:
           echo "::notice::user-by-name: $(curl -sS -X POST https://users.roblox.com/v1/usernames/users -H 'Content-Type: application/json' -d '{"usernames":["BigBabaAli"]}' | head -c 250)"
           echo "::notice::games-public: $(curl -sS "https://games.roblox.com/v2/users/$H/games?accessFilter=2&limit=10&sortOrder=Desc" | head -c 400)"
 
+      # Roblox' eigener Introspect-Endpunkt verraet, fuer welche Experiences der Schluessel gilt (der Schluessel selbst wird nicht ausgegeben)
+      - name: Key scopes
+        continue-on-error: true
+        run: |
+          curl -sS -X POST https://apis.roblox.com/api-keys/v1/introspect -H "Content-Type: application/json" \
+            -d "{\"apiKey\":\"$ROBLOX_API_KEY\"}" -o introspect.json
+          echo "::notice::key scopes: $(jq -c '{name, enabled, expired, scopes}' introspect.json 2>/dev/null || head -c 300 introspect.json)"
+
       # IDs aus roblox.json lesen. Fehlen sie, wird das neueste Spiel des Benutzers ueber oeffentliche APIs gesucht.
       - name: Resolve experience IDs
         run: |
