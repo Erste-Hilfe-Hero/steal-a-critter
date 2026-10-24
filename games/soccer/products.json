@@ -12,7 +12,7 @@
   {"key": "Pass_MagnetFeet", "name": "Magnet Feet", "description": "Grab loose balls from 40% farther away forever", "price": 249},
   {"key": "Pass_IronGrip", "name": "Iron Grip", "description": "Knife hits make you drop the ball half as often forever", "price": 249},
   {"key": "Pass_SteelKeeper", "name": "Steel Keeper", "description": "Catch shots that are 25% harder forever", "price": 199},
-  {"key": "Pass_QuickRespawn", "name": "Quick Respawn", "description": "Back up after a knockout in 1 second instead of 2 forever", "price": 149},
+  {"key": "Pass_QuickRespawn", "name": "Quick Respawn", "description": "Respawn after 4 seconds instead of 10, forever", "price": 149},
   {"key": "Pass_VampireKnife", "name": "Vampire Knife", "description": "Heal 50% of the knife damage you deal forever", "price": 299},
   {"key": "Pass_Ninja", "name": "Ninja", "description": "Backstabs from a wider angle and 30% faster stab forever", "price": 249},
   {"key": "Coins1", "name": "Coin Pouch", "description": "600 coins", "price": 49},

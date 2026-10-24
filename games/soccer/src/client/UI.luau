@@ -371,7 +371,7 @@ local function buildBars()
 			AnchorPoint = Vector2.new(0, 1),
 			Position = UDim2.new(0, 10, 1, -8),
 			Size = UDim2.fromOffset(620, 18),
-			Text = "Hold CLICK: kick  |  E: pass  |  CLICK/F: knife  |  RIGHT-CLICK/G: stab  |  SHIFT: turbo  |  T: call pass  |  V: view  |  jump while strafing: long jump",
+			Text = "Hold CLICK: kick  |  E: pass  |  CLICK/F: sword slash  |  RIGHT-CLICK/G: thrust  |  SHIFT: turbo  |  T: call pass  |  V: view  |  jump while strafing: long jump",
 			Font = BODY,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextColor3 = Color3.fromRGB(220, 230, 255),
@@ -413,7 +413,7 @@ function UI.KillFeed(info)
 	local function teamColor(team)
 		return if team and Config.Teams[team] then Config.Teams[team].Color else C.White
 	end
-	local how = if info.Kind == "Smack" then "SMACK" elseif info.Kind == "Stab" then "STAB" elseif info.Kind == "Alien" then "ALIEN" else "KNIFE"
+	local how = if info.Kind == "Smack" then "SMACK" elseif info.Kind == "Stab" then "STAB" elseif info.Kind == "Alien" then "ALIEN" else "SLASH"
 	local left = if info.Attacker then info.Attacker elseif info.Kind == "Alien" then "MASCOT" else ""
 	label({ Position = UDim2.fromOffset(6, 3), Size = UDim2.new(0.42, -6, 1, -6), Text = left, Font = BODY, TextColor3 = teamColor(info.AttackerTeam), TextXAlignment = Enum.TextXAlignment.Right, Parent = line })
 	label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.new(0.16, 0, 1, -6), Text = how, Font = BODY, TextColor3 = C.Gold, Parent = line })
@@ -450,7 +450,7 @@ local function buildTouch()
 		then { Shoot = { 110, 14, 84 }, Tackle = { 24, 98, 64 }, Pass = { 120, 104, 60 }, Sprint = { 204, 16, 60 }, Stab = { 30, 168, 52 }, Call = { 200, 84, 46 }, View = { 34, 228, 44 } }
 		else { Shoot = { 180, 26, 128 }, Tackle = { 48, 222, 100 }, Pass = { 200, 166, 92 }, Sprint = { 320, 26, 96 }, Stab = { 56, 334, 80 }, Call = { 316, 132, 68 }, View = { 64, 424, 64 } }
 	local colors = { Shoot = C.Lime, Tackle = C.Orange, Pass = C.Cyan, Sprint = Color3.fromRGB(170, 120, 255), Stab = C.Red, Call = C.Gold, View = PANEL }
-	local texts = { Shoot = "KICK", Tackle = "KNIFE", Pass = "PASS", Sprint = "TURBO", Stab = "STAB", Call = "!", View = "VIEW" }
+	local texts = { Shoot = "KICK", Tackle = "SWORD", Pass = "PASS", Sprint = "TURBO", Stab = "THRUST", Call = "!", View = "VIEW" }
 	for name, spec in layout do
 		local b = create("TextButton", {
 			Name = name,

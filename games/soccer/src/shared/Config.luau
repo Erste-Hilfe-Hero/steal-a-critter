@@ -82,8 +82,9 @@ Config.DashSpeed = 62
 -- Bei 0 Leben ist man K.O. (umgekippt, kein Blut) und kommt nach ein paar Sekunden an der Startposition zurueck.
 Config.MaxHP = 100
 Config.Knife = {
-	Slash = { Damage = 15, Backstab = 45, Range = 10, Windup = 0, Window = 0.4, Cooldown = 0.45 },
-	Stab = { Damage = 65, Backstab = 195, Range = 9, Windup = 0.2, Window = 0.35, Cooldown = 1.2 },
+	-- Samurai-Schwert: Schwung trifft alle Gegner im breiten Bogen, Stoss reicht weit nach vorne
+	Slash = { Damage = 20, Backstab = 50, Range = 14, Arc = -0.25, Cleave = true, Windup = 0, Window = 0.35, Cooldown = 0.55 },
+	Stab = { Damage = 60, Backstab = 180, Range = 15, Arc = 0.5, Windup = 0.2, Window = 0.35, Cooldown = 1.2 },
 }
 Config.BackstabDot = 0.45 -- so weit muss das Opfer vom Angreifer wegschauen
 Config.HuntDistance = 45 -- wie im Original: Schaden nur, wenn der Angreifer nah am Ball ist (kein "Hunting")
@@ -99,7 +100,7 @@ end
 Config.MaxPowerPlay = 5
 Config.PowerPlayBonus = 0.06 -- +6 % Schussstaerke je Stufe
 Config.LongJumpCooldown = 5 -- Sprung beim Seitwaerts-Laufen: doppelt so weit (wie im Original)
-Config.KOSeconds = 2
+Config.KOSeconds = 10
 Config.SpawnProtect = 2 -- so lange nach dem Zurueckkommen unverwundbar
 function Config.SmackDamage(speed: number): number
 	-- Harte Schuesse tun weh wie im Original: 20 bis 60 Schaden je nach Tempo
@@ -123,7 +124,7 @@ Config.Skills = {
 	{ Id = "Strength", Name = "Strength", Description = "Harder, faster kicks", Color = Color3.fromRGB(255, 110, 30) },
 	{ Id = "Agility", Name = "Agility", Description = "Run faster", Color = Color3.fromRGB(40, 200, 255) },
 	{ Id = "Dexterity", Name = "Dexterity", Description = "Grab the ball from further away, catch hard shots", Color = Color3.fromRGB(255, 205, 50) },
-	{ Id = "Disarm", Name = "Disarm", Description = "Knife hits knock the ball away from the carrier more often", Color = Color3.fromRGB(200, 120, 255) },
+	{ Id = "Disarm", Name = "Disarm", Description = "Sword hits knock the ball away from the carrier more often", Color = Color3.fromRGB(200, 120, 255) },
 }
 
 -- EXP-Kosten der naechsten Stufe (0 -> 1 kostet 150, 4 -> 5 kostet 750)
@@ -198,7 +199,7 @@ Config.TurboLungsFactor = 1.5
 Config.MagnetFeetRange = 1.4
 Config.IronGripFactor = 0.5
 Config.SteelKeeperFactor = 1.25
-Config.QuickRespawnSeconds = 1
+Config.QuickRespawnSeconds = 4
 Config.VampireHeal = 0.5
 Config.NinjaBackstabDot = 0.15
 Config.NinjaStabCooldown = 0.7
@@ -246,16 +247,16 @@ Config.GamePasses = {
 	DoubleCoins = { ProductName = "Double Coins", Name = "Double Coins", Description = "Earn twice the coins", PriceHint = 199, Order = 3 },
 	ProBoots = { ProductName = "Pro Boots", Name = "Pro Boots", Description = "+1 level on ALL 5 upgrades in every match, even above max", PriceHint = 299, Order = 4 },
 	EffectsPack = { ProductName = "Effects Pack", Name = "Effects Pack", Description = "3 animated kick trails: Rainbow, Galaxy, Lightning", PriceHint = 149, Order = 5 },
-	GoldenKnife = { ProductName = "Golden Knife", Name = "Golden Knife", Description = "+35% knife damage and a glowing golden blade", PriceHint = 349, Order = 6 },
+	GoldenKnife = { ProductName = "Golden Knife", Name = "Golden Katana", Description = "+35% sword damage and a glowing golden blade", PriceHint = 349, Order = 6 },
 	IronBody = { ProductName = "Iron Body", Name = "Iron Body", Description = "+50 max health in every match", PriceHint = 249, Order = 7 },
 	CannonShot = { ProductName = "Cannon Shot", Name = "Cannon Shot", Description = "All your kicks are 20% harder", PriceHint = 249, Order = 8 },
 	SpeedDemon = { ProductName = "Speed Demon", Name = "Speed Demon", Description = "Run 12% faster in every match", PriceHint = 249, Order = 9 },
 	TurboLungs = { ProductName = "Turbo Lungs", Name = "Turbo Lungs", Description = "+50% turbo stamina and faster recovery", PriceHint = 199, Order = 10 },
 	MagnetFeet = { ProductName = "Magnet Feet", Name = "Magnet Feet", Description = "Grab loose balls from 40% farther away", PriceHint = 249, Order = 11 },
-	IronGrip = { ProductName = "Iron Grip", Name = "Iron Grip", Description = "Knife hits make you drop the ball half as often", PriceHint = 249, Order = 12 },
+	IronGrip = { ProductName = "Iron Grip", Name = "Iron Grip", Description = "Sword hits make you drop the ball half as often", PriceHint = 249, Order = 12 },
 	SteelKeeper = { ProductName = "Steel Keeper", Name = "Steel Keeper", Description = "Catch shots that are 25% harder", PriceHint = 199, Order = 13 },
-	QuickRespawn = { ProductName = "Quick Respawn", Name = "Quick Respawn", Description = "Back up after a knockout in 1 second instead of 2", PriceHint = 149, Order = 14 },
-	VampireKnife = { ProductName = "Vampire Knife", Name = "Vampire Knife", Description = "Heal 50% of the knife damage you deal", PriceHint = 299, Order = 15 },
+	QuickRespawn = { ProductName = "Quick Respawn", Name = "Quick Respawn", Description = "Respawn after 4 seconds instead of 10", PriceHint = 149, Order = 14 },
+	VampireKnife = { ProductName = "Vampire Knife", Name = "Vampire Blade", Description = "Heal 50% of the sword damage you deal", PriceHint = 299, Order = 15 },
 	Ninja = { ProductName = "Ninja", Name = "Ninja", Description = "Backstabs from a wider angle and 30% faster stab", PriceHint = 249, Order = 16 },
 }
 
@@ -267,7 +268,7 @@ Config.DevProducts = {
 	MaxUpgrades = { ProductName = "Max All Upgrades", Kind = "MaxUpgrades", Name = "MAX ALL", Description = "All 5 upgrades to max level for this match", PriceHint = 149, Order = 5 },
 	XPBoost = { ProductName = "XP Boost 30 min", Kind = "XPBoost", Name = "2x XP for 30 min", PriceHint = 39, Order = 6 },
 	Shield = { ProductName = "Bubble Shield", Kind = "Shield", Seconds = 30, Name = "Bubble Shield", Description = "No damage for 30 seconds", PriceHint = 49, Order = 8 },
-	Rage = { ProductName = "Rage Mode", Kind = "Rage", Seconds = 60, Name = "Rage Mode", Description = "60 seconds: +25% speed and +25% knife damage", PriceHint = 49, Order = 9 },
+	Rage = { ProductName = "Rage Mode", Kind = "Rage", Seconds = 60, Name = "Rage Mode", Description = "60 seconds: +25% speed and +25% sword damage", PriceHint = 49, Order = 9 },
 	Fireworks = { ProductName = "Stadium Fireworks", Kind = "Fireworks", Name = "Stadium Fireworks", Description = "Light up the whole stadium", PriceHint = 29, Order = 7 },
 	StarterPack = { ProductName = "Starter Pack", Kind = "StarterPack", Coins = 2500, EXP = 1000, Name = "Starter Pack", Description = "One time: 2,500 coins + 1,000 match EXP + Starter trail", PriceHint = 79, Hidden = true },
 	AdCoins = { ProductName = "Free Coins (Video Ad)", Kind = "AdCoins", Coins = 150, Name = "Free Coins", PriceHint = 5, Hidden = true },
