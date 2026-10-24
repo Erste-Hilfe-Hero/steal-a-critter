@@ -209,6 +209,26 @@ local function think(bot)
 		return
 	end
 
+	-- Messer: Gegner in Reichweite ab und zu angreifen (meist Slash, manchmal Stab)
+	if carrier ~= actor and (actor.KnifeReadyAt or 0) < now() and math.random() < 0.12 then
+		local enemy, enemyDistance = nil, 6
+		for _, other in services.MatchService:GetActors() do
+			if other.Team ~= actor.Team and not services.CombatService:IsKO(other) then
+				local d = (other.Root.Position - position).Magnitude
+				if d < enemyDistance then
+					enemy, enemyDistance = other, d
+				end
+			end
+		end
+		if enemy then
+			local look = (enemy.Root.Position - position) * Vector3.new(1, 0, 1)
+			if look.Magnitude > 0.1 then
+				root.CFrame = CFrame.lookAt(position, position + look)
+			end
+			services.CombatService:Swing(actor, if math.random() < 0.2 then "Stab" else "Slash")
+		end
+	end
+
 	if carrier == actor then
 		if bot.HasBallSince == 0 then
 			bot.HasBallSince = os.clock()
@@ -252,6 +272,7 @@ local function think(bot)
 				sprint = true
 				local distance = (carrier.Root.Position - position).Magnitude
 				if distance < Config.TackleRange(actor.Skills.Disarm) - 0.5 and (actor.TackleReadyAt or 0) < now() and math.random() < 0.6 then
+					services.CombatService:Swing(actor, "Slash")
 					if ballService:Tackle(actor) then
 						bot.DashUntil = os.clock() + 0.25
 						humanoid.WalkSpeed = Config.DashSpeed

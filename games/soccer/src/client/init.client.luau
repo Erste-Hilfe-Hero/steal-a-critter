@@ -98,6 +98,7 @@ end
 local dashUntil = 0
 local dashVelocity: LinearVelocity? = nil
 
+-- KNIFE: Messer-Slash; ist der Disarm bereit, sprintet man dabei (mit Zielhilfe) auf den Ballfuehrer zu
 local function tackle()
 	local _, humanoid, root = getCharacter()
 	if not humanoid or not root or carrying() or stunned() then
@@ -107,13 +108,16 @@ local function tackle()
 	if state ~= "Playing" then
 		return
 	end
+	if (player:GetAttribute("KnifeReadyAt") or 0) > serverNow() then
+		return
+	end
+	player:SetAttribute("KnifeReadyAt", serverNow() + Config.Knife.Slash.Cooldown)
+	remotes.Tackle:FireServer()
 	if (player:GetAttribute("TackleReadyAt") or 0) > serverNow() then
-		UI.Toast("Disarm recharging...", Config.Colors.Orange)
 		return
 	end
 	-- Lokale Sperre, bis der Server die neue Abklingzeit meldet
 	player:SetAttribute("TackleReadyAt", serverNow() + Config.TackleCooldown(skill("Disarm")))
-	remotes.Tackle:FireServer()
 	local direction = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z).Unit
 	local dashTime = 0.25
 	-- Zielhilfe: steht ein gegnerischer Ballfuehrer in der Naehe, sprintet man direkt auf ihn zu
@@ -148,6 +152,23 @@ local function tackle()
 			end
 		end)
 	end
+end
+
+-- STAB: starker Stich, von hinten fast immer ein K.O.
+local function stab()
+	if carrying() or stunned() or workspace:GetAttribute("MatchState") ~= "Playing" then
+		return
+	end
+	if (player:GetAttribute("KnifeReadyAt") or 0) > serverNow() then
+		return
+	end
+	player:SetAttribute("KnifeReadyAt", serverNow() + Config.Knife.Stab.Cooldown)
+	remotes.Stab:FireServer()
+end
+
+local function knockedOut(): boolean
+	local character = player.Character
+	return character ~= nil and (character:GetAttribute("KOUntil") or 0) > serverNow()
 end
 
 ---------------------------------------------------------------- Sprint und Ausdauer
@@ -201,6 +222,14 @@ RunService.RenderStepped:Connect(function(dt)
 	if stunned() then
 		speed = 3
 	end
+	-- K.O.: liegen bleiben, bis man an der Startposition wieder aufsteht
+	local ko = knockedOut()
+	if ko then
+		speed = 0
+	end
+	if humanoid.PlatformStand ~= ko then
+		humanoid.PlatformStand = ko
+	end
 	if state == "Kickoff" then
 		speed = 0
 	end
@@ -230,6 +259,13 @@ ContextActionService:BindAction("TurboTackle", function(_, inputState)
 	return Enum.ContextActionResult.Sink
 end, false, Enum.KeyCode.F, Enum.KeyCode.Q, Enum.KeyCode.ButtonB)
 
+ContextActionService:BindAction("TurboStab", function(_, inputState)
+	if inputState == Enum.UserInputState.Begin then
+		stab()
+	end
+	return Enum.ContextActionResult.Sink
+end, false, Enum.KeyCode.G, Enum.KeyCode.ButtonY)
+
 ContextActionService:BindAction("TurboShoot", function(_, inputState)
 	if inputState == Enum.UserInputState.Begin then
 		startCharge()
@@ -241,6 +277,10 @@ end, false, Enum.KeyCode.ButtonR2)
 
 -- Maus: halten = Schuss aufladen (mit Ball), Klick ohne Ball = Tackling
 UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.UserInputType == Enum.UserInputType.MouseButton2 and not UI.IsTouch then
+		stab()
+		return
+	end
 	if processed or input.UserInputType ~= Enum.UserInputType.MouseButton1 or UI.IsTouch then
 		return
 	end
@@ -259,6 +299,7 @@ end)
 UI.BindAction("Shoot", startCharge, releaseCharge)
 UI.BindAction("Pass", pass)
 UI.BindAction("Tackle", tackle)
+UI.BindAction("Stab", stab)
 UI.BindAction("Sprint", function()
 	sprintToggle = not sprintToggle
 	UI.SetSprintOn(sprintToggle)
@@ -306,6 +347,20 @@ remotes.MatchEvent.OnClientEvent:Connect(function(kind, info)
 	elseif kind == "Ended" then
 		local text = if info.Winner then `{string.upper(info.Winner)} WIN {math.max(info.Blue, info.Red)}-{math.min(info.Blue, info.Red)}!` else `DRAW {info.Blue}-{info.Red}`
 		UI.Announce(text, if info.Winner then Config.Teams[info.Winner].Color else Config.Colors.White, 5)
+	elseif kind == "Damage" then
+		local head = info.Model and info.Model:FindFirstChild("Head")
+		if head then
+			UI.DamageNumber(head, info.Amount, info.Backstab)
+			Sounds.Play("Hit", head.Position, if info.Backstab then 0.8 else 1)
+		end
+		if info.Model == player.Character then
+			shake(if info.Backstab then 0.8 else 0.35, 0.25)
+		end
+	elseif kind == "KO" then
+		UI.KillFeed(info)
+		if info.VictimModel == player.Character then
+			UI.Announce(`KNOCKED OUT{if info.Attacker then " by " .. info.Attacker else ""}! Back in {Config.KOSeconds}s`, Config.Colors.Red, Config.KOSeconds)
+		end
 	elseif kind == "EXP" then
 		UI.EXPPopup(info.Amount, info.Kind)
 	elseif kind == "LevelUp" then

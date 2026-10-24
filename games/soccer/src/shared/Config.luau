@@ -81,6 +81,21 @@ Config.StealProtect = 0.9 -- so lange kann einem frisch erkaempften Ball niemand
 Config.StunTime = 1.2
 Config.DashSpeed = 62
 
+-- Messer wie im Original (Werte aus CS 1.6): Slash schnell, Stab stark, von hinten dreifacher Schaden.
+-- Bei 0 Leben ist man K.O. (umgekippt, kein Blut) und kommt nach ein paar Sekunden an der Startposition zurueck.
+Config.MaxHP = 100
+Config.Knife = {
+	Slash = { Damage = 15, Backstab = 45, Range = 7, Windup = 0, Window = 0.3, Cooldown = 0.45 },
+	Stab = { Damage = 65, Backstab = 195, Range = 6.5, Windup = 0.2, Window = 0.25, Cooldown = 1.2 },
+}
+Config.BackstabDot = 0.45 -- so weit muss das Opfer vom Angreifer wegschauen
+Config.KOSeconds = 3
+Config.SpawnProtect = 2 -- so lange nach dem Zurueckkommen unverwundbar
+function Config.SmackDamage(speed: number): number
+	-- Harte Schuesse tun weh wie im Original: 20 bis 60 Schaden je nach Tempo
+	return math.clamp(math.floor((speed - Config.SmackSpeed) * 1.2 + 20), 20, 60)
+end
+
 -- Maskottchen bewachen ihr Tor: Gegner ohne Ball, die zu lange im Strafraum stehen, werden weggeschleudert
 Config.MascotZoneDepth = 34
 Config.MascotZoneWidth = 80
@@ -112,6 +127,7 @@ Config.EXP = {
 	Save = 150,
 	Smack = 80,
 	Dodge = 40,
+	KO = 100,
 }
 Config.GoalDistanceBonus = 4 -- EXP je Stud ueber 40 Studs Torentfernung
 
@@ -159,6 +175,7 @@ Config.Rewards = {
 	Save = { XP = 20, Coins = 4 },
 	Smack = { XP = 10, Coins = 2 },
 	Dodge = { XP = 5, Coins = 1 },
+	KO = { XP = 20, Coins = 4 },
 	Win = { XP = 150, Coins = 50 },
 	Draw = { XP = 90, Coins = 30 },
 	Loss = { XP = 60, Coins = 20 },
