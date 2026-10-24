@@ -56,6 +56,8 @@ local ICONS = {
 	FusionCatalyst = "🧪",
 	CashParty = "🎉",
 	StarterPack = "🎁",
+	OfflinePro = "🌙",
+	QuestSkip = "⏩",
 }
 
 local QUICK = TweenInfo.new(0.08)
@@ -285,6 +287,8 @@ local function showToast(message: string, color: Color3?)
 		toast:Destroy()
 	end)
 end
+
+UI.Toast = showToast
 
 local announceToken = 0
 local function showAnnouncement(message: string, color: Color3?)

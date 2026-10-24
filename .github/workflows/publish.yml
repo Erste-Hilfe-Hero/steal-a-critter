@@ -77,8 +77,45 @@ jobs:
           name: StealACritter
           path: StealACritter.rbxlx
 
-      - name: Publish to Roblox
+      # Erst als "Saved" hochladen (Spieler merken nichts), dann den Smoke-Test genau auf dieser Version laufen lassen.
+      # Nur wenn alles gruen ist, wird die Version live geschaltet.
+      - name: Save version (not live yet)
         if: env.ROBLOX_API_KEY != '' && env.UNIVERSE_ID != '' && env.PLACE_ID != ''
+        run: |
+          curl --fail-with-body -sS -X POST \
+            "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Saved" \
+            -H "x-api-key: ${ROBLOX_API_KEY}" \
+            -H "Content-Type: application/xml" \
+            --data-binary @StealACritter.rbxlx -o saved.json
+          echo "::notice::Saved: $(cat saved.json)"
+          echo "SAVED_VERSION=$(jq -r '.versionNumber' saved.json)" >> "$GITHUB_ENV"
+
+      - name: Smoke test saved version
+        if: env.SAVED_VERSION != ''
+        run: |
+          BASE="https://apis.roblox.com/cloud/v2/universes/$UNIVERSE_ID/places/$PLACE_ID/versions/$SAVED_VERSION"
+          curl -sS -X POST "$BASE/luau-execution-session-tasks" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" \
+            -d "$(jq -n --rawfile s tests/smoke.luau '{script: $s, timeout: "120s"}')" -o task.json
+          TASK=$(jq -r '.path // empty' task.json)
+          if [ -z "$TASK" ]; then echo "::error::create failed: $(head -c 400 task.json)"; exit 1; fi
+          for i in $(seq 1 60); do
+            sleep 5
+            curl -sS "https://apis.roblox.com/cloud/v2/$TASK" -H "x-api-key: $ROBLOX_API_KEY" -o state.json
+            STATE=$(jq -r '.state' state.json)
+            [ "$STATE" = "COMPLETE" ] || [ "$STATE" = "FAILED" ] || [ "$STATE" = "CANCELLED" ] && break
+          done
+          echo "::notice::pre-publish smoke state: $STATE"
+          if [ "$STATE" != "COMPLETE" ]; then
+            echo "::error::$(jq -c '.error' state.json | head -c 600)"
+            curl -sS "https://apis.roblox.com/cloud/v2/$TASK/logs" -H "x-api-key: $ROBLOX_API_KEY" | head -c 1500 | tr '\n' ' ' | sed 's/^/::notice::logs: /'
+            exit 1
+          fi
+          jq -r '.output.results[0] // ""' state.json | grep '^FAIL' | head -20 | sed 's/^/::error::/'
+          echo "::notice::$(jq -r '.output.results[0] // ""' state.json | head -1)"
+          jq -r '.output.results[0] // ""' state.json | head -1 | grep -q "^SUMMARY: 0 failed" || exit 1
+
+      - name: Publish to Roblox
+        if: env.SAVED_VERSION != ''
         run: |
           curl --fail-with-body -sS -X POST \
             "https://apis.roblox.com/universes/v1/${UNIVERSE_ID}/places/${PLACE_ID}/versions?versionType=Published" \

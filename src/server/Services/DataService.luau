@@ -33,6 +33,16 @@ local function defaultData()
 		StarterPack = false, -- Starter Pack gekauft (nur einmal)
 		StarterOfferShown = false, -- Begruessungs-Angebot schon einmal gezeigt
 		Catalysts = 0, -- Fusion Catalysts: naechste Fusion braucht nur 2 Kreaturen
+		Stats = {}, -- [Stat] = Zaehler (Bought, Stolen, Slaps, Fused, Sold, Coins, QuestsDone)
+		Quests = { Day = 0, List = {} }, -- taegliche Quests
+		Achievements = {}, -- [Id] = true (abgeholt)
+		Index = {}, -- [UnitId] = true (entdeckt)
+		IndexClaimed = 0, -- Anzahl abgeholter Index-Meilensteine
+		LastSpinAt = 0, -- os.time() des letzten Gluecksrad-Drehs
+		BaseLevel = 0, -- Basis-Ausbau
+		Codes = {}, -- [Code] = true (eingeloest)
+		LastOnline = 0, -- os.time() beim letzten Speichern (Offline-Einnahmen)
+		OfflineIncome = 0, -- Einkommen pro Sekunde beim letzten Speichern
 	}
 end
 
@@ -161,6 +171,10 @@ function DataService:Save(player: Player): boolean
 	if not profile.CanSave then
 		return RunService:IsStudio()
 	end
+	if player.Parent then
+		profile.Data.LastOnline = os.time()
+		profile.Data.OfflineIncome = tonumber(player:GetAttribute("IncomePerSec")) or 0
+	end
 	local ok = withRetries(function()
 		store:UpdateAsync(keyFor(player), function()
 			return profile.Data
@@ -170,6 +184,11 @@ function DataService:Save(player: Player): boolean
 end
 
 function DataService:Release(player: Player)
+	local profile = profiles[player]
+	if profile then
+		profile.Data.LastOnline = os.time()
+		profile.Data.OfflineIncome = tonumber(player:GetAttribute("IncomePerSec")) or 0
+	end
 	self:Save(player)
 	profiles[player] = nil
 end

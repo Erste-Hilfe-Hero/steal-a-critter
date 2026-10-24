@@ -38,6 +38,7 @@ local function offerSlots(player: Player)
 	if not UnitService.Services.MonetizationService:HasPass(player, "ExtraSlots") then
 		UnitService.Services.Net.SendOffer(player, "Pass", "ExtraSlots", "Your base is full!")
 	end
+	UnitService.Services.Net.SendNotify(player, "Tip: hold R on a critter in your base to sell it.", Color3.fromRGB(200, 200, 255))
 end
 
 local function notify(player: Player, text: string, color: Color3?)
@@ -79,10 +80,12 @@ function UnitService:GetBaseIncome(player: Player): number
 		return 0
 	end
 	local total = 0
+	local featured = self.Services.RewardService and self.Services.RewardService:GetFeaturedId()
 	for _, code in data.Units do
 		local info = Units.Info(code)
 		if info then
-			total += info.Income
+			-- Kreatur des Tages verdient doppelt
+			total += info.Income * (if info.Id == featured then Config.FeaturedMultiplier else 1)
 		end
 	end
 	return total
@@ -116,6 +119,11 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	local avenging = UnitService:HasRevenge(thief, owner)
 	if services.PlotService:IsLocked(owner) and not avenging then
 		notify(thief, "This base is locked!", RED)
+		return
+	end
+	-- Neulingsschutz: neue Spieler koennen in den ersten Minuten nicht bestohlen werden
+	if services.RewardService:HasShield(owner) and not avenging then
+		notify(thief, `{owner.DisplayName} is new and has a newbie shield! 🛡️`, RED)
 		return
 	end
 	-- Serverseitige Pruefung der Haltezeit (Schutz gegen Exploits)
@@ -165,7 +173,16 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	weld.Parent = visual
 	visual.Parent = character
 
-	carrying[thief] = { Owner = owner, SlotKey = slotKey, Code = code, Visual = visual, Model = model, Prompt = prompt, StartedAt = os.clock() }
+	-- Dieb leuchtet rot, damit alle ihn sehen und schlagen koennen
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "ThiefHighlight"
+	highlight.FillColor = Color3.fromRGB(255, 50, 50)
+	highlight.FillTransparency = 0.6
+	highlight.OutlineColor = Color3.fromRGB(255, 220, 60)
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.Parent = character
+
+	carrying[thief] = { Owner = owner, SlotKey = slotKey, Code = code, Visual = visual, Model = model, Prompt = prompt, StartedAt = os.clock(), Highlight = highlight }
 	thief:SetAttribute("Carrying", def.Name)
 	notify(owner, `{thief.DisplayName} is stealing your {def.Name}! Slap them!`, RED)
 	notify(thief, `You grabbed {def.Name}! Run back to your base!`, GOLD)
@@ -221,6 +238,25 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 		end)
 	end
 
+	-- Verkaufen: nur der Besitzer sieht diesen Prompt
+	local sellPrompt = Instance.new("ProximityPrompt")
+	sellPrompt.Name = "SellPrompt"
+	sellPrompt.ActionText = "Sell " .. Format.Cash(math.floor(def.Value * Config.SellShare))
+	sellPrompt.ObjectText = def.Name
+	sellPrompt.KeyboardKeyCode = Enum.KeyCode.R
+	sellPrompt.GamepadKeyCode = Enum.KeyCode.ButtonX
+	sellPrompt.HoldDuration = 1.2
+	sellPrompt.MaxActivationDistance = 8
+	sellPrompt.RequiresLineOfSight = false
+	sellPrompt.UIOffset = Vector2.new(0, 75)
+	sellPrompt:SetAttribute("OwnerUserId", player.UserId)
+	sellPrompt.Parent = model.PrimaryPart
+	sellPrompt.Triggered:Connect(function(who)
+		if who == player then
+			UnitService:Sell(player, slotKey)
+		end
+	end)
+
 	model.Parent = plot.Model
 	baseUnits[player][slotKey] = model
 end
@@ -254,6 +290,7 @@ function UnitService:GiveUnit(player: Player, code: string, slotKey: string?, so
 	code = def.Code
 	data.Units[key] = code
 	self:UpdateIncome(player)
+	self.Services.ProgressService:Discover(player, def.Id)
 
 	if sourceModel and sourceModel.PrimaryPart then
 		for _, child in sourceModel.PrimaryPart:GetChildren() do
@@ -285,6 +322,9 @@ endSteal = function(thief: Player, success: boolean)
 	if info.Visual then
 		info.Visual:Destroy()
 	end
+	if info.Highlight then
+		info.Highlight:Destroy()
+	end
 
 	local services = UnitService.Services
 	local owner: Player = info.Owner
@@ -304,6 +344,9 @@ endSteal = function(thief: Player, success: boolean)
 			owner:SetAttribute("RevengeTargetId", thief.UserId)
 			owner:SetAttribute("RevengeUntil", workspace:GetServerTimeNow() + Config.RevengeDuration)
 			notify(thief, `You stole {def.Name}!`, GREEN)
+			services.ProgressService:Track(thief, "Stolen", 1)
+			services.EventService:AddGoalProgress(1)
+			services.RewardService:BountyBonus(thief, owner, def.Value)
 			notify(owner, `{thief.DisplayName} stole your {def.Name}! Insurance paid {Format.Cash(payout)}. REVENGE: steal back instantly for {Config.RevengeDuration}s!`, RED)
 			services.Net.SendOffer(owner, "Product", "LockBase", "Protect your base from thieves!")
 			if Config.RaritiesByName[def.Rarity].Announce then
@@ -385,6 +428,8 @@ local function tryBuy(player: Player, model: Model)
 	conveyorUnits[model] = nil
 	services.DataService:AddCash(player, -def.Price)
 	notify(player, `Bought {def.Name}!`, GREEN)
+	services.ProgressService:Track(player, "Bought", 1)
+	services.EventService:AddGoalProgress(1)
 	UnitService:GiveUnit(player, def.Code, slot, model)
 end
 
@@ -399,9 +444,14 @@ function UnitService:TakeFromBelt(model: Model?, code: string): Model?
 	return nil
 end
 
-local function spawnBeltUnit()
+local function spawnBeltUnit(forcedRarity: string?)
 	local services = UnitService.Services
-	local def = Units.Info(Units.Encode(pickUnitDef().Id, rollMutation(), 0))
+	local picked = pickUnitDef()
+	if forcedRarity and unitsByRarity[forcedRarity] then
+		local list = unitsByRarity[forcedRarity]
+		picked = list[math.random(1, #list)]
+	end
+	local def = Units.Info(Units.Encode(picked.Id, rollMutation(), 0))
 	local rarity = Config.RaritiesByName[def.Rarity]
 	local model = UnitFactory.Build(def)
 	local conveyor = Config.Conveyor
@@ -422,7 +472,7 @@ local function spawnBeltUnit()
 		tryBuy(player, model)
 	end)
 
-	if rarity.Index >= Config.RaritiesByName.Epic.Index then
+	if rarity.Index >= Config.RaritiesByName.Epic.Index and Config.DevProducts["Instant" .. def.Rarity] then
 		local robuxPrompt = Instance.new("ProximityPrompt")
 		robuxPrompt.Name = "RobuxPrompt"
 		robuxPrompt.ActionText = "Buy with Robux"
@@ -447,6 +497,28 @@ local function spawnBeltUnit()
 	if rarity.Announce or (def.Mutation and def.Mutation.Multiplier >= 4) then
 		services.Net.SendAnnounce(`A {def.Rarity} {def.Name} is on the belt!`, if def.Mutation then def.Mutation.Color else rarity.Color)
 	end
+end
+
+-- Fuer Events: z.B. garantierte Mythic-Kreatur auf dem Laufband
+function UnitService:SpawnBeltUnit(rarityName: string?)
+	spawnBeltUnit(rarityName)
+end
+
+---------------------------------------------------------------- Verkaufen
+
+-- Kreatur aus der eigenen Basis verkaufen (halber Wert), z.B. wenn die Basis voll ist
+function UnitService:Sell(player: Player, slotKey: string)
+	local data = self.Services.DataService:Get(player)
+	local info = data and Units.Info(data.Units[slotKey])
+	local model = baseUnits[player] and baseUnits[player][slotKey]
+	if not info or not model or model:GetAttribute("BeingStolen") then
+		return
+	end
+	local amount = math.floor(info.Value * Config.SellShare)
+	self:RemoveBaseUnit(player, slotKey)
+	self.Services.DataService:AddCash(player, amount)
+	self.Services.ProgressService:Track(player, "Sold", 1)
+	notify(player, `Sold {info.Name} for {Format.Cash(amount)}`, GREEN)
 end
 
 ---------------------------------------------------------------- Fusion und Rache
@@ -489,6 +561,7 @@ function UnitService:Fuse(player: Player, slotKey: string)
 	self:GiveUnit(player, fused, slotKey)
 	local result = Units.Info(fused)
 	notify(player, `FUSION! You created {result.Name} (+{Format.Cash(result.Income)}/s)`, GOLD)
+	self.Services.ProgressService:Track(player, "Fused", 1)
 	if result.Fusion >= 2 then
 		self.Services.Net.SendAnnounce(`{player.DisplayName} fused a {result.Name}!`, Color3.fromRGB(180, 80, 255))
 	end
@@ -555,6 +628,7 @@ local function slap(player: Player)
 	if not best then
 		return
 	end
+	UnitService.Services.ProgressService:Track(player, "Slaps", 1)
 	local humanoid = best.Character and best.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.WalkSpeed = 0
@@ -627,6 +701,7 @@ local function rebirth(player: Player)
 	UnitService:UpdateIncome(player)
 	notify(player, `Rebirth {data.Rebirths}! Your income is now x{UnitService.Services.MonetizationService:GetMultiplier(player)}.`, GOLD)
 	services.Net.SendAnnounce(`{player.DisplayName} reached Rebirth {data.Rebirths}!`, GOLD)
+	services.ProgressService:CheckAchievements(player)
 	task.spawn(services.DataService.Save, services.DataService, player)
 end
 

@@ -63,10 +63,25 @@ function MonetizationService:GetMultiplier(player: Player): number
 		multiplier *= 1 + math.min(data.Referrals or 0, Config.ReferralBoostMaxCount) * Config.ReferralBoostPer
 	end
 	multiplier *= 1 + (tonumber(player:GetAttribute("FriendBoost")) or 0)
+	-- Basis-Ausbau und Critter-Index
+	if self.Services.RewardService then
+		multiplier *= 1 + self.Services.RewardService:GetBaseBonus(player)
+	end
+	if self.Services.ProgressService then
+		multiplier *= 1 + self.Services.ProgressService:GetIndexBonus(player)
+	end
 	if self.Services.EventService and self.Services.EventService:IsActive("DoubleCash") then
 		multiplier *= 2
 	end
 	return math.floor(multiplier * 100 + 0.5) / 100
+end
+
+-- Server-Glueck fuer alle (gekauft oder vom Gluecksrad)
+function MonetizationService:AddServerLuck(seconds: number, byName: string)
+	local now = workspace:GetServerTimeNow()
+	luckUntil = math.max(now, luckUntil) + seconds
+	workspace:SetAttribute("LuckUntil", luckUntil)
+	self.Services.Net.SendAnnounce(`{byName} activated SERVER LUCK x{Config.ServerLuckMultiplier} for everyone!`, GREEN)
 end
 
 function MonetizationService:GetLuck(): number
@@ -125,10 +140,7 @@ local function grantProduct(player: Player, key: string): boolean
 			return false
 		end
 	elseif kind == "ServerLuck" then
-		local now = workspace:GetServerTimeNow()
-		luckUntil = math.max(now, luckUntil) + product.Seconds
-		workspace:SetAttribute("LuckUntil", luckUntil)
-		services.Net.SendAnnounce(`{player.DisplayName} activated SERVER LUCK x{Config.ServerLuckMultiplier} for everyone!`, GREEN)
+		MonetizationService:AddServerLuck(product.Seconds, player.DisplayName)
 	elseif kind == "InstantBuy" then
 		local pending = pendingInstant[player]
 		pendingInstant[player] = nil
@@ -201,6 +213,13 @@ local function grantProduct(player: Player, key: string): boolean
 		data.Catalysts = (data.Catalysts or 0) + 1
 		player:SetAttribute("Catalysts", data.Catalysts)
 		services.Net.SendNotify(player, "Fusion Catalyst ready: your next fusion needs only 2 identical critters!", GOLD)
+	elseif kind == "QuestSkip" then
+		if not services.ProgressService:SkipQuest(player) then
+			-- Alle Quests schon erledigt: fair in Cash liefern
+			local amount = services.ProgressService.IncomeReward(player, 20, 5_000)
+			services.DataService:AddCash(player, amount)
+			services.Net.SendNotify(player, `All quests already done, so you got {Format.Cash(amount)} instead!`, GOLD)
+		end
 	elseif kind == "CashParty" then
 		services.EventService:StartParty(product.Seconds, player.DisplayName)
 	else
@@ -270,6 +289,15 @@ function MonetizationService:PromptInstantBuy(player: Player, model: Model, def)
 		grantProduct(player, key)
 	else
 		self.Services.Net.SendNotify(player, "This product is not set up yet.", RED)
+	end
+end
+
+-- Kauf eines Developer Products vom Server aus anstossen (z.B. Quest Skip im Quest-Fenster)
+function MonetizationService:PromptProduct(player: Player, key: string, product)
+	if product.Id ~= 0 then
+		MarketplaceService:PromptProductPurchase(player, product.Id)
+	elseif RunService:IsStudio() and Config.StudioFakePurchases then
+		grantProduct(player, key)
 	end
 end
 

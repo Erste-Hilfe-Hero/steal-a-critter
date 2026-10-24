@@ -54,13 +54,13 @@ local services = {}
 local ok, err = pcall(function()
 	local s = folder.Services
 	services.Net = require(s.Net)
-	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService" } do
+	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService" } do
 		services[name] = require(s[name])
 	end
 end)
 check("require services", ok, err)
 
-local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService" }
+local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService" }
 if ok then
 	ok, err = pcall(function()
 		for _, name in ORDER do
@@ -118,6 +118,30 @@ if ok then
 		local first = belt:GetChildren()[1]
 		check("belt critter has buy prompt", first.PrimaryPart and first.PrimaryPart:FindFirstChild("BuyPrompt") ~= nil)
 	end
+end
+
+-- Update 2
+check("secret rarity", Config.RaritiesByName.Secret ~= nil)
+check("offline pro product", (Config.GamePasses.OfflinePro.ProductId or 0) ~= 0)
+check("base upgrade cost", Config.BaseUpgradeCost(0) == 5000, Config.BaseUpgradeCost(0))
+for _, quest in Config.Quests do
+	check("quest text " .. quest.Id, string.format(quest.Text, quest.Goals[1]):find("%d") ~= nil)
+end
+check("achievement index goal = units", Config.Achievements[13].Goal == #Config.Units, #Config.Units)
+if ok then
+	check("request remote", ReplicatedStorage.Remotes:FindFirstChild("Request") ~= nil)
+	check("sync remote", ReplicatedStorage.Remotes:FindFirstChild("Sync") ~= nil)
+	check("rebirth board", workspace:FindFirstChild("RebirthBoard") ~= nil)
+	check("thief board", workspace:FindFirstChild("ThiefBoard") ~= nil)
+	check("featured critter", Config.UnitsById[workspace:GetAttribute("FeaturedId") or ""] ~= nil, workspace:GetAttribute("FeaturedId"))
+	check("server goal", workspace:GetAttribute("GoalTarget") == Config.ServerGoal)
+	check("coin folder", workspace:FindFirstChild("RainCoins") ~= nil)
+	local goalOk, goalErr = pcall(services.EventService.AddGoalProgress, services.EventService, 1)
+	check("goal progress", goalOk and workspace:GetAttribute("GoalProgress") == 1, goalErr)
+	local before = #workspace.BeltUnits:GetChildren()
+	local spawnOk, spawnErr = pcall(services.UnitService.SpawnBeltUnit, services.UnitService, "Secret")
+	check("spawn secret on belt", spawnOk and #workspace.BeltUnits:GetChildren() > before, spawnErr)
+	check("happy hour timer", workspace:GetAttribute("HappyHourIn") ~= nil or workspace:GetAttribute("HappyHourEnds") ~= nil)
 end
 
 table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)
