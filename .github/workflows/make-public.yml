@@ -1,0 +1,65 @@
+name: Make experiences public
+
+# Schaltet alle Experiences in Alis Konto oeffentlich, die noch privat sind. Open Cloud kann die
+# Sichtbarkeit nicht aendern, deshalb laeuft das mit dem Login-Cookie, den Ali selbst als Secret
+# ROBLOSECURITY hinterlegt hat (Ali: "Mach du", 2026-10-25). Der Cookie wird nie ausgegeben.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Nur Experiences, deren Name das enthaelt (leer = alle)"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths: [".github/workflows/make-public.yml"]
+
+concurrency: make-public
+
+permissions:
+  contents: read
+
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    env:
+      COOKIE: ${{ secrets.ROBLOSECURITY }}
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      ONLY: ${{ github.event.inputs.only }}
+    steps:
+      - name: Activate private experiences
+        run: |
+          set +e
+          if [ -z "$COOKIE" ]; then echo "::error::Secret ROBLOSECURITY fehlt"; exit 1; fi
+          note() { echo "::notice::$1: $(echo "$2" | tr -d '\n' | head -c 400)"; }
+          CSRF=""
+          # Roblox-Aufruf mit Cookie; holt bei 403 einmal das CSRF-Token und wiederholt
+          call() { # method url [curl args...]
+            M=$1; URL=$2; shift 2
+            for TRY in 1 2; do
+              R=$(curl -sS -X "$M" "$URL" -H "Cookie: .ROBLOSECURITY=$COOKIE" -H "x-csrf-token: $CSRF" \
+                -D headers.txt "$@" -w '\nHTTP %{http_code}')
+              T=$(grep -i '^x-csrf-token:' headers.txt | tr -d '\r' | awk '{print $2}')
+              rm -f headers.txt
+              if echo "$R" | grep -q 'HTTP 403' && [ -n "$T" ] && [ "$T" != "$CSRF" ]; then CSRF=$T; continue; fi
+              break
+            done
+            echo "$R"
+          }
+          body() { echo "$1" | sed '$d'; }
+
+          LIST=$(call GET 'https://develop.roblox.com/v1/user/universes?limit=50&sortOrder=Desc')
+          if ! echo "$LIST" | grep -q 'HTTP 200'; then echo "::error::Liste nicht lesbar: $(echo "$LIST" | tail -1)"; exit 1; fi
+          body "$LIST" | jq -c '.data[]? | {id, name, isActive, privacyType}' | sed 's/^/before: /'
+
+          body "$LIST" | jq -r '.data[]? | "\(.id)\t\(.isActive)\t\(.name)"' | while IFS=$'\t' read -r U ACTIVE NAME; do
+            if [ -n "$ONLY" ] && ! echo "$NAME" | grep -qiF "$ONLY"; then continue; fi
+            if [ "$ACTIVE" = "true" ]; then note "$NAME ($U)" "already public"; continue; fi
+            note "$NAME ($U) activate" "$(call POST "https://develop.roblox.com/v1/universes/$U/activate" -H 'Content-Length: 0')"
+            AGE=$(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{visibility, ageRating}')
+            note "$NAME ($U) now" "$AGE"
+          done
+
+          AFTER=$(call GET 'https://develop.roblox.com/v1/user/universes?limit=50&sortOrder=Desc')
+          body "$AFTER" | jq -r '.data[]? | "\(.name) | \(.id) | public=\(.isActive)"' | while read -r L; do echo "::notice::after: $L"; done
