@@ -37,10 +37,10 @@ local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local services = {}
 local ok, err = pcall(function()
-	for _, name in { "Net", "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "MonetizationService" } do
+	for _, name in { "Net", "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "ProgressService", "EventService", "MonetizationService" } do
 		services[name] = require(folder.Services[name])
 	end
-	for _, name in { "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "MonetizationService" } do
+	for _, name in { "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "ProgressService", "EventService", "MonetizationService" } do
 		services[name]:Init(services)
 	end
 	services.WorldService:Build()
@@ -53,6 +53,30 @@ local zones = workspace:FindFirstChild("Zones")
 check("zones folder", zones ~= nil)
 check("lobby portal", zones and zones:FindFirstChild("StartPortal") ~= nil)
 check("leaderboard board", services.WorldService.Board ~= nil)
+
+-- Update 2: Fortschritt, Events, neue Remotes und Daten
+local Progression = require(ReplicatedStorage.Shared.Progression)
+local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+for _, name in { "Progress", "ProgressSync", "Reward" } do
+	check("remote " .. name, remotes ~= nil and remotes:FindFirstChild(name) ~= nil)
+end
+check("progress service api", typeof(services.ProgressService.RecordMedal) == "function" and typeof(services.ProgressService.OnStageClear) == "function")
+check("event service api", typeof(services.EventService.AddBoost) == "function")
+check("timer can skip api", typeof(services.TimerService.CanSkip) == "function")
+check("gold time for every stage", #Progression.GoldTimes == #Config.Stages, #Progression.GoldTimes)
+check("daily quests", #Progression.QuestsFor(20000, 1) == Progression.QuestsPerDay)
+check("medal tiers", Progression.MedalFor(1, 1) == 3 and Progression.MedalFor(1, 9999) == 1)
+check("flake booster product", Config.DevProducts.FlakeBoost ~= nil and Config.DevProducts.FlakeBoost.Kind == "Boost")
+local spinOk = true
+for i = 0, 100 do
+	if not Progression.Spin[Progression.PickSpin(i / 100)] then
+		spinOk = false
+	end
+end
+check("lucky snowball slots", spinOk)
+for _, buddy in Progression.Buddies do
+	check("buddy " .. buddy.Id, buddy.Price ~= nil or buddy.Spin == true)
+end
 
 local params = RaycastParams.new()
 params.FilterType = Enum.RaycastFilterType.Exclude

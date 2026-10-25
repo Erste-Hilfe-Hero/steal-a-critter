@@ -18,6 +18,8 @@ local SELL_RANGE = 22
 local playerPlots = {} -- [Player] = plot
 local lastNotice = {} -- [Player] = os.clock() (gegen Meldungs-Spam)
 local friendCache = {} -- ["a:b"] = boolean
+local pendingDig = {} -- [Player] = { Index, Until } (Sicherheitsabfrage beim Ausgraben seltener Pflanzen)
+local lastPlantAll = {} -- [Player] = os.clock()
 
 function GardenService:Init(services)
 	self.Services = services
@@ -42,12 +44,35 @@ local function hasPass(player: Player, key: string): boolean
 	return player:GetAttribute("Pass_" .. key) == true
 end
 
+-- Fortschritt (Aufgaben, Erfolge, Index, Level); fehlt im Smoke-Test evtl.
+local function progress()
+	return GardenService.Services.ProgressService
+end
+
+-- Bonus des ausgeruesteten Begleiters ("Growth", "Value" oder "Mutation")
+local function petBonus(player: Player, data, key: string): number
+	local pet = data and Config.PetsById[data.Pet or ""]
+	if not pet then
+		return 0
+	end
+	if pet.Pass and not hasPass(player, pet.Pass) then
+		return 0
+	end
+	return pet[key] or 0
+end
+
 function GardenService:GetPlot(player: Player)
 	return playerPlots[player]
 end
 
 function GardenService:MaxTiles(player: Player): number
 	return Config.MaxTiles + (if hasPass(player, "BigGarden") then Config.BigGardenTiles else 0)
+end
+
+function GardenService:BackpackSize(player: Player): number
+	local data = getData(player)
+	local level = if data then data.Upgrades.Backpack or 0 else 0
+	return Config.BackpackSize + level * Config.BackpackPerLevel + (if hasPass(player, "SuperBag") then Config.SuperBagSlots else 0)
 end
 
 ---------------------------------------------------------------- Multiplikatoren
@@ -69,6 +94,11 @@ function GardenService:GetSellMultiplier(player: Player): number
 		multiplier *= Config.PremiumMultiplier
 	end
 	multiplier *= 1 + (player:GetAttribute("Friends") or 0) * Config.FriendBonusPer
+	multiplier *= 1 + petBonus(player, data, "Value")
+	local progressService = progress()
+	if progressService then
+		multiplier *= progressService:GetValueBonus(player)
+	end
 	return math.floor(multiplier * 100 + 0.5) / 100
 end
 
@@ -79,6 +109,7 @@ function GardenService:GetGrowthRate(player: Player, withWeather: boolean): numb
 	if hasPass(player, "FastGrow") then
 		rate *= Config.FastGrowMultiplier
 	end
+	rate *= 1 + petBonus(player, data, "Growth")
 	if withWeather then
 		rate *= self.Services.EventService:GetGrowthBonus()
 	end
@@ -98,6 +129,7 @@ function GardenService:RefreshStats(player: Player)
 	player:SetAttribute("SellMultiplier", self:GetSellMultiplier(player))
 	player:SetAttribute("GrowthRate", self:GetGrowthRate(player, true))
 	player:SetAttribute("MaxTiles", self:MaxTiles(player))
+	player:SetAttribute("BackpackSize", self:BackpackSize(player))
 end
 
 ---------------------------------------------------------------- Pflanzen-Optik
@@ -279,13 +311,18 @@ end
 
 ---------------------------------------------------------------- Pflanzen und Ernten
 
-local function rollMutation()
+local function rollMutation(player: Player)
 	local events = GardenService.Services.EventService
 	local weather = events:GetWeather()
+	local night = events:IsNight()
+	local petMultiplier = 1 + petBonus(player, getData(player), "Mutation")
 	for _, mutation in Config.Mutations do
 		local needs = mutation.Weather
 		local allowed = needs == nil or needs == weather or (type(needs) == "table" and table.find(needs, weather) ~= nil)
-		local chance = mutation.Chance
+		if mutation.Night and not night then
+			allowed = false
+		end
+		local chance = mutation.Chance * petMultiplier
 		if mutation.Name == "Golden" then
 			chance *= events:GetGoldenMultiplier()
 		end
@@ -303,14 +340,14 @@ function GardenService:Harvest(player: Player, index: number, silent: boolean?):
 	if not plant or plant.Grown < plant.Need then
 		return false
 	end
-	if #data.Fruits >= Config.BackpackSize then
+	if #data.Fruits >= self:BackpackSize(player) then
 		if not silent then
 			notifyThrottled(player, "Your backpack is full! Sell your fruits at the SELL stand.", RED)
 		end
 		return false
 	end
 	local seed = Config.SeedsById[plant.Id]
-	local mutation = rollMutation()
+	local mutation = rollMutation(player)
 	local weight = 0.8 + math.random() * 0.7
 	local value = math.floor(seed.Value * weight * (if mutation then mutation.Multiplier else 1))
 	table.insert(data.Fruits, { Id = seed.Id, Value = value, Mutation = if mutation then mutation.Name else nil })
@@ -330,6 +367,10 @@ function GardenService:Harvest(player: Player, index: number, silent: boolean?):
 	elseif mutation then
 		notify(player, `{mutation.Name} {seed.Name}! x{mutation.Multiplier}`, mutation.Color)
 	end
+	local progressService = progress()
+	if progressService then
+		progressService:OnHarvest(player, seed, if mutation then mutation.Name else nil)
+	end
 	self.Services.DataService:UpdateAttributes(player)
 	self:RefreshTile(player, index)
 	return true
@@ -341,14 +382,86 @@ function GardenService:Plant(player: Player, index: number, seedId: string): boo
 	if not data or not seed or (data.Seeds[seedId] or 0) <= 0 then
 		return false
 	end
+	-- Nur auf eigene, freie Felder
+	if index ~= math.floor(index) or index < 1 or index > data.Tiles or data.Plants[tostring(index)] then
+		return false
+	end
 	data.Seeds[seedId] -= 1
 	if data.Seeds[seedId] <= 0 then
 		data.Seeds[seedId] = nil
 	end
 	data.Plants[tostring(index)] = { Id = seedId, Grown = 0, Need = seed.Grow }
+	local progressService = progress()
+	if progressService then
+		progressService:AddStat(player, "Plant", 1)
+	end
 	self.Services.DataService:UpdateAttributes(player)
 	self:RefreshTile(player, index)
 	return true
+end
+
+-- Schaufel: Pflanze entfernen, damit das Feld wieder frei ist (seltene Pflanzen erst nach zweitem Tippen)
+function GardenService:Dig(player: Player, index: number): boolean
+	local data = getData(player)
+	local key = tostring(index)
+	local plant = data and data.Plants[key]
+	if not plant then
+		return false
+	end
+	local seed = Config.SeedsById[plant.Id]
+	local rarity = seed and Config.RaritiesByName[seed.Rarity]
+	if rarity and rarity.Index >= 5 then
+		local pending = pendingDig[player]
+		if not pending or pending.Index ~= index or os.clock() > pending.Until then
+			pendingDig[player] = { Index = index, Until = os.clock() + 3 }
+			notify(player, `Tap again to dig up your {seed.Name}. It will be gone!`, RED)
+			return false
+		end
+	end
+	pendingDig[player] = nil
+	data.Plants[key] = nil
+	notify(player, `Dug up {if seed then seed.Name else "the plant"}. The tile is free again.`, GOLD)
+	self.Services.DataService:UpdateAttributes(player)
+	self:RefreshTile(player, index)
+	return true
+end
+
+-- Alle freien eigenen Felder mit dem gewaehlten (oder wertvollsten) Samen bepflanzen
+function GardenService:PlantAll(player: Player): number
+	local data = getData(player)
+	if not data then
+		return 0
+	end
+	local selected = player:GetAttribute("SelectedSeed")
+	if type(selected) ~= "string" or (data.Seeds[selected] or 0) <= 0 then
+		selected = nil
+		for _, seed in Config.Seeds do
+			if (data.Seeds[seed.Id] or 0) > 0 then
+				selected = seed.Id
+			end
+		end
+	end
+	if not selected then
+		notifyThrottled(player, "No seeds! Buy some at the SEEDS shop.", RED)
+		return 0
+	end
+	player:SetAttribute("SelectedSeed", selected)
+	local planted = 0
+	for index = 1, data.Tiles do
+		if (data.Seeds[selected] or 0) <= 0 then
+			break
+		end
+		if not data.Plants[tostring(index)] and self:Plant(player, index, selected) then
+			planted += 1
+		end
+	end
+	local seed = Config.SeedsById[selected]
+	if planted > 0 then
+		notify(player, `Planted {planted} {seed.Name}!`, GREEN)
+	else
+		notifyThrottled(player, "All your tiles are full. Harvest or use the Shovel!", GOLD)
+	end
+	return planted
 end
 
 local function onTileClicked(player: Player, plot, index: number)
@@ -368,10 +481,18 @@ local function onTileClicked(player: Player, plot, index: number)
 		return
 	end
 	local plant = data.Plants[tostring(index)]
+	if plant and player:GetAttribute("Tool") == "Shovel" then
+		GardenService:Dig(player, index)
+		return
+	end
 	if plant then
 		if plant.Grown >= plant.Need then
 			GardenService:Harvest(player, index)
 		end
+		return
+	end
+	if player:GetAttribute("Tool") == "Shovel" then
+		notifyThrottled(player, "Shovel: tap a plant to dig it up. Tap SHOVEL again to plant.", GOLD)
 		return
 	end
 	local selected = player:GetAttribute("SelectedSeed")
@@ -423,6 +544,10 @@ function GardenService:SellAll(player: Player)
 	total = math.floor(total * self:GetSellMultiplier(player))
 	data.Fruits = {}
 	self.Services.DataService:AddCoins(player, total)
+	local progressService = progress()
+	if progressService then
+		progressService:AddStat(player, "Sell", count)
+	end
 	notify(player, `Sold {count} fruits for {Format.Cash(total)}!`, GREEN)
 	self.Services.Net.Effect:FireClient(player, "Sell", nil, "+" .. Format.Cash(total), GOLD)
 end
@@ -496,8 +621,12 @@ function GardenService:Rebirth(player: Player)
 	data.Plants = {}
 	data.Fruits = {}
 	data.Tiles = Config.StartTiles
-	data.Upgrades = { Sprinkler = 0, Fertilizer = 0 }
+	data.Upgrades = { Sprinkler = 0, Fertilizer = 0, Backpack = 0 }
 	player:SetAttribute("SelectedSeed", nil)
+	local progressService = progress()
+	if progressService then
+		progressService:CheckAchievements(player)
+	end
 	self.Services.DataService:UpdateAttributes(player)
 	self:RefreshStats(player)
 	self:RefreshAllTiles(player)
@@ -584,11 +713,16 @@ function GardenService:OnPlayerRemoving(player: Player)
 	if data then
 		data.LastTick = os.time()
 	end
+	-- Nur Paare mit genau dieser UserId entfernen (nicht jede Id, die die Ziffern enthaelt)
+	local id = tostring(player.UserId)
 	for key in friendCache do
-		if key:find(tostring(player.UserId), 1, true) then
+		local a, b = key:match("^(%d+):(%d+)$")
+		if a == id or b == id then
 			friendCache[key] = nil
 		end
 	end
+	pendingDig[player] = nil
+	lastPlantAll[player] = nil
 	task.defer(updateFriends)
 end
 
@@ -620,7 +754,23 @@ function GardenService:Start()
 	net.SelectSeed.OnServerEvent:Connect(function(player, seedId)
 		if seedId == nil or (type(seedId) == "string" and Config.SeedsById[seedId]) then
 			player:SetAttribute("SelectedSeed", seedId)
+			player:SetAttribute("Tool", nil)
 		end
+	end)
+
+	net.SetTool.OnServerEvent:Connect(function(player, tool)
+		if tool == nil or tool == "Shovel" then
+			player:SetAttribute("Tool", tool)
+		end
+	end)
+
+	net.PlantAll.OnServerEvent:Connect(function(player)
+		if os.clock() - (lastPlantAll[player] or 0) < 1 then
+			return
+		end
+		lastPlantAll[player] = os.clock()
+		player:SetAttribute("Tool", nil)
+		self:PlantAll(player)
 	end)
 
 	net.BuyUpgrade.OnServerEvent:Connect(function(player, kind)
@@ -654,7 +804,8 @@ function GardenService:Start()
 				end
 				data.LastTick = os.time()
 				local rate = self:GetGrowthRate(player, true)
-				player:SetAttribute("GrowthRate", rate)
+				-- Werte koennen sich durch Wetter, Boost-Ende oder Level aendern
+				self:RefreshStats(player)
 				local autoHarvest = hasPass(player, "AutoHarvest")
 				for key, plant in data.Plants do
 					local index = tonumber(key) :: number

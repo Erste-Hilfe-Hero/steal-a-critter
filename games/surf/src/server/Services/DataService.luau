@@ -6,6 +6,7 @@ local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local Progression = require(ReplicatedStorage.Shared.Progression)
 
 local DataService = { Services = nil :: any }
 
@@ -35,6 +36,20 @@ local function defaultData()
 		DailyDay = 0, -- letzter Tag mit Tagesbelohnung
 		DailyStreak = 0,
 		StarterOffered = false,
+		-- Update 2
+		Achievements = {}, -- [AchievementId] = true
+		Title = "", -- angelegter Titel (AchievementId)
+		Quest = { Day = 0, Ids = {}, Progress = {}, Claimed = {} }, -- Tagesaufgaben
+		QuestsDone = 0,
+		Medals = {}, -- [tostring(Stage)] = 1 Bronze, 2 Silber, 3 Gold
+		TopSpeed = 0, -- u/s, vom Server gemessen
+		PBSplits = {}, -- [Stage] = Zwischenzeit im Bestzeit-Lauf
+		Codes = {}, -- [CODE] = true
+		SpinDay = 0, -- letzter Tag mit Gluecks-Schneeball
+		Buddies = { none = true },
+		Buddy = "none",
+		BoostSeconds = 0, -- Rest-Sekunden Flake Booster
+		Settings = {},
 	}
 end
 
@@ -119,6 +134,9 @@ function DataService:UpdateAttributes(player: Player)
 	player:SetAttribute("Clears", data.Clears)
 	player:SetAttribute("Trail", data.Trail)
 	player:SetAttribute("Ski", data.Ski)
+	player:SetAttribute("Buddy", data.Buddy)
+	player:SetAttribute("TopSpeed", data.TopSpeed)
+	player:SetAttribute("MapClears", data.MapClears)
 	for stage = 1, #Config.Stages do
 		player:SetAttribute("StageBest_" .. stage, data.StageBest[tostring(stage)])
 	end
@@ -127,6 +145,9 @@ function DataService:UpdateAttributes(player: Player)
 	end
 	for _, ski in Config.Skis do
 		player:SetAttribute("OwnsSki_" .. ski.Id, data.Skis[ski.Id] == true or (ski.Pass ~= nil and data.Passes[ski.Pass] == true))
+	end
+	for _, buddy in Progression.Buddies do
+		player:SetAttribute("OwnsBuddy_" .. buddy.Id, data.Buddies[buddy.Id] == true or (buddy.Price == 0 and not buddy.Spin))
 	end
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
@@ -152,6 +173,17 @@ function DataService:AddFlakes(player: Player, amount: number, boosted: boolean?
 		end
 		if player.MembershipType == Enum.MembershipType.Premium then
 			multiplier *= Config.PremiumMultiplier
+		end
+		-- Update 2: Flake Booster, Schneesturm-Event und Freundes-Bonus
+		if (data.BoostSeconds or 0) > 0 then
+			multiplier *= Progression.BoostMultiplier
+		end
+		if (workspace:GetAttribute("StormUntil") or 0) > os.time() then
+			multiplier *= Progression.StormMultiplier
+		end
+		local friendBonus = player:GetAttribute("FriendBonus")
+		if typeof(friendBonus) == "number" then
+			multiplier *= 1 + math.clamp(friendBonus, 0, Progression.FriendBonusMax)
 		end
 		amount = math.floor(amount * multiplier)
 	end

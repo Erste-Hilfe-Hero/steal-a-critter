@@ -79,6 +79,7 @@ function VehicleService.BuildCar(def, options: { [string]: any }?): Model
 	local function paintPart(p: BasePart)
 		p.Color = paint
 		p.Material = material
+		p:AddTag("CarPaint")
 		if opts.Rainbow then
 			p:AddTag("RainbowPaint")
 		end
@@ -283,6 +284,20 @@ function VehicleService:Despawn(player: Player)
 		car:Destroy()
 	end
 	player:SetAttribute("CarOut", nil)
+	-- Wird das Auto mit Fahrer zerstoert, feuert "Occupant" nicht mehr
+	player:SetAttribute("Driving", nil)
+end
+
+-- Tuning-Stufe eines Autos (0..Config.TuneMax)
+function VehicleService:GetTune(player: Player, carId: string): number
+	local data = self.Services.DataService:Get(player)
+	return if data then math.clamp(tonumber(data.Tune[carId]) or 0, 0, Config.TuneMax) else 0
+end
+
+local function applyTune(car: Model, def, level: number)
+	car:SetAttribute("MaxSpeed", def.Speed * (1 + Config.TuneSpeed * level))
+	car:SetAttribute("Turn", def.Turn * (1 + Config.TuneTurn * level))
+	car:SetAttribute("Tune", level)
 end
 
 function VehicleService:GetCar(player: Player): Model?
@@ -356,6 +371,7 @@ function VehicleService:Spawn(player: Player, carId: string): (boolean, string?)
 	local car = VehicleService.BuildCar(def, options)
 	car.Name = player.Name .. "_Car"
 	car:SetAttribute("Owner", player.UserId)
+	applyTune(car, def, self:GetTune(player, def.Id))
 	car:PivotTo(cf * CFrame.new(0, 0.3, 0))
 	local base = car.PrimaryPart :: BasePart
 	local align = base:FindFirstChild("Align") :: AlignOrientation
@@ -363,10 +379,15 @@ function VehicleService:Spawn(player: Player, carId: string): (boolean, string?)
 	car.Parent = carsFolder
 	base:SetNetworkOwner(nil)
 	cars[player] = car
-	if data then
+	-- Team-Autos (Polizei) nicht als Lieblingsauto speichern, sonst klappt CAR nach dem Teamwechsel nicht mehr
+	if data and not def.Team then
 		data.Car = def.Id
+		player:SetAttribute("Car", def.Id)
+	elseif def.Team then
+		player:SetAttribute("TeamCar", def.Id)
 	end
 	player:SetAttribute("CarOut", def.Id)
+	self.Services.ProgressService:Event(player, "Spawn")
 
 	-- Fahrer/Beifahrer behandeln
 	local seat = car:FindFirstChild("DriverSeat") :: VehicleSeat
@@ -443,10 +464,68 @@ function VehicleService:Buy(player: Player, carId: string): (boolean, string?)
 	end
 	data.Cars[def.Id] = true
 	self.Services.DataService:UpdateAttributes(player)
+	self.Services.ProgressService:Check(player)
 	if def.Price >= 400_000 then
 		self.Services.Net.SendAnnounce(`{player.DisplayName} bought a {def.Name}!`, C.Lemon)
 	end
 	return true, `You bought the {def.Name}! Spawn it from your garage.`
+end
+
+-- Motor eine Stufe hoeher (Spielgeld)
+function VehicleService:Tune(player: Player, carId: string): (boolean, string?)
+	local def = Config.CarsById[carId]
+	local data = self.Services.DataService:Get(player)
+	if not def or not data then
+		return false, "Unknown car"
+	end
+	local ok = self:CanUse(player, def)
+	if not ok and not (def.Team and (not def.Pass or player:GetAttribute("Pass_" .. def.Pass))) then
+		return false, "You don't own this car yet"
+	end
+	local level = self:GetTune(player, carId)
+	if level >= Config.TuneMax then
+		return false, "Already fully tuned!"
+	end
+	local cost = Config.TuneCost(def, level + 1)
+	if not self.Services.DataService:Spend(player, cost) then
+		self.Services.MonetizationService:OfferCash(player, cost - data.Cash)
+		return false, `You need {Format.Cash(cost - data.Cash)} more!`
+	end
+	self:SetTune(player, def, level + 1)
+	return true, `{def.Name} engine tuned to stage {level + 1}!`
+end
+
+function VehicleService:SetTune(player: Player, def, level: number)
+	local data = self.Services.DataService:Get(player)
+	if not data then
+		return
+	end
+	data.Tune[def.Id] = level
+	self.Services.DataService:UpdateAttributes(player)
+	local car = cars[player]
+	if car and car:GetAttribute("CarId") == def.Id then
+		applyTune(car, def, level)
+	end
+end
+
+-- Robux-Produkt "Max Tune": das ausgewaehlte Auto (sonst das naechste nicht fertige) auf volle Stufe
+function VehicleService:MaxTune(player: Player): string?
+	local data = self.Services.DataService:Get(player)
+	if not data then
+		return nil
+	end
+	local candidates = { data.Car }
+	for _, def in Config.Cars do
+		table.insert(candidates, def.Id)
+	end
+	for _, id in candidates do
+		local def = Config.CarsById[id]
+		if def and (data.Cars[id] or (def.Pass and player:GetAttribute("Pass_" .. def.Pass))) and self:GetTune(player, id) < Config.TuneMax then
+			self:SetTune(player, def, Config.TuneMax)
+			return def.Name
+		end
+	end
+	return nil
 end
 
 function VehicleService:GiveCar(player: Player, carId: string)
@@ -495,6 +574,26 @@ function VehicleService:Start()
 	net.Handle("Despawn", function(player)
 		self:Despawn(player)
 		return true, nil
+	end)
+	net.Handle("TuneCar", function(player, carId)
+		if typeof(carId) ~= "string" then
+			return false, "Invalid"
+		end
+		return self:Tune(player, carId)
+	end)
+	-- Auto fuer "Max Tune" auswaehlen (vor dem Kauf)
+	net.Handle("SelectCar", function(player, carId)
+		local def = typeof(carId) == "string" and Config.CarsById[carId]
+		local data = self.Services.DataService:Get(player)
+		if not def or not data or def.Team then
+			return false, nil
+		end
+		if data.Cars[def.Id] or (def.Pass and player:GetAttribute("Pass_" .. def.Pass)) then
+			data.Car = def.Id
+			self.Services.DataService:UpdateAttributes(player)
+			return true, nil
+		end
+		return false, nil
 	end)
 
 	-- Ausstellungsautos im Autohaus
@@ -554,6 +653,7 @@ function VehicleService:Start()
 						local distance = (Vector3.new(now.X, 0, now.Z) - Vector3.new(previous.X, 0, previous.Z)).Magnitude
 						if distance < 250 then
 							self.Services.RewardService:Progress(player, "Drive", distance)
+							self.Services.ProgressService:Event(player, "Drive", distance)
 						end
 					end
 					lastPosition[player] = now

@@ -34,6 +34,18 @@ local function defaultData()
 		LastActiveDay = 0,
 		RankRevoked = false, -- vom Owner entzogen: maximal Regular
 		RobuxSpent = 0,
+		-- Fortschritt (ProgressService)
+		Streak = 0, -- Tage in Folge mit taeglichem Geschenk
+		Broken = 0,
+		GoldenMade = 0,
+		RainbowMade = 0,
+		BestZone = 1, -- hoechste je erreichte Zone (bleibt nach Rebirth)
+		Discovered = {}, -- [typeId] = true (Sammel-Index)
+		Achievements = {}, -- [achievementId] = true
+		Title = "", -- ausgewaehlter Titel (achievementId)
+		Quests = { Day = 0, List = {} }, -- List = { { Id, Progress, Claimed } }
+		Codes = {}, -- [CODE] = true
+		Settings = {}, -- [key] = boolean (fehlend = Standardwert)
 	}
 end
 
@@ -92,7 +104,7 @@ function DataService:Load(player: Player)
 	leaderstats.Name = "leaderstats"
 	local coins = Instance.new("IntValue")
 	coins.Name = "Coins"
-	coins.Value = math.floor(profile.Data.Coins)
+	coins.Value = math.floor(math.min(profile.Data.Coins, 2 ^ 53))
 	coins.Parent = leaderstats
 	local hatched = Instance.new("IntValue")
 	hatched.Name = "Hatched"
@@ -120,6 +132,11 @@ function DataService:UpdateAttributes(player: Player)
 	player:SetAttribute("Zone", data.Zone)
 	player:SetAttribute("BoostUntil", data.BoostUntil)
 	player:SetAttribute("DailyReady", data.LastDaily ~= os.time() // 86400)
+	player:SetAttribute("DailyStreak", data.Streak)
+	-- Welcher Serien-Tag beim naechsten Geschenk zaehlt (Serie reisst, wenn ein Tag fehlt)
+	local today = os.time() // 86400
+	player:SetAttribute("DailyNextDay", if data.LastDaily == today or data.LastDaily == today - 1 then data.Streak + 1 else 1)
+	player:SetAttribute("Hatched", data.Hatched)
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
 		leaderstats.Coins.Value = math.floor(math.min(data.Coins, 2 ^ 53))

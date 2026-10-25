@@ -9,5 +9,6 @@
   {"key": "SkipStage", "name": "Skip Stage", "description": "Jump to the next stage (the run becomes unranked)", "price": 19},
   {"key": "LowGravity", "name": "Moon Gravity Party", "description": "3 minutes of low gravity for the whole server", "price": 99},
   {"key": "StarterPack", "name": "Starter Pack", "description": "One time only: 3,000 Snowflakes + Ice Crystal trail", "price": 79},
+  {"key": "FlakeBoost", "name": "Flake Booster", "description": "2x Snowflakes for 30 minutes (stacks with everything)", "price": 49},
   {"key": "AdReward", "name": "Free Snowflakes", "description": "Reward for watching a short video ad", "price": 5}
 ]

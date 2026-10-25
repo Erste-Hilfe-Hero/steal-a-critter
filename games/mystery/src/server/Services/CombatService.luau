@@ -14,7 +14,21 @@ local G = Config.Gun
 
 local fxFolder: Folder
 local cooldowns = {} -- [actor] = { Stab = t, Throw = t, Shoot = t }
-local droppedGun: Model? = nil
+local droppedGuns = {} -- [Model] = Id (im Duo-Modus koennen zwei Blaster gleichzeitig liegen)
+local dropId = 0
+
+-- Zielpunkte vom Client pruefen: Vector3, endlich (kein NaN/inf) und nicht absurd weit weg
+local function validPoint(v: any): boolean
+	if typeof(v) ~= "Vector3" then
+		return false
+	end
+	for _, c in { v.X, v.Y, v.Z } do
+		if c ~= c or math.abs(c) > 1e5 then
+			return false
+		end
+	end
+	return true
+end
 
 local function now(): number
 	return os.clock()
@@ -108,6 +122,9 @@ function CombatService:ResetActor(actor)
 	actor.Model:SetAttribute("Flashlight", false)
 	actor.Model:SetAttribute("Shield", false)
 	actor.Humanoid.WalkSpeed = Config.WalkSpeed
+	-- Super-Jump-Modifikator zuruecksetzen (Standardwerte von Roblox)
+	actor.Humanoid.JumpHeight = 7.2
+	actor.Humanoid.JumpPower = 50
 	local tag = actor.Model:FindFirstChild("Nameplate", true)
 	if tag and tag:IsA("BillboardGui") then
 		tag.Enabled = true
@@ -175,8 +192,11 @@ function CombatService:KO(victim, killer, cause: string)
 		self:DropGun(position)
 	end
 	self:StripWeapons(victim)
+	-- BaseSpeed auch auf 0: sonst setzt der Client (Sprint-Steuerung) sein Tempo sofort zurueck
+	victim.Model:SetAttribute("BaseSpeed", 0)
 	victim.Humanoid.WalkSpeed = 0
 	victim.Humanoid.JumpPower = 0
+	victim.Humanoid.JumpHeight = 0
 	if victim.Player then
 		task.delay(0.9, function()
 			if victim.Humanoid.Parent then
@@ -248,7 +268,7 @@ end
 -- Fliegendes Messer: der Server rechnet die Flugbahn, die Clients zeigen es
 function CombatService:Throw(attacker, target: Vector3): boolean
 	local round = self.Services.RoundService
-	if not round:IsPlaying() or not attacker.Alive or attacker.Role ~= "Murderer" or typeof(target) ~= "Vector3" then
+	if not round:IsPlaying() or not attacker.Alive or attacker.Role ~= "Murderer" or not validPoint(target) then
 		return false
 	end
 	local skin = equipped(attacker, "Knife")
@@ -299,7 +319,7 @@ end
 
 function CombatService:Shoot(shooter, target: Vector3): boolean
 	local round = self.Services.RoundService
-	if not round:IsPlaying() or not shooter.Alive or (shooter.Role ~= "Sheriff" and shooter.Role ~= "Hero") or typeof(target) ~= "Vector3" then
+	if not round:IsPlaying() or not shooter.Alive or (shooter.Role ~= "Sheriff" and shooter.Role ~= "Hero") or not validPoint(target) then
 		return false
 	end
 	local skin = equipped(shooter, "Gun")
@@ -360,10 +380,7 @@ function CombatService:DropGun(position: Vector3)
 	if not round:IsPlaying() and round.State ~= "Reveal" then
 		return
 	end
-	-- Ist noch ein Sheriff/Hero mit Blaster am Leben? (Duo-Modus) Dann trotzdem fallen lassen.
-	if droppedGun then
-		droppedGun:Destroy()
-	end
+	-- Duo-Modus: ein schon liegender Blaster bleibt liegen (jeder Blaster hat eine eigene Id)
 	local model = Skins.Gun("Default")
 	model.Name = "DroppedGun"
 	for _, part in model:GetDescendants() do
@@ -394,31 +411,50 @@ function CombatService:DropGun(position: Vector3)
 	highlight.OutlineColor = Color3.new(1, 1, 1)
 	highlight.FillTransparency = 0.4
 	highlight.Parent = model
+	dropId += 1
 	model:SetAttribute("DropTime", now())
+	model:SetAttribute("DropId", dropId)
 	model:AddTag("DroppedGun")
 	model.Parent = fxFolder
-	droppedGun = model
+	droppedGuns[model] = dropId
 	self.Services.Net.SendAnnounce("The Sheriff's blaster dropped! Innocents can pick it up!", C.Moon)
-	self.Services.Net.Fx:FireAllClients("GunDropped", { Position = at })
+	self.Services.Net.Fx:FireAllClients("GunDropped", { Position = at, Id = dropId })
 	zone.Touched:Connect(function(hit)
-		self:TryPickup(round:ActorFromPart(hit))
+		self:TryPickup(round:ActorFromPart(hit), model)
 	end)
 end
 
-function CombatService:GetDroppedGun(): Model?
-	return if droppedGun and droppedGun.Parent then droppedGun else nil
+-- Naechster liegender Blaster (ohne Position: irgendeiner)
+function CombatService:GetDroppedGun(position: Vector3?): Model?
+	local best, bestDist = nil, math.huge
+	for gun in droppedGuns do
+		if gun.Parent then
+			local d = if position then (gun:GetPivot().Position - position).Magnitude else 0
+			if d < bestDist then
+				best, bestDist = gun, d
+			end
+		else
+			droppedGuns[gun] = nil
+		end
+	end
+	return best
 end
 
-function CombatService:TryPickup(actor)
+function CombatService:TryPickup(actor, wanted: Model?)
 	local round = self.Services.RoundService
-	local gun = self:GetDroppedGun()
-	if not gun or not actor or not actor.Alive or actor.Role ~= "Innocent" or not round:IsPlaying() then
+	if not actor or not actor.Alive or actor.Role ~= "Innocent" or not round:IsPlaying() then
 		return
 	end
+	local found = wanted or self:GetDroppedGun(actor.Root.Position)
+	if not found or not droppedGuns[found] or not found.Parent then
+		return
+	end
+	local gun = found :: Model
 	if now() - (gun:GetAttribute("DropTime") or 0) < G.DropPickupDelay then
 		return
 	end
-	droppedGun = nil
+	local id = droppedGuns[gun]
+	droppedGuns[gun] = nil
 	gun:Destroy()
 	actor.Role = "Hero"
 	self:GiveWeapon(actor, "Gun")
@@ -426,17 +462,19 @@ function CombatService:TryPickup(actor)
 	if actor.Player then
 		self.Services.Net.Role:FireClient(actor.Player, "Role", { Role = "Hero" })
 	end
-	self.Services.Net.Fx:FireAllClients("GunTaken", {})
+	self.Services.Net.Fx:FireAllClients("GunTaken", { Id = id })
 end
 
 function CombatService:ClearDrops()
-	if droppedGun then
-		droppedGun:Destroy()
-		droppedGun = nil
+	for gun in droppedGuns do
+		gun:Destroy()
 	end
+	table.clear(droppedGuns)
 	for _, child in fxFolder:GetChildren() do
 		child:Destroy()
 	end
+	-- Abklingzeiten der alten Runde vergessen (sonst sammeln sich K.O.-te Teilnehmer und Bots an)
+	table.clear(cooldowns)
 end
 
 ---------------------------------------------------------------- Start

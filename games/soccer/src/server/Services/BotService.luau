@@ -286,6 +286,8 @@ local function think(bot)
 	end
 
 	local speed = baseSpeed * (if sprint then 1.25 else 1) * (if carrier == actor then Config.CarryFactor else 1)
+	-- Spielmodus "Turbo" gilt auch fuer Bots
+	speed *= workspace:GetAttribute("ModeSpeed") or 1
 	humanoid.WalkSpeed = speed
 	if target then
 		local offset = Vector3.new(target.X - position.X, 0, target.Z - position.Z)

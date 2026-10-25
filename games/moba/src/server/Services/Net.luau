@@ -41,6 +41,13 @@ Net.EquipSkin = remote("EquipSkin") -- Client -> Server (Skin-Id)
 Net.ClaimDaily = remote("ClaimDaily") -- Client -> Server
 Net.WatchAd = remote("WatchAd") -- Client -> Server: freiwillige Video-Werbung
 Net.FakePurchase = remote("FakePurchase") -- Client -> Server (nur Studio)
+Net.ClaimQuest = remote("ClaimQuest") -- Client -> Server (Quest-Nummer 1-3)
+Net.EquipTitle = remote("EquipTitle") -- Client -> Server (Erfolgs-Id oder "")
+Net.RedeemCode = remote("RedeemCode") -- Client -> Server (Code-Text)
+Net.SetSetting = remote("SetSetting") -- Client -> Server (Name, Wert)
+Net.TutorialDone = remote("TutorialDone") -- Client -> Server
+Net.Emote = remote("Emote") -- Client -> Server (Emote-Id)
+Net.Ping = remote("Ping") -- beide Richtungen: Client schickt Ping-Id, Server verteilt an das Team
 
 folder.Parent = ReplicatedStorage
 

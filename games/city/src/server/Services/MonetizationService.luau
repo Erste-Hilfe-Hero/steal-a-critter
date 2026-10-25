@@ -105,11 +105,13 @@ local function grantProduct(player: Player, key: string): boolean
 		if player:GetAttribute("JailUntil") then
 			services.JobService:Release(player, true)
 		else
-			services.DataService:AddCash(player, cashFor(player, 5_000))
+			-- Schon frei (z. B. Strafe waehrend des Kaufs abgelaufen): Ersatz in Cash, mit Meldung
+			local amount = cashFor(player, 5_000)
+			services.DataService:AddCash(player, amount)
+			services.Net.SendNotify(player, `You were already free, so you got {Format.Cash(amount)} instead!`, C.Green)
 		end
 	elseif kind == "ClearWanted" then
-		player:SetAttribute("Wanted", 0)
-		services.JobService:UpdateWantedStat(player)
+		services.JobService:ClearWanted(player)
 		services.Net.SendNotify(player, "Wanted level cleared! The cops lost your trail.", C.Green)
 	elseif kind == "Party" then
 		local untilTime = math.max(os.time(), workspace:GetAttribute("PartyUntil") or 0) + product.Seconds
@@ -119,11 +121,23 @@ local function grantProduct(player: Player, key: string): boolean
 		services.RewardService:MoneyRain(player)
 	elseif kind == "MissionSkip" then
 		if not services.RewardService:SkipMission(player) then
-			services.DataService:AddCash(player, cashFor(player, 6_000))
+			local amount = cashFor(player, 6_000)
+			services.DataService:AddCash(player, amount)
+			services.Net.SendNotify(player, `All missions are done already, so you got {Format.Cash(amount)} instead!`, C.Green)
+		end
+	elseif kind == "MaxTune" then
+		local carName = services.VehicleService:MaxTune(player)
+		if carName then
+			services.Net.SendNotify(player, `{carName} is now fully tuned! Spawn it and feel the power.`, C.Lemon)
+		else
+			local amount = cashFor(player, 15_000)
+			services.DataService:AddCash(player, amount)
+			services.Net.SendNotify(player, `All your cars are fully tuned, so you got {Format.Cash(amount)} instead!`, C.Green)
 		end
 	elseif kind == "Starter" then
 		if data.StarterPack then
 			services.DataService:AddCash(player, product.Cash)
+			services.Net.SendNotify(player, `+{Format.Cash(product.Cash)}! (You already own the starter car.)`, C.Green)
 		else
 			data.StarterPack = true
 			services.DataService:AddCash(player, product.Cash)

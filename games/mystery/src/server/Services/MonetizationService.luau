@@ -162,6 +162,11 @@ local function grantProduct(player: Player, key: string): boolean
 		services.RoundService.ForceModifier = "Blackout"
 		services.Net.SendAnnounce(`{player.DisplayName} bought a BLACKOUT for the next round!`, C.Purple)
 		return true
+	elseif kind == "MidnightHour" then
+		-- Fuer den ganzen Server: doppelte Muenzen und 1,5x XP
+		services.RoundService:BoostEvent(Config.MidnightHour.BoughtMinutes)
+		services.Net.SendAnnounce(`{player.DisplayName} started a MIDNIGHT HOUR! 2x coins for everyone!`, C.Purple)
+		return true
 	end
 	warn("[Monetization] Unbekannter Produkttyp", kind)
 	return false

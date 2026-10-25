@@ -9,9 +9,10 @@ local Services = {
 	PetService = require(script.Services.PetService),
 	MonetizationService = require(script.Services.MonetizationService),
 	CommunityService = require(script.Services.CommunityService),
+	ProgressService = require(script.Services.ProgressService),
 }
 
-local ORDER = { "DataService", "WorldService", "BreakableService", "PetService", "MonetizationService", "CommunityService" }
+local ORDER = { "DataService", "WorldService", "BreakableService", "PetService", "MonetizationService", "CommunityService", "ProgressService" }
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
@@ -46,8 +47,14 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	Services.MonetizationService:LoadPasses(player)
+	-- LoadPasses wartet auf Roblox-Abfragen: hat der Spieler inzwischen verlassen, nichts mehr anlegen
+	-- (sonst bleiben z. B. Eintraege in der AFK-Liste fuer immer haengen)
+	if not player.Parent or not Services.DataService:Get(player) then
+		return
+	end
 	Services.PetService:OnPlayerReady(player)
 	Services.CommunityService:OnPlayerReady(player)
+	Services.ProgressService:OnPlayerReady(player)
 
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
@@ -66,5 +73,6 @@ Players.PlayerRemoving:Connect(function(player)
 	Services.CommunityService:OnPlayerRemoving(player)
 	Services.BreakableService:OnPlayerRemoving(player)
 	Services.PetService:OnPlayerRemoving(player)
+	Services.ProgressService:OnPlayerRemoving(player)
 	Services.DataService:Release(player)
 end)

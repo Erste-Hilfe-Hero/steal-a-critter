@@ -232,6 +232,11 @@ function HeroService:RefreshStats(player: Player)
 	self:EquipVisuals(player)
 end
 
+-- Schrein-Buff aktiv? (Attribut = Serverzeit, bis wann er gilt)
+function HeroService:HasBuff(player: Player, key: string): boolean
+	return (tonumber(player:GetAttribute("Buff_" .. key)) or 0) > workspace:GetServerTimeNow()
+end
+
 -- Bonus aus VIP, Premium und Freunden (fuer Gold und XP)
 function HeroService:Bonus(player: Player): number
 	local bonus = 1
@@ -281,6 +286,7 @@ function HeroService:AddXP(player: Player, base: number): number
 			self.Services.Net.SendNotify(player, "The Lightbringer class is now unlocked! Visit the Class Shrine.", GOLD)
 		end
 		self.Services.RewardService:UpdateLeaderboardEntry(player)
+		self.Services.ProgressService:CheckAchievements(player)
 	else
 		self.Services.DataService:UpdateAttributes(player)
 	end
@@ -289,7 +295,8 @@ end
 
 function HeroService:GiveGold(player: Player, base: number, position: Vector3?): number
 	local stats = self:GetStats(player)
-	local amount = math.max(1, math.floor(base * self:Bonus(player) * (1 + stats.GoldFind / 100)))
+	local fortune = if self:HasBuff(player, "Fortune") then 1.5 else 1
+	local amount = math.max(1, math.floor(base * self:Bonus(player) * (1 + stats.GoldFind / 100) * fortune))
 	self.Services.DataService:AddGold(player, amount)
 	if position then
 		self.Services.Net.Effect:FireClient(player, "Gold", { Position = position, Amount = amount })
@@ -308,6 +315,9 @@ function HeroService:DamagePlayer(player: Player, amount: number, monsterLevel: 
 	local final = amount * (1 - Config.ArmorReduction(stats.Armor, monsterLevel))
 	if (player:GetAttribute("ShieldUntil") or 0) > os.clock() then
 		final *= 0.5
+	end
+	if self:HasBuff(player, "Warding") then
+		final *= 0.6
 	end
 	final = math.max(1, math.floor(final))
 	humanoid:TakeDamage(final)
@@ -383,9 +393,13 @@ function HeroService:Start()
 		if not humanoid or humanoid.Health <= 0 then
 			return false
 		end
-		potionReady[player] = now + Config.PotionCooldown
-		self:Heal(player, humanoid.MaxHealth * Config.PotionHeal, true)
-		return true, Config.PotionCooldown
+		-- Trank-Meisterschaft: mehr Heilung, kuerzere Abklingzeit
+		local data = services.DataService:Get(player)
+		local level = data and data.PotionLevel or 0
+		local cooldown = Config.PotionCooldownFor(level)
+		potionReady[player] = now + cooldown * 0.9
+		self:Heal(player, humanoid.MaxHealth * Config.PotionHealFor(level), true)
+		return true, cooldown
 	end)
 
 	Net.Handle("SetClass", function(player, classKey)
@@ -409,6 +423,7 @@ function HeroService:Start()
 		if humanoid then
 			humanoid.Health = humanoid.MaxHealth
 		end
+		services.ProgressService:Track(player, "SetClass")
 		return true
 	end)
 
@@ -420,23 +435,29 @@ function HeroService:Start()
 				if not player:GetAttribute("Pass_Sprite") then
 					continue
 				end
-				local run = services.DungeonService:GetRun(player)
-				local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-				local humanoid = humanoidOf(player)
-				if not run or not root or not humanoid or humanoid.Health <= 0 then
-					continue
-				end
-				local target, best = nil, Config.SpriteRange
-				for _, state in services.MonsterService:ForRun(run) do
-					local d = (state.Root.Position - root.Position).Magnitude
-					if d < best then
-						target, best = state, d
+				-- Ein Fehler bei einem Spieler darf den Begleiter nicht fuer den ganzen Server stoppen
+				local ok, err = pcall(function()
+					local run = services.DungeonService:GetRun(player)
+					local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+					local humanoid = humanoidOf(player)
+					if not run or not root or not humanoid or humanoid.Health <= 0 then
+						return
 					end
-				end
-				if target then
-					local from = root.Position + Vector3.new(1.5, 3, 1)
-					Net.SendEffect(run.Players, "SpriteBolt", { From = from, To = target.Root.Position })
-					services.CombatService:DealDamage(player, target, self:GetStats(player).Damage * Config.SpriteDamage, false)
+					local target, best = nil, Config.SpriteRange
+					for _, state in services.MonsterService:ForRun(run) do
+						local d = (state.Root.Position - root.Position).Magnitude
+						if d < best then
+							target, best = state, d
+						end
+					end
+					if target then
+						local from = root.Position + Vector3.new(1.5, 3, 1)
+						Net.SendEffect(run.Players, "SpriteBolt", { From = from, To = target.Root.Position })
+						services.CombatService:DealDamage(player, target, self:GetStats(player).Damage * Config.SpriteDamage, false)
+					end
+				end)
+				if not ok then
+					warn("[Hero] Sprite", err)
 				end
 			end
 		end

@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local AdService = game:GetService("AdService")
+local GuiService = game:GetService("GuiService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Beasts = require(ReplicatedStorage.Shared.Beasts)
@@ -197,7 +198,7 @@ local function scrolling(parent: Instance, props): ScrollingFrame
 	return create("ScrollingFrame", defaults)
 end
 
-local function tabs(parent: Frame, names: { string }, build: (string, Frame) -> (), start: string?)
+local function tabs(parent: Frame, names: { string }, build: (string, Frame) -> (), start: string?, width: number?)
 	local bar = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = parent })
 	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), Parent = bar })
 	local body = create("Frame", { Position = UDim2.fromOffset(0, 50), Size = UDim2.new(1, 0, 1, -50), BackgroundTransparency = 1, Parent = parent })
@@ -211,7 +212,7 @@ local function tabs(parent: Frame, names: { string }, build: (string, Frame) -> 
 		build(name, body)
 	end
 	for _, name in names do
-		local b = button({ Size = UDim2.fromOffset(150, 38), Text = name, TextSize = 18, Color = C.PanelLight, Parent = bar })
+		local b = button({ Size = UDim2.fromOffset(width or 150, 38), Text = name, TextSize = 18, Color = C.PanelLight, Parent = bar })
 		buttons[name] = b
 		b.Activated:Connect(function()
 			select(name)
@@ -274,10 +275,44 @@ local function teamChooser(title: string, onPick: (string) -> (), filter: ((any)
 	chooser(title, entries)
 end
 
+-- Bausteine fuer weitere Fenster (Extras.luau)
+UI.Window = window
+UI.Tabs = tabs
+UI.Scrolling = scrolling
+UI.Grid = gridIn
+UI.Chooser = chooser
+UI.PriceButton = priceButton
+
 ---------------------------------------------------------------- Team und Box
 
+-- Sortierung der Box (Knopf im Team-Fenster), Favoriten stehen immer vorne
+local BOX_SORTS = { "POWER", "LEVEL", "NEWEST", "TYPE", "NAME" }
+local boxSort = "POWER"
+
 local function beastSort(a, b)
-	return a.Beast.Power > b.Beast.Power
+	if a.Favorite ~= b.Favorite then
+		return a.Favorite
+	end
+	local x, y = a.Beast, b.Beast
+	if boxSort == "LEVEL" and x.L ~= y.L then
+		return x.L > y.L
+	elseif boxSort == "NEWEST" then
+		return (tonumber(a.Uid) or 0) > (tonumber(b.Uid) or 0)
+	elseif boxSort == "TYPE" then
+		local tx, ty = Config.BeastsById[x.S].Type, Config.BeastsById[y.S].Type
+		if tx ~= ty then
+			return (table.find(Config.TypeOrder, tx) or 99) < (table.find(Config.TypeOrder, ty) or 99)
+		end
+	elseif boxSort == "NAME" then
+		local nx, ny = Config.BeastsById[x.S].Name, Config.BeastsById[y.S].Name
+		if nx ~= ny then
+			return nx < ny
+		end
+	end
+	if x.Power ~= y.Power then
+		return x.Power > y.Power
+	end
+	return (tonumber(a.Uid) or 0) < (tonumber(b.Uid) or 0)
 end
 
 local function setTeam(team: { string })
@@ -340,6 +375,14 @@ function UI.OpenTeam(startTab: string?)
 
 	local releaseArmed = false
 	local drawList, drawDetail
+	-- Sortier-Knopf (nur in der Box sichtbar)
+	local sortButton = button({ Position = UDim2.fromOffset(318, 0), Size = UDim2.fromOffset(128, 38), Text = `SORT: {boxSort}`, TextSize = 14, Color = C.PanelLight, Visible = false, Parent = content })
+	sortButton.Activated:Connect(function()
+		local index = table.find(BOX_SORTS, boxSort) or 1
+		boxSort = BOX_SORTS[index % #BOX_SORTS + 1]
+		sortButton.Text = `SORT: {boxSort}`
+		drawList()
+	end)
 
 	drawDetail = function()
 		detail:ClearAllChildren()
@@ -356,7 +399,13 @@ function UI.OpenTeam(startTab: string?)
 		local rarity = Config.RaritiesByName[def.Rarity]
 		local teamIndex = table.find(col.Team, uid)
 		Theme.viewport(beast.S, beast.L, beast.Sh, { Position = UDim2.fromOffset(6, 6), Size = UDim2.new(0.42, -6, 0, 130), Parent = detail })
-		local nameLabel = label({ Position = UDim2.new(0.42, 4, 0, 8), Size = UDim2.new(0.58, -14, 0, 30), Text = (if beast.Sh then "✦ " else "") .. def.Name, Font = Theme.Title, TextSize = 26, TextScaled = true, TextColor3 = if beast.Sh then C.Prism else C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
+		-- Favorit: Stern oben rechts (Favoriten koennen nicht freigelassen werden)
+		local favorite = col.Favorites and col.Favorites[uid] == true
+		local star = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 8), Size = UDim2.fromOffset(34, 34), Text = if favorite then "★" else "☆", TextSize = 22, Color = if favorite then C.GoldDark else C.PanelLight, Parent = detail })
+		star.Activated:Connect(function()
+			remotes.ProgressAction:FireServer("Favorite", uid)
+		end)
+		local nameLabel = label({ Position = UDim2.new(0.42, 4, 0, 8), Size = UDim2.new(0.58, -52, 0, 30), Text = (if beast.Sh then "✦ " else "") .. def.Name, Font = Theme.Title, TextSize = 26, TextScaled = true, TextColor3 = if beast.Sh then C.Prism else C.Cream, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
 		Theme.textStroke(nameLabel, 1.5)
 		label({ Position = UDim2.new(0.42, 4, 0, 38), Size = UDim2.new(0.58, -14, 0, 20), Text = `No.{string.format("%03d", def.Number)}  ·  Lv {beast.L}  ·  {def.Rarity}`, TextSize = 15, TextColor3 = rarity.Color, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
 		local chips = create("Frame", { Position = UDim2.new(0.42, 4, 0, 60), Size = UDim2.new(0.58, -14, 0, 20), BackgroundTransparency = 1, Parent = detail })
@@ -455,8 +504,12 @@ function UI.OpenTeam(startTab: string?)
 			UI.Buy("Product", "PowerSnack")
 		end)
 		local coins = 30 * beast.L * rarity.Index
-		local release = button({ Text = `RELEASE`, TextSize = 14, Color = C.CrimsonDark, LayoutOrder = 6, Parent = actions })
+		local release = button({ Text = if favorite then "★ PROTECTED" else `RELEASE`, TextSize = 14, Color = if favorite then C.PanelLight else C.CrimsonDark, LayoutOrder = 6, Parent = actions })
 		release.Activated:Connect(function()
+			if favorite then
+				UI.Toast("Favorites are protected. Tap the star to remove it first.", C.Muted)
+				return
+			end
 			if not releaseArmed then
 				releaseArmed = true
 				release.Text = `SURE? +{Format.Number(coins)}`
@@ -476,16 +529,19 @@ function UI.OpenTeam(startTab: string?)
 			end
 		end
 		local list = {}
+		local favorites = col.Favorites or {}
+		sortButton.Visible = current == "BOX"
 		if current == "TEAM" then
 			for index, uid in col.Team do
 				if col.Beasts[uid] then
-					table.insert(list, { Uid = uid, Beast = col.Beasts[uid], Team = index })
+					table.insert(list, { Uid = uid, Beast = col.Beasts[uid], Team = index, Favorite = favorites[uid] == true })
 				end
 			end
 		else
 			for uid, beast in col.Beasts do
-				if not table.find(col.Team, uid) then
-					table.insert(list, { Uid = uid, Beast = beast })
+				-- Bestie im Hort wird im Hort-Fenster gezeigt
+				if not table.find(col.Team, uid) and uid ~= col.DaycareUid then
+					table.insert(list, { Uid = uid, Beast = beast, Favorite = favorites[uid] == true })
 				end
 			end
 			table.sort(list, beastSort)
@@ -502,6 +558,9 @@ function UI.OpenTeam(startTab: string?)
 			Theme.typeChip(def.Type, { Position = UDim2.fromOffset(8, 60), Size = UDim2.fromOffset(56, 18), TextSize = 11, Parent = card })
 			local _, fill = Theme.hpBar({ Position = UDim2.fromOffset(70, 63), Size = UDim2.new(1, -78, 0, 10), Parent = card })
 			Theme.setHp(fill, beast.Hp / beast.MaxHp)
+			if item.Favorite then
+				label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 4), Size = UDim2.fromOffset(18, 18), Text = "★", Font = Theme.Title, TextSize = 16, TextColor3 = C.Gold, Parent = card })
+			end
 			if item.Team then
 				local badge = label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -6, 0, 30), Size = UDim2.fromOffset(28, 20), Text = `#{item.Team}`, Font = Theme.Title, TextSize = 16, BackgroundTransparency = 0, BackgroundColor3 = C.Gold, TextColor3 = C.Ink, Parent = card })
 				Theme.corner(badge, 6)
@@ -519,14 +578,14 @@ function UI.OpenTeam(startTab: string?)
 				boxCount += 1
 			end
 		end
-		info.Text = `Team {#col.Team}/{col.TeamSize}  ·  Box {boxCount}/{col.Capacity}  ·  Tap a move to change it`
+		info.Text = `Team {#col.Team}/{col.TeamSize}  ·  Box {boxCount}/{col.Capacity}` .. (if col.DaycareUid then "  ·  1 at daycare" else "  ·  Tap a move to change it")
 	end
 
 	tabs(content, { "TEAM", "BOX" }, function(name, _)
 		current = name
 		drawList()
 	end, current)
-	if not selectedUid or not collection.Beasts[selectedUid] then
+	if not selectedUid or not collection.Beasts[selectedUid] or selectedUid == collection.DaycareUid then
 		selectedUid = collection.Team[1]
 	end
 	drawList()
@@ -691,7 +750,7 @@ local function shopCard(parent: Instance, order: number, title: string, descript
 end
 
 local PRODUCT_GROUPS = {
-	BOOSTS = { "MasterOrb1", "MasterOrb5", "Boost", "PowerSnack", "EvoCrystal", "SkipChampion", "FullHeal", "ServerShiny", "Storage" },
+	BOOSTS = { "MasterOrb1", "MasterOrb5", "Boost", "PowerSnack", "EvoCrystal", "SkipChampion", "FullHeal", "QuestFinish", "ServerShiny", "Storage" },
 	COINS = { "CoinsSmall", "CoinsMedium", "CoinsLarge" },
 }
 
@@ -955,9 +1014,15 @@ end
 
 ---------------------------------------------------------------- Starter-Wahl
 
+local starterScreen: Frame? = nil
 function UI.ShowStarter()
 	closeWindow()
+	-- Zweimal mit dem Professor gesprochen: nur eine Auswahl zeigen
+	if starterScreen and starterScreen.Parent then
+		return
+	end
 	local screen = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.25, ZIndex = 20, Parent = root })
+	starterScreen = screen
 	local title = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 30), Size = UDim2.fromOffset(800, 56), Text = "CHOOSE YOUR PARTNER", Font = Theme.Title, TextSize = 46, TextColor3 = C.Gold, ZIndex = 21, Parent = screen })
 	Theme.textStroke(title, 3)
 	label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 88), Size = UDim2.fromOffset(800, 26), Text = "Fire beats Leaf, Leaf beats Water, Water beats Fire. Your rival Kai will pick the one that beats yours!", TextSize = 18, ZIndex = 21, Parent = screen })
@@ -1275,8 +1340,8 @@ end
 
 local function menuButton(icon: string, text: string, color: Color3, order: number): (TextButton, TextLabel)
 	local b = button({ Color = color, LayoutOrder = order, Parent = hud:FindFirstChild("Menu") })
-	label({ Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 0, 36), Text = icon, TextSize = 28, Parent = b })
-	local textLabel = label({ Position = UDim2.new(0, 0, 1, -24), Size = UDim2.new(1, 0, 0, 20), Text = text, Font = Theme.Title, TextSize = 14, TextColor3 = C.Cream, Parent = b })
+	label({ Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 0, 34), Text = icon, TextSize = 26, Parent = b })
+	local textLabel = label({ Position = UDim2.new(0, 3, 1, -22), Size = UDim2.new(1, -6, 0, 18), Text = text, Font = Theme.Title, TextSize = 14, TextScaled = true, TextColor3 = C.Cream, Parent = b })
 	Theme.textStroke(textLabel, 1.2)
 	local badge = label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -6), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 0, BackgroundColor3 = C.Red, Text = "!", Font = Theme.Title, TextSize = 15, Visible = false, Parent = b })
 	Theme.corner(badge, 11)
@@ -1289,6 +1354,19 @@ local function chip(order: number, color: Color3): TextLabel
 	Theme.stroke(c, color, 2)
 	create("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = c })
 	return c
+end
+
+-- Weitere Menue-Knoepfe und Anzeige-Chips (nach UI.Init aufrufen)
+function UI.AddMenuButton(icon: string, text: string, color: Color3, order: number): (TextButton, TextLabel)
+	return menuButton(icon, text, color, order)
+end
+
+function UI.AddChip(order: number, color: Color3): TextLabel
+	return chip(order, color)
+end
+
+function UI.Hud(): Frame
+	return hud
 end
 
 function UI.SetHudVisible(visible: boolean)
@@ -1358,11 +1436,19 @@ function UI.Init()
 		local s = math.clamp(math.min(size.X / 1000, size.Y / 560), 0.55, 1.3)
 		scale.Scale = s
 		root.Size = UDim2.fromOffset(size.X / s, size.Y / s)
+		-- Anzeige unter die Roblox-Leiste schieben, sonst liegen deren Knoepfe ueber Muenzen und Orden
+		if hud then
+			local inset = GuiService:GetGuiInset().Y / s
+			hud.Position = UDim2.fromOffset(0, inset)
+			hud.Size = UDim2.new(1, 0, 1, -inset)
+		end
 	end
 	rescale()
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
 
 	hud = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = root })
+	rescale()
+	task.delay(2, rescale) -- die Roblox-Leiste ist beim Start manchmal noch nicht fertig
 	modal = create("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Ink, BackgroundTransparency = 0.45, AutoButtonColor = false, Text = "", Visible = false, ZIndex = 5, Parent = root })
 	-- Hintergrund antippen schliesst das Fenster
 	;(modal :: any).Activated:Connect(function()
@@ -1396,9 +1482,9 @@ function UI.Init()
 	local boostChip = chip(2, C.Green)
 	local stormChip = chip(3, C.Prism)
 
-	-- Menue: zwei Spalten links
-	local menu = create("Frame", { Name = "Menu", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 40), Size = UDim2.fromOffset(150, 316), BackgroundTransparency = 1, Parent = hud })
-	create("UIGridLayout", { CellSize = UDim2.fromOffset(70, 70), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = menu })
+	-- Menue: drei Spalten links (Platz fuer 12 Knoepfe, passt auch auf kleine Handys)
+	local menu = create("Frame", { Name = "Menu", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 30), Size = UDim2.fromOffset(208, 280), BackgroundTransparency = 1, Parent = hud })
+	create("UIGridLayout", { CellSize = UDim2.fromOffset(64, 64), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = menu })
 	local teamButton = menuButton("🐾", "TEAM", C.Blue, 1)
 	local bagButton = menuButton("🎒", "BAG", Color3.fromRGB(200, 140, 40), 2)
 	local dexButton = menuButton("📖", "DEX", C.Crimson, 3)

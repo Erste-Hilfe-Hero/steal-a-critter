@@ -57,6 +57,14 @@ function MonetizationService:GetMultiplier(player: Player): number
 	if player.MembershipType == Enum.MembershipType.Premium then
 		multiplier *= Config.PremiumMultiplier
 	end
+	-- Sammel-Index: +5 % pro komplett entdecktem Ei
+	if data then
+		multiplier *= 1 + Config.CompletedEggs(data.Discovered) * Config.IndexBonusPerEgg
+	end
+	-- Happy Hour (kostenloses Server-Event fuer alle)
+	if Config.HappyHourState(os.time()) then
+		multiplier *= Config.HappyHourMultiplier
+	end
 	return math.floor(multiplier * 100 + 0.5) / 100
 end
 
@@ -168,6 +176,10 @@ local function processReceipt(info)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 	if services.DataService:HasReceipt(player, info.PurchaseId) then
+		-- Schon vergeben (z. B. Speichern beim ersten Versuch fehlgeschlagen): erst bestaetigen, wenn es gespeichert ist
+		if not services.DataService:Save(player) then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
 		return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	local passKey = passKeyByProductId[info.ProductId]

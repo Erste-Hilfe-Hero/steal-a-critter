@@ -98,6 +98,13 @@ function MonetizationService:PromptProduct(player: Player, key: string)
 	if product.AffectsRandom and self:IsRestricted(player) then
 		return
 	end
+	if product.Kind == "Aura" then
+		local data = self.Services.DataService:Get(player)
+		if data and data.Auras[product.Aura] then
+			self.Services.Net.SendNotify(player, "You already own this aura.", GOLD)
+			return
+		end
+	end
 	if product.Id ~= 0 then
 		MarketplaceService:PromptProductPurchase(player, product.Id)
 	elseif canFake() then
@@ -141,6 +148,11 @@ function MonetizationService:Grant(player: Player, key: string): boolean
 		data.Blessing += 1
 		services.DataService:UpdateAttributes(player)
 		services.Net.SendAnnounce(`{player.DisplayName} blessed their party: the next boss drops a Legendary for everyone!`, GOLD)
+	elseif kind == "Aura" then
+		data.Auras[product.Aura] = true
+		data.Aura = product.Aura
+		services.ProgressService:ApplyAura(player)
+		services.Net.SendNotify(player, `{product.Name} unlocked and equipped! Thanks for your support!`, GOLD)
 	elseif kind == "Starter" then
 		if data.StarterBought then
 			services.DataService:AddGold(player, 2500)
@@ -266,7 +278,8 @@ function MonetizationService:Start()
 			Net.SendNotify(player, "More free gold in a few minutes!", RED)
 			return false
 		end
-		if key == "AdRevive" and not (services.DungeonService:GetRun(player) and services.DungeonService:GetRun(player).Dead[player]) then
+		local run = services.DungeonService:GetRun(player)
+		if key == "AdRevive" and not (run and run.State == "Running" and run.Dead[player]) then
 			return false
 		end
 		timers[key] = now

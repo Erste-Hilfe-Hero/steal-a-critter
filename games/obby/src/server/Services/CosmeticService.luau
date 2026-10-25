@@ -26,7 +26,7 @@ function CosmeticService:IsTrailUnlocked(player: Player, trail): boolean
 	end
 	return Config.TrailUnlocked(trail, data.BestStage, data.Wins, function(key)
 		return self:HasPass(player, key)
-	end)
+	end, data.OwnedTrails)
 end
 
 ---------------------------------------------------------------- Trail
@@ -164,9 +164,10 @@ function CosmeticService:UpdateNameTag(player: Player)
 	local isOwner = rank == "Owner"
 	local isVip = self:HasPass(player, "VIP")
 
-	-- Zeile 1: Rang (Owner = Regenbogen, den der Client dreht)
+	-- Zeile 1: Rang (Owner = Regenbogen, den der Client dreht) und ausgeruesteter Erfolgs-Titel
 	local rankLabel = gui.Rank :: TextLabel
-	rankLabel.Text = string.upper(rank)
+	local achievement = Config.AchievementsById[tostring(player:GetAttribute("Title") or "")]
+	rankLabel.Text = string.upper(rank) .. (if achievement then `  ·  {achievement.Title}` else "")
 	rankLabel.TextColor3 = if isOwner then Color3.new(1, 1, 1) else rankColor
 	setGradient(rankLabel, if isOwner then RAINBOW else nil)
 

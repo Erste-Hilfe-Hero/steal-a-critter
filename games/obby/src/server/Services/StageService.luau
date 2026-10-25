@@ -1,4 +1,5 @@
--- Fortschritt: Checkpoints, Respawn am letzten Checkpoint, Ziel/Wins und Stage-Skips.
+-- Fortschritt: Checkpoints, Respawn am letzten Checkpoint, Ziel/Wins, Stage-Skips,
+-- Stage-Auswahl (zurueck zu erreichten Stages) und der Speedrun-Timer.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -11,6 +12,9 @@ local GREEN = Color3.fromRGB(90, 220, 120)
 
 local finishing = {} -- [Player] = true, solange der Sieg verarbeitet wird
 local lastDeath = {} -- [Player] = os.clock()
+local lastSelect = {} -- [Player] = os.clock()
+local runs = {} -- [Player] = Startzeit (Serverzeit) des laufenden Speedruns ohne Skips
+local replaying = {} -- [Player] = true nach der Stage-Auswahl: Coins nur noch fuer neue Rekord-Stages (kein Farmen)
 
 function StageService:Init(services)
 	self.Services = services
@@ -24,6 +28,12 @@ local function playerFromHit(hit: BasePart): (Player?, Humanoid?)
 		return player, humanoid
 	end
 	return nil, nil
+end
+
+-- Speedrun beenden/ungueltig machen (Skip, Stage-Auswahl, Sieg)
+function StageService:StopRun(player: Player)
+	runs[player] = nil
+	player:SetAttribute("RunStart", nil)
 end
 
 function StageService:Teleport(player: Player)
@@ -49,6 +59,9 @@ function StageService:SetStage(player: Player, stage: number, teleport: boolean)
 	if worldIndex > previousWorld and newRecord then
 		self.Services.Net.SendAnnounce(`{player.DisplayName} reached World {worldIndex}: {world.Name}!`, world.Accent)
 	end
+	if newRecord then
+		self.Services.RewardService:CheckAchievements(player)
+	end
 	if teleport then
 		self:Teleport(player)
 	end
@@ -61,6 +74,11 @@ function StageService:Skip(player: Player, stages: number): boolean
 	if not data then
 		return false
 	end
+	-- Waehrend eines Sieges nicht vergeben (sonst ginge der Kauf verloren); Roblox versucht es spaeter erneut
+	if finishing[player] then
+		return false
+	end
+	self:StopRun(player)
 	if data.Stage + stages > Config.StageCount then
 		task.defer(self.Win, self, player)
 		return true
@@ -80,6 +98,25 @@ function StageService:Win(player: Player)
 	data.BestStage = Config.StageCount
 	self.Services.Net.SendAnnounce(`{player.DisplayName} BEAT ALL {Config.StageCount} STAGES! (Win #{data.Wins})`, GOLD)
 	self.Services.Net.SendNotify(player, "You won! New trails unlocked - run again for more Wins!", GOLD)
+	-- Speedrun auswerten (nur Laeufe ohne Skips und ohne Stage-Auswahl)
+	local started = runs[player]
+	self:StopRun(player)
+	replaying[player] = nil
+	if started then
+		local time = math.floor((workspace:GetServerTimeNow() - started) * 10 + 0.5) / 10
+		if data.BestTime == 0 or time < data.BestTime then
+			data.BestTime = time
+			self.Services.Net.SendAnnounce(`⏱ {player.DisplayName} set a new personal best: {Config.FormatRunTime(time)}!`, GOLD)
+		else
+			self.Services.Net.SendNotify(player, `Run time: {Config.FormatRunTime(time)} (best {Config.FormatRunTime(data.BestTime)})`, GREEN)
+		end
+		if time <= Config.SpeedsterTime then
+			data.SpeedRun = 1
+		end
+	end
+	local reward = self.Services.RewardService:AddCoins(player, Config.CoinsPerWin, true)
+	self.Services.Net.SendNotify(player, `+{reward} coins for winning! 🪙`, GOLD)
+	self.Services.RewardService:CheckAchievements(player)
 	data.Stage = 1
 	self.Services.DataService:UpdateAttributes(player)
 	self.Services.CosmeticService:Refresh(player)
@@ -108,6 +145,9 @@ function StageService:OnCharacterAdded(player: Player, character: Model)
 		local data = self.Services.DataService:Get(player)
 		if data then
 			data.Deaths += 1
+			if data.Deaths % 50 == 0 then
+				self.Services.RewardService:CheckAchievements(player)
+			end
 		end
 	end)
 end
@@ -115,6 +155,49 @@ end
 function StageService:OnPlayerRemoving(player: Player)
 	finishing[player] = nil
 	lastDeath[player] = nil
+	lastSelect[player] = nil
+	runs[player] = nil
+	replaying[player] = nil
+end
+
+-- Echter Fortschritt durch Laufen: Coins, Quests und Speedrun-Start
+function StageService:OnCheckpointReached(player: Player, previous: number, stage: number, newRecord: boolean)
+	local rewards = self.Services.RewardService
+	local _, worldIndex = Config.WorldForStage(stage)
+	if newRecord or not replaying[player] then
+		rewards:AddCoins(player, Config.CoinsPerCheckpoint + worldIndex, true)
+	end
+	rewards:AddQuestProgress(player, "Checkpoints", stage - previous)
+	if (stage - 1) % Config.StagesPerWorld == 0 then
+		rewards:AddQuestProgress(player, "Worlds", 1)
+	end
+	-- Lauf startet, wenn man Stage 1 verlaesst
+	if previous == 1 then
+		runs[player] = workspace:GetServerTimeNow()
+		player:SetAttribute("RunStart", runs[player])
+	end
+end
+
+-- Zurueck (oder wieder vor) zu einer bereits erreichten Stage
+function StageService:SelectStage(player: Player, stage: number)
+	local data = self.Services.DataService:Get(player)
+	if not data or finishing[player] then
+		return
+	end
+	local now = os.clock()
+	if now - (lastSelect[player] or -math.huge) < 0.4 then
+		return
+	end
+	lastSelect[player] = now
+	if stage < 1 or stage > data.BestStage or stage == data.Stage then
+		return
+	end
+	self:StopRun(player)
+	if not replaying[player] then
+		self.Services.Net.SendNotify(player, "Stage select: coins only for new record stages until your next win.", GREEN)
+	end
+	replaying[player] = true
+	self:SetStage(player, stage, true)
 end
 
 function StageService:Start()
@@ -124,8 +207,12 @@ function StageService:Start()
 		pad.Touched:Connect(function(hit)
 			local player = playerFromHit(hit)
 			local data = player and self.Services.DataService:Get(player)
-			if player and data and stage > data.Stage and not finishing[player] then
+			-- Nur vorwaerts und hoechstens ein paar Checkpoints auf einmal (Teleport-Cheats koennen nicht bis zum Ziel springen)
+			if player and data and stage > data.Stage and stage - data.Stage <= Config.MaxCheckpointJump and not finishing[player] then
+				local previous = data.Stage
+				local newRecord = stage > data.BestStage
 				self:SetStage(player, stage, false)
+				self:OnCheckpointReached(player, previous, stage, newRecord)
 			end
 		end)
 	end
@@ -147,6 +234,12 @@ function StageService:Start()
 		end
 		lastDeath[player] = now
 		self:Kill(player)
+	end)
+
+	self.Services.Net.SelectStage.OnServerEvent:Connect(function(player, stage)
+		if typeof(stage) == "number" and stage == stage and stage % 1 == 0 then
+			self:SelectStage(player, stage)
+		end
 	end)
 end
 

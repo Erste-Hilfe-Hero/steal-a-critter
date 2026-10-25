@@ -46,6 +46,7 @@ local state = {
 	Capacity = Config.BaseInventory,
 	Run = nil,
 	Lobby = nil,
+	Quests = nil :: any, -- taegliche Quests vom Server
 	Selected = nil,
 	AutoAttack = false,
 	Cooldowns = { Attack = 0, [1] = 0, [2] = 0, Potion = 0 },
@@ -341,12 +342,13 @@ local function refreshRun()
 	local difficulty = Config.Difficulties[run.Difficulty]
 	runTitle.Text = `{dungeon.Name:upper()}  ·  {difficulty.Name:upper()}`
 	runTitle.TextColor3 = difficulty.Color
+	local featured = if run.Featured then "  ·  +50% FEATURED" else ""
 	if run.Boss then
-		runProgress.Text = `BOSS ROOM  ·  Monster level {run.Level}`
+		runProgress.Text = `BOSS ROOM  ·  Monster level {run.Level}{featured}`
 	elseif run.Room == 0 then
-		runProgress.Text = `Get ready!  ·  Party {run.Party}/{Config.MaxPartySize}`
+		runProgress.Text = `Get ready!  ·  Party {run.Party}/{Config.MaxPartySize}{featured}`
 	else
-		runProgress.Text = `Room {run.Room}/{run.Rooms - 1}  ·  Wave {math.max(1, run.Wave)}/{run.Waves}  ·  Party {run.Party}`
+		runProgress.Text = `Room {run.Room}/{run.Rooms - 1}  ·  Wave {math.max(1, run.Wave)}/{run.Waves}  ·  Party {run.Party}{featured}`
 	end
 end
 
@@ -452,7 +454,7 @@ local function tryPotion()
 	if now < state.Cooldowns.Potion then
 		return
 	end
-	state.Cooldowns.Potion = now + Config.PotionCooldown
+	state.Cooldowns.Potion = now + Config.PotionCooldownFor(player:GetAttribute("PotionLevel") or 0)
 	task.spawn(request, "Potion")
 end
 
@@ -495,6 +497,18 @@ local function buildCombat()
 		state.AutoAttack = not state.AutoAttack
 		autoButton.BackgroundColor3 = if state.AutoAttack then Color3.fromRGB(60, 140, 80) else THEME.PanelLight
 		autoButton.Text = if state.AutoAttack then "AUTO ON" else "AUTO"
+	end)
+	-- Gruppen-Signale: kleiner Knopf, oeffnet eine Reihe fester Rufe
+	local pingMenu = create("Frame", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -276, 1, 0), Size = UDim2.fromOffset(92, #Config.Pings * 38), BackgroundTransparency = 1, Visible = false, Parent = combatFrame })
+	create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = pingMenu })
+	for i, caption in Config.Pings do
+		button({ Size = UDim2.fromOffset(92, 34), Text = caption, TextSize = 15, LayoutOrder = i, BackgroundColor3 = Color3.fromRGB(50, 90, 150), Parent = pingMenu }, function()
+			pingMenu.Visible = false
+			task.spawn(request, "Ping", i)
+		end)
+	end
+	button({ AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -200, 1, -60), Size = UDim2.fromOffset(64, 30), Text = "PING", TextSize = 14, BackgroundColor3 = Color3.fromRGB(50, 90, 150), Parent = combatFrame }, function()
+		pingMenu.Visible = not pingMenu.Visible
 	end)
 	local keyboard = UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled
 	if keyboard then
@@ -568,7 +582,7 @@ local function updateCooldowns()
 	end
 	show(skillButtons[1], state.Cooldowns[1], class.Skills[1].Cooldown * cdMult)
 	show(skillButtons[2], state.Cooldowns[2], class.Skills[2].Cooldown * cdMult)
-	show(potionButton, state.Cooldowns.Potion, Config.PotionCooldown)
+	show(potionButton, state.Cooldowns.Potion, Config.PotionCooldownFor(player:GetAttribute("PotionLevel") or 0))
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		local max = math.max(1, humanoid.MaxHealth)
@@ -620,6 +634,13 @@ local function updateCooldowns()
 	if (player:GetAttribute("Blessing") or 0) > 0 then
 		table.insert(boosts, "Boss Blessing ready")
 	end
+	local serverNow = workspace:GetServerTimeNow()
+	for _, key in Config.ShrineOrder do
+		local left = (tonumber(player:GetAttribute("Buff_" .. key)) or 0) - serverNow
+		if left > 0 then
+			table.insert(boosts, `{Config.Shrines[key].Text} {math.ceil(left)}s`)
+		end
+	end
 	boostLabel.Text = table.concat(boosts, "   ·   ")
 end
 
@@ -628,16 +649,29 @@ end
 local bagBadge: TextLabel
 local adButton: TextButton
 
+local questBadge: TextLabel
+
+local function invite()
+	local ok, canInvite = pcall(SocialService.CanSendGameInviteAsync, SocialService, player)
+	if not ok or not canInvite then
+		showToast("Invites are not available on this device.", THEME.Red)
+		return
+	end
+	local options = Instance.new("ExperienceInviteOptions")
+	options.PromptMessage = "Join my party in Lantern Legends! Friends give +10% gold and XP."
+	pcall(SocialService.PromptGameInvite, SocialService, player, options)
+end
+
 local function menuButton(parent: Instance, order: number, caption: string, color: Color3, onClick: () -> ()): (TextButton, TextLabel)
-	local b = button({ Size = UDim2.fromOffset(64, 56), LayoutOrder = order, Text = caption, Font = TITLE, TextSize = 14, BackgroundColor3 = color, Parent = parent }, onClick)
+	local b = button({ Size = UDim2.fromOffset(64, 50), LayoutOrder = order, Text = caption, Font = TITLE, TextSize = 14, BackgroundColor3 = color, Parent = parent }, onClick)
 	local badge = text({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -6), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 0, BackgroundColor3 = THEME.Red, Text = "!", Font = TITLE, TextSize = 13, Visible = false, Parent = b })
 	corner(11).Parent = badge
 	return b, badge
 end
 
 local function buildMenu()
-	local holder = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 12, 0.5, 20), Size = UDim2.fromOffset(64, 400), BackgroundTransparency = 1, Parent = root })
-	create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center, Parent = holder })
+	local holder = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 12, 0.5, 40), Size = UDim2.fromOffset(64, 400), BackgroundTransparency = 1, Parent = root })
+	create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center, Parent = holder })
 	local _, badge = menuButton(holder, 1, "BAG", Color3.fromRGB(110, 76, 52), function()
 		open("Bag")
 	end)
@@ -651,18 +685,14 @@ local function buildMenu()
 	menuButton(holder, 4, "CLASS", Color3.fromRGB(100, 70, 160), function()
 		open("Class")
 	end)
-	local invite = menuButton(holder, 5, "INVITE", Color3.fromRGB(50, 120, 160), function()
-		local ok, canInvite = pcall(SocialService.CanSendGameInviteAsync, SocialService, player)
-		if not ok or not canInvite then
-			showToast("Invites are not available on this device.", THEME.Red)
-			return
-		end
-		local options = Instance.new("ExperienceInviteOptions")
-		options.PromptMessage = "Join my party in Lantern Legends! Friends give +10% gold and XP."
-		pcall(SocialService.PromptGameInvite, SocialService, player, options)
+	local _, qBadge = menuButton(holder, 5, "QUESTS", Color3.fromRGB(60, 120, 90), function()
+		open("Quests")
 	end)
-	invite.LayoutOrder = 5
-	adButton = menuButton(holder, 6, "FREE\nGOLD", Color3.fromRGB(60, 140, 80), function()
+	questBadge = qBadge
+	menuButton(holder, 6, "MORE", Color3.fromRGB(50, 120, 160), function()
+		open("More")
+	end)
+	adButton = menuButton(holder, 7, "FREE\nGOLD", Color3.fromRGB(60, 140, 80), function()
 		adButton.Visible = false
 		task.spawn(request, "WatchAd", "Gold")
 	end)
@@ -956,11 +986,29 @@ local function renderForge()
 			end
 		end)
 	end
+	-- Trank-Meisterschaft (Gold-Upgrade)
+	local level = player:GetAttribute("PotionLevel") or 0
+	local row = panel({ Size = UDim2.new(1, 0, 0, 52), LayoutOrder = #Config.Slots + 1, BackgroundColor3 = Color3.fromRGB(24, 44, 36), Parent = forgeList })
+	text({ Position = UDim2.fromOffset(12, 4), Size = UDim2.new(0.6, 0, 0, 24), Text = `Potion Mastery {level}/{Config.PotionMaxLevel}`, Font = HEAVY, TextSize = 17, TextColor3 = THEME.Green, TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = false, Parent = row })
+	local now = `heals {math.floor(Config.PotionHealFor(level) * 100)}%, {Config.PotionCooldownFor(level)}s`
+	if level >= Config.PotionMaxLevel then
+		text({ Position = UDim2.fromOffset(12, 28), Size = UDim2.new(0.6, 0, 0, 18), Text = `Maximum reached: {now}`, TextSize = 13, TextColor3 = THEME.Gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+	else
+		local cost = Config.PotionUpgradeCost(level)
+		text({ Position = UDim2.fromOffset(12, 28), Size = UDim2.new(0.62, 0, 0, 18), Text = `Now {now}  ·  next: +5% heal, -1s  ·  {money(cost)} gold`, TextSize = 13, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = false, Parent = row })
+		local affordable = (player:GetAttribute("Gold") or 0) >= cost
+		button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(120, 34), Text = "UPGRADE", BackgroundColor3 = if affordable then Color3.fromRGB(60, 140, 80) else THEME.PanelLight, Parent = row }, function()
+			local ok, reason = request("UpgradePotion")
+			if not ok then
+				showToast(reason or "Not possible right now.", THEME.Red)
+			end
+		end)
+	end
 end
 renderers.Forge = renderForge
 
 local function buildForge()
-	local _, body = window("Forge", "FORGE", Vector2.new(640, 440))
+	local _, body = window("Forge", "FORGE", Vector2.new(640, 500))
 	text({ Size = UDim2.new(1, 0, 0, 22), Text = "Enhance your equipped gear with gold and shards. Salvage items in your bag to get shards.", TextSize = 14, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = body })
 	forgeList = create("Frame", { Position = UDim2.fromOffset(0, 28), Size = UDim2.new(1, 0, 1, -28), BackgroundTransparency = 1, Parent = body })
 	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = forgeList })
@@ -1125,21 +1173,23 @@ end
 local lobbyFrame: Frame
 local lobbyTitle: TextLabel
 local lobbyInfo: TextLabel
+local lobbyExtra: TextLabel
 local lobbyButtons = {}
 local lobbyStart: TextButton
 
 local function buildLobby()
-	lobbyFrame = panel({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -20), Size = UDim2.fromOffset(470, 150), Visible = false, Parent = root })
+	lobbyFrame = panel({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -20), Size = UDim2.fromOffset(470, 172), Visible = false, Parent = root })
 	lobbyTitle = text({ Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 28), Font = TITLE, TextSize = 24, TextColor3 = THEME.Amber, Parent = lobbyFrame })
 	lobbyInfo = text({ Position = UDim2.fromOffset(0, 34), Size = UDim2.new(1, 0, 0, 20), Font = HEAVY, TextSize = 15, TextColor3 = THEME.Muted, Parent = lobbyFrame })
-	local row = create("Frame", { Position = UDim2.fromOffset(12, 60), Size = UDim2.new(1, -24, 0, 36), BackgroundTransparency = 1, Parent = lobbyFrame })
+	lobbyExtra = text({ Position = UDim2.fromOffset(0, 56), Size = UDim2.new(1, 0, 0, 18), Font = HEAVY, TextSize = 14, TextColor3 = THEME.Gold, Parent = lobbyFrame })
+	local row = create("Frame", { Position = UDim2.fromOffset(12, 82), Size = UDim2.new(1, -24, 0, 36), BackgroundTransparency = 1, Parent = lobbyFrame })
 	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = row })
 	for i, difficulty in Config.Difficulties do
 		lobbyButtons[i] = button({ Size = UDim2.fromOffset(140, 34), Text = difficulty.Name:upper(), Font = TITLE, TextSize = 16, LayoutOrder = i, Parent = row }, function()
 			request("SetDifficulty", i)
 		end)
 	end
-	lobbyStart = button({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 104), Size = UDim2.fromOffset(200, 36), Text = "START NOW", Font = TITLE, TextSize = 18, BackgroundColor3 = Color3.fromRGB(60, 140, 80), Parent = lobbyFrame }, function()
+	lobbyStart = button({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 126), Size = UDim2.fromOffset(200, 36), Text = "START NOW", Font = TITLE, TextSize = 18, BackgroundColor3 = Color3.fromRGB(60, 140, 80), Parent = lobbyFrame }, function()
 		request("StartNow")
 	end)
 end
@@ -1153,6 +1203,12 @@ local function refreshLobby()
 	local dungeon = Config.Dungeons[lobby.Dungeon]
 	lobbyTitle.Text = `{dungeon.Name:upper()}  ·  LEVEL {dungeon.Level}+`
 	lobbyInfo.Text = `Party {lobby.Count}/{lobby.Max}  ·  Starting in {math.ceil(lobby.Seconds)}s  ·  Walk off the circle to leave`
+	local extras = {}
+	if lobby.Featured then
+		table.insert(extras, "FEATURED TODAY: +50% gold & XP")
+	end
+	table.insert(extras, if lobby.Best then `Your best on {Config.Difficulties[lobby.Difficulty].Name}: {Format.Time(lobby.Best)}` else "No best time yet")
+	lobbyExtra.Text = table.concat(extras, "  ·  ")
 	for i, b in lobbyButtons do
 		local unlocked = i <= lobby.MaxDifficulty
 		local chosen = i == lobby.Difficulty
@@ -1233,7 +1289,7 @@ local function showSummary(info)
 	summaryTitle.Text = if info.Success then "VICTORY!" else "DEFEATED"
 	summaryTitle.TextColor3 = if info.Success then THEME.Amber else THEME.Red
 	local lines = {
-		`<b>{info.Dungeon}</b>  ·  {info.Difficulty}  ·  {Format.Time(info.Time)}`,
+		`<b>{info.Dungeon}</b>  ·  {info.Difficulty}  ·  {Format.Time(info.Time)}` .. (if info.NewRecord then `  <font color="#FFCA54">NEW BEST TIME!</font>` else ""),
 		`Kills: {info.Kills}`,
 		`Gold: +{money(info.Gold)}`,
 		`XP: +{money(info.XP)}`,
@@ -1303,21 +1359,400 @@ local function showOffer(key: string, message: string)
 	end)
 end
 
+---------------------------------------------------------------- Taegliche Quests
+
+local questList: Frame
+local questInfo: TextLabel
+
+local function clearChildren(parent: Instance)
+	for _, child in parent:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+end
+
+local function renderQuests()
+	clearChildren(questList)
+	local info = state.Quests
+	if not info then
+		questInfo.Text = "Loading quests..."
+		task.spawn(request, "GetQuests")
+		return
+	end
+	local left = math.max(0, info.ResetAt - os.time())
+	questInfo.Text = `Each quest: {money(info.Gold)} gold + {info.Shards} shards  ·  New quests in {left // 3600}h {left % 3600 // 60}m`
+	for i, quest in info.List do
+		local row = panel({ Size = UDim2.new(1, 0, 0, 70), LayoutOrder = i, BackgroundColor3 = THEME.PanelDark, Parent = questList })
+		text({ Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -170, 0, 24), Text = quest.Text, Font = HEAVY, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+		local _, fill, label = bar({ Position = UDim2.fromOffset(14, 40), Size = UDim2.new(1, -170, 0, 18), TextSize = 12, Parent = row }, THEME.Green)
+		fill.Size = UDim2.fromScale(math.clamp(quest.Progress / math.max(1, quest.Goal), 0, 1), 1)
+		label.Text = `{quest.Progress} / {quest.Goal}`
+		local done = quest.Progress >= quest.Goal
+		button({
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -12, 0.5, 0),
+			Size = UDim2.fromOffset(130, 42),
+			Text = if quest.Claimed then "CLAIMED" elseif done then "CLAIM" else "IN PROGRESS",
+			Font = TITLE,
+			TextSize = if done and not quest.Claimed then 18 else 13,
+			BackgroundColor3 = if quest.Claimed then THEME.PanelLight elseif done then Color3.fromRGB(60, 150, 80) else THEME.PanelDark,
+			Parent = row,
+		}, function()
+			if done and not quest.Claimed then
+				request("ClaimQuest", quest.Index)
+			end
+		end)
+	end
+	text({
+		Size = UDim2.new(1, 0, 0, 36),
+		LayoutOrder = 10,
+		Text = if info.BonusClaimed then "Daily bonus claimed! Come back tomorrow for new quests." else "Finish all 3 quests for a bonus Epic item!",
+		TextColor3 = if info.BonusClaimed then THEME.Green else THEME.Gold,
+		TextSize = 15,
+		Font = HEAVY,
+		Parent = questList,
+	})
+end
+renderers.Quests = renderQuests
+
+local function buildQuests()
+	local _, body = window("Quests", "DAILY QUESTS", Vector2.new(600, 384))
+	questInfo = text({ Size = UDim2.new(1, 0, 0, 22), Text = "", TextSize = 14, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = body })
+	questList = create("Frame", { Position = UDim2.fromOffset(0, 28), Size = UDim2.new(1, 0, 1, -28), BackgroundTransparency = 1, Parent = body })
+	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = questList })
+end
+
+---------------------------------------------------------------- Mehr-Menue (Heldentagebuch, Erfolge, Stil, Codes, Einstellungen, Einladen)
+
+local function buildMore()
+	local _, body = window("More", "MORE", Vector2.new(520, 300))
+	local grid = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = body })
+	create("UIGridLayout", { CellSize = UDim2.fromOffset(150, 98), CellPadding = UDim2.fromOffset(12, 12), HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder, Parent = grid })
+	local entries = {
+		{ "HERO\nJOURNAL", Color3.fromRGB(110, 76, 52), "Hero" },
+		{ "ACHIEVE-\nMENTS", Color3.fromRGB(170, 120, 30), "Achievements" },
+		{ "AURAS", Color3.fromRGB(120, 70, 170), "Style" },
+		{ "CODES", Color3.fromRGB(60, 120, 90), "Codes" },
+		{ "SETTINGS", Color3.fromRGB(70, 76, 110), "Settings" },
+		{ "INVITE\nFRIENDS", Color3.fromRGB(50, 120, 160), nil },
+	}
+	for i, entry in entries do
+		button({ Text = entry[1], Font = TITLE, TextSize = 19, BackgroundColor3 = entry[2], LayoutOrder = i, Parent = grid }, function()
+			if entry[3] then
+				open(entry[3])
+			else
+				invite()
+			end
+		end)
+	end
+end
+
+---------------------------------------------------------------- Heldentagebuch, Erfolge und Auren (Daten vom Server)
+
+local heroScroll: ScrollingFrame
+local achievementScroll: ScrollingFrame
+local styleScroll: ScrollingFrame
+
+local function scrollList(parent: Instance, top: number): ScrollingFrame
+	local scroll = create("ScrollingFrame", {
+		Position = UDim2.fromOffset(0, top),
+		Size = UDim2.new(1, 0, 1, -top),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		Parent = parent,
+	}) :: ScrollingFrame
+	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroll })
+	return scroll
+end
+
+local function withHero(render: (any) -> ())
+	task.spawn(function()
+		local data = request("GetHero")
+		if typeof(data) == "table" then
+			render(data)
+		end
+	end)
+end
+
+local function renderHero()
+	withHero(function(data)
+		clearChildren(heroScroll)
+		local order = 0
+		local function line(caption: string, value: string, color: Color3?)
+			order += 1
+			local row = create("Frame", { Size = UDim2.new(1, -10, 0, 26), BackgroundColor3 = if order % 2 == 0 then THEME.PanelDark else THEME.Panel, BorderSizePixel = 0, LayoutOrder = order, Parent = heroScroll })
+			corner(6).Parent = row
+			text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(0.62, -10, 1, 0), Text = caption, TextSize = 15, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+			text({ Position = UDim2.new(0.62, 0, 0, 0), Size = UDim2.new(0.38, -10, 1, 0), Text = value, Font = HEAVY, TextSize = 15, TextColor3 = color or THEME.Text, TextXAlignment = Enum.TextXAlignment.Right, Parent = row })
+		end
+		local function header(caption: string)
+			order += 1
+			text({ Size = UDim2.new(1, -10, 0, 30), Text = caption, Font = TITLE, TextSize = 20, TextColor3 = THEME.Amber, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = order, Parent = heroScroll })
+		end
+		header("LIFETIME STATS")
+		for _, entry in data.Stats do
+			line(entry[1], entry[2])
+		end
+		header("BEST CLEAR TIMES")
+		if #data.Records == 0 then
+			line("Clear a dungeon to set your first record!", "")
+		end
+		for _, entry in data.Records do
+			line(`{entry[1]}  ·  {entry[2]}`, entry[3], Config.Difficulties[entry[4]].Color)
+		end
+	end)
+end
+renderers.Hero = renderHero
+
+local function buildHero()
+	local _, body = window("Hero", "HERO JOURNAL", Vector2.new(600, 440))
+	heroScroll = scrollList(body, 0)
+end
+
+local function renderAchievements()
+	withHero(function(data)
+		clearChildren(achievementScroll)
+		local unlocked = 0
+		for _, entry in data.Achievements do
+			if entry.Done then
+				unlocked += 1
+			end
+		end
+		local top = create("Frame", { Size = UDim2.new(1, -10, 0, 40), BackgroundTransparency = 1, LayoutOrder = 0, Parent = achievementScroll })
+		text({ Size = UDim2.new(1, -150, 1, 0), Text = `{unlocked}/{#data.Achievements} unlocked  ·  Each one unlocks a title for your nameplate`, TextSize = 14, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = top })
+		button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(130, 34), Text = "NO TITLE", TextSize = 14, Parent = top }, function()
+			if request("SetTitle", "") then
+				renderAchievements()
+			end
+		end)
+		for i, entry in data.Achievements do
+			local row = panel({ Size = UDim2.new(1, -10, 0, 64), LayoutOrder = i, BackgroundColor3 = if entry.Done then THEME.PanelLight else THEME.PanelDark, Parent = achievementScroll })
+			text({ Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -170, 0, 22), Text = entry.Name, Font = TITLE, TextSize = 18, TextColor3 = if entry.Done then THEME.Gold else THEME.Text, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+			text({ Position = UDim2.fromOffset(12, 28), Size = UDim2.new(1, -170, 0, 16), Text = `{entry.Text}  ·  Title: {entry.Title}  ·  +{money(entry.Gold)} gold`, TextSize = 13, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+			local _, fill, label = bar({ Position = UDim2.fromOffset(12, 46), Size = UDim2.new(1, -170, 0, 12), TextSize = 10, Parent = row }, if entry.Done then THEME.Gold else THEME.Blue)
+			fill.Size = UDim2.fromScale(math.clamp(entry.Progress / math.max(1, entry.Goal), 0, 1), 1)
+			label.Text = `{money(entry.Progress)} / {money(entry.Goal)}`
+			local inUse = entry.Done and data.Title == entry.Title
+			button({
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -10, 0.5, 0),
+				Size = UDim2.fromOffset(140, 38),
+				Text = if inUse then "IN USE" elseif entry.Done then "USE TITLE" else "LOCKED",
+				Font = TITLE,
+				TextSize = 15,
+				BackgroundColor3 = if inUse then THEME.PanelLight elseif entry.Done then Color3.fromRGB(60, 140, 80) else THEME.PanelDark,
+				Parent = row,
+			}, function()
+				if entry.Done and not inUse and request("SetTitle", entry.Key) then
+					showToast(`Title set: {entry.Title}`, THEME.Gold)
+					renderAchievements()
+				end
+			end)
+		end
+	end)
+end
+renderers.Achievements = renderAchievements
+
+local function buildAchievements()
+	local _, body = window("Achievements", "ACHIEVEMENTS", Vector2.new(640, 450))
+	achievementScroll = scrollList(body, 0)
+end
+
+local function renderStyle()
+	withHero(function(data)
+		clearChildren(styleScroll)
+		local top = create("Frame", { Size = UDim2.new(1, -10, 0, 40), BackgroundTransparency = 1, LayoutOrder = 0, Parent = styleScroll })
+		text({ Size = UDim2.new(1, -150, 1, 0), Text = "Auras glow around your hero for everyone to see.", TextSize = 14, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = top })
+		button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(130, 34), Text = if data.Aura == "" then "NO AURA ✓" else "NO AURA", TextSize = 14, Parent = top }, function()
+			if request("SetAura", "") then
+				renderStyle()
+			end
+		end)
+		for i, aura in data.Auras do
+			local row = panel({ Size = UDim2.new(1, -10, 0, 58), LayoutOrder = i, BackgroundColor3 = THEME.PanelDark, Parent = styleScroll })
+			local dot = create("Frame", { Position = UDim2.fromOffset(12, 13), Size = UDim2.fromOffset(32, 32), BackgroundColor3 = aura.Color, Parent = row })
+			corner(16).Parent = dot
+			stroke(Color3.new(1, 1, 1), 2, 0.4).Parent = dot
+			text({ Position = UDim2.fromOffset(56, 6), Size = UDim2.new(1, -220, 0, 24), Text = aura.Name, Font = TITLE, TextSize = 19, TextColor3 = aura.Color, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+			local how = if aura.Owned then "Owned" elseif aura.Gold then `{money(aura.Gold)} gold` elseif aura.Requirement then `Unlock: achievement "{aura.Requirement}"` else "Exclusive Robux aura"
+			text({ Position = UDim2.fromOffset(56, 30), Size = UDim2.new(1, -220, 0, 18), Text = how, TextSize = 13, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+			local equipped = data.Aura == aura.Key
+			local caption = if equipped then "EQUIPPED"
+				elseif aura.Owned then "EQUIP"
+				elseif aura.Gold then "BUY"
+				elseif aura.ProductKey then `R$ {priceOf(aura.ProductId, aura.Price or 0)}`
+				else "LOCKED"
+			button({
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -10, 0.5, 0),
+				Size = UDim2.fromOffset(140, 38),
+				Text = caption,
+				Font = TITLE,
+				TextSize = 16,
+				BackgroundColor3 = if equipped then THEME.PanelLight elseif aura.Owned or aura.Gold or aura.ProductKey then Color3.fromRGB(60, 140, 80) else THEME.PanelDark,
+				Parent = row,
+			}, function()
+				if equipped then
+					return
+				end
+				if aura.Owned then
+					if request("SetAura", aura.Key) then
+						renderStyle()
+					end
+				elseif aura.Gold or aura.ProductKey then
+					local ok, reason = request("BuyAura", aura.Key)
+					if ok then
+						renderStyle()
+					elseif reason then
+						showToast(reason, THEME.Red)
+					end
+				end
+			end)
+		end
+	end)
+end
+renderers.Style = renderStyle
+
+local function buildStyle()
+	local _, body = window("Style", "AURAS", Vector2.new(600, 450))
+	styleScroll = scrollList(body, 0)
+end
+
+---------------------------------------------------------------- Codes
+
+local codeBox: TextBox
+local codeResult: TextLabel
+
+local function buildCodes()
+	local _, body = window("Codes", "CODES", Vector2.new(460, 250))
+	text({ Size = UDim2.new(1, 0, 0, 22), Text = "Enter a code for free rewards!", TextSize = 15, TextColor3 = THEME.Muted, Parent = body })
+	codeBox = create("TextBox", {
+		Position = UDim2.fromOffset(0, 32),
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundColor3 = THEME.PanelDark,
+		BorderSizePixel = 0,
+		ClearTextOnFocus = false,
+		PlaceholderText = "Type code here",
+		PlaceholderColor3 = THEME.Muted,
+		Text = "",
+		TextColor3 = THEME.Text,
+		Font = HEAVY,
+		TextSize = 22,
+		Parent = body,
+	}) :: TextBox
+	corner(8).Parent = codeBox
+	stroke(THEME.Border, 1.5, 0.4).Parent = codeBox
+	codeResult = text({ Position = UDim2.fromOffset(0, 84), Size = UDim2.new(1, 0, 0, 40), Text = "", TextSize = 15, Parent = body })
+	button({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, 0), Size = UDim2.fromOffset(200, 42), Text = "REDEEM", Font = TITLE, TextSize = 20, BackgroundColor3 = Color3.fromRGB(60, 150, 80), Parent = body }, function()
+		local ok, message = request("RedeemCode", codeBox.Text)
+		codeResult.Text = message or (if ok then "Code redeemed!" else "Invalid code.")
+		codeResult.TextColor3 = if ok then THEME.Green else THEME.Red
+		if ok then
+			codeBox.Text = ""
+		end
+	end)
+end
+renderers.Codes = function()
+	codeResult.Text = ""
+end
+
+---------------------------------------------------------------- Einstellungen
+
+local settingsList: Frame
+
+local function renderSettings()
+	clearChildren(settingsList)
+	for i, setting in Config.Settings do
+		local value = player:GetAttribute("Set_" .. setting.Key)
+		if value == nil then
+			value = setting.Default
+		end
+		local row = panel({ Size = UDim2.new(1, 0, 0, 50), LayoutOrder = i, BackgroundColor3 = THEME.PanelDark, Parent = settingsList })
+		text({ Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -150, 1, 0), Text = setting.Name, Font = HEAVY, TextSize = 17, TextXAlignment = Enum.TextXAlignment.Left, Parent = row })
+		button({
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -10, 0.5, 0),
+			Size = UDim2.fromOffset(110, 36),
+			Text = if value then "ON" else "OFF",
+			Font = TITLE,
+			TextSize = 18,
+			BackgroundColor3 = if value then Color3.fromRGB(60, 140, 80) else THEME.PanelLight,
+			Parent = row,
+		}, function()
+			task.spawn(request, "SetSetting", setting.Key, not value)
+		end)
+	end
+end
+renderers.Settings = renderSettings
+
+local function buildSettings()
+	local _, body = window("Settings", "SETTINGS", Vector2.new(460, 320))
+	settingsList = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = body })
+	create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = settingsList })
+end
+
+---------------------------------------------------------------- Einsteiger-Anleitung und Kombo-Anzeige
+
+local guideFrame: Frame
+local guideTitle: TextLabel
+local guideText: TextLabel
+local comboLabel: TextLabel
+local comboToken = 0
+
+local function buildGuide()
+	guideFrame = panel({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 12), Size = UDim2.fromOffset(340, 58), BackgroundTransparency = 0.08, Visible = false, Parent = root })
+	guideTitle = text({ Position = UDim2.fromOffset(10, 4), Size = UDim2.new(1, -20, 0, 22), Text = "", Font = TITLE, TextSize = 18, TextColor3 = THEME.Amber, Parent = guideFrame })
+	guideText = text({ Position = UDim2.fromOffset(10, 26), Size = UDim2.new(1, -20, 0, 28), Text = "", TextSize = 14, Parent = guideFrame })
+	comboLabel = text({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.64), Size = UDim2.fromOffset(260, 44), Text = "", Font = TITLE, TextSize = 34, TextColor3 = THEME.Gold, TextStrokeTransparency = 0.2, TextStrokeColor3 = THEME.PanelDark, Visible = false, Parent = root })
+end
+
+local function refreshGuide()
+	local step = player:GetAttribute("TutorialStep") or (#Config.Tutorial + 1)
+	local def = Config.Tutorial[step]
+	guideFrame.Visible = def ~= nil and state.Run == nil
+	if def then
+		guideTitle.Text = `GUIDE {step}/{#Config.Tutorial}  ·  +{def.Gold} GOLD`
+		guideText.Text = def.Text
+	end
+end
+
+local function refreshQuestBadge()
+	local ready = player:GetAttribute("QuestsReady") or 0
+	questBadge.Visible = ready > 0
+	questBadge.Text = tostring(ready)
+end
+
+local function showCombo(count: number, window: number)
+	comboToken += 1
+	local token = comboToken
+	if count < 3 then
+		comboLabel.Visible = false
+		return
+	end
+	comboLabel.Text = `{count} COMBO!`
+	comboLabel.TextColor3 = if count >= 50 then Color3.fromRGB(255, 110, 200) elseif count >= 25 then Color3.fromRGB(255, 150, 60) else THEME.Gold
+	comboLabel.TextTransparency = 0
+	comboLabel.TextStrokeTransparency = 0.2
+	comboLabel.Visible = true
+	comboLabel.Size = UDim2.fromOffset(300, 54)
+	TweenService:Create(comboLabel, TweenInfo.new(0.2, Enum.EasingStyle.Back), { Size = UDim2.fromOffset(260, 44) }):Play()
+	task.delay(window, function()
+		if comboToken == token then
+			TweenService:Create(comboLabel, TweenInfo.new(0.4), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+		end
+	end)
+end
+
 ---------------------------------------------------------------- Start
 
 function UI.Start()
 	gui = create("ScreenGui", { Name = "LanternHUD", ResetOnSpawn = false, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Parent = player:WaitForChild("PlayerGui") }) :: ScreenGui
 	root = create("Frame", { Name = "Root", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = gui }) :: Frame
 	local scale = create("UIScale", { Parent = root }) :: UIScale
-	local function resize()
-		local view = workspace.CurrentCamera.ViewportSize
-		local s = math.clamp(math.min(view.X / 1000, view.Y / 560), 0.6, 1.25)
-		scale.Scale = s
-		root.Size = UDim2.fromOffset(view.X / s, view.Y / s)
-	end
-	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize)
-	resize()
-
 	toastHolder = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 132), Size = UDim2.fromOffset(600, 180), BackgroundTransparency = 1, Parent = root }) :: Frame
 	create("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = toastHolder })
 	bigTitle = text({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.36), Size = UDim2.fromOffset(700, 64), Text = "", Font = TITLE, TextSize = 56, TextScaled = true, TextStrokeTransparency = 0, TextStrokeColor3 = THEME.PanelDark, Parent = root })
@@ -1336,6 +1771,32 @@ function UI.Start()
 	buildDeath()
 	buildSummary()
 	buildOffer()
+	buildQuests()
+	buildMore()
+	buildHero()
+	buildAchievements()
+	buildStyle()
+	buildCodes()
+	buildSettings()
+	buildGuide()
+
+	-- Auf schmalen Handys wuerde das Banner oben in der Mitte die Waehrungen rechts ueberdecken:
+	-- dann rutschen Banner, Anleitung, Bossleiste und Meldungen eine Zeile tiefer.
+	local function resize()
+		local view = workspace.CurrentCamera.ViewportSize
+		local s = math.clamp(math.min(view.X / 1000, view.Y / 560), 0.6, 1.25)
+		scale.Scale = s
+		local width = view.X / s
+		root.Size = UDim2.fromOffset(width, view.Y / s)
+		local narrow = width < 1200
+		local top = if narrow then 86 else 12
+		runBanner.Position = UDim2.new(0.5, 0, 0, top)
+		guideFrame.Position = UDim2.new(0.5, 0, 0, top)
+		bossFrame.Position = UDim2.new(0.5, 0, 0, top + 62)
+		toastHolder.Position = UDim2.new(0.5, 0, 0, top + 120)
+	end
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize)
+	resize()
 
 	-- Attribute -> Anzeige
 	local function refreshAll()
@@ -1352,9 +1813,19 @@ function UI.Start()
 			if openWindow == "Forge" then
 				renderForge()
 			end
+		elseif name == "PotionLevel" and openWindow == "Forge" then
+			renderForge()
 		elseif name == "Level" or name == "XP" or name == "XPNeed" or name == "Class" then
 			refreshHero()
 			refreshSkillLabels()
+		elseif name == "TutorialStep" then
+			refreshGuide()
+		elseif name == "QuestsReady" then
+			refreshQuestBadge()
+		elseif name:sub(1, 4) == "Set_" then
+			if openWindow == "Settings" then
+				renderSettings()
+			end
 		elseif name:sub(1, 5) == "Pass_" or name == "RandomRestricted" then
 			if openWindow == "Shop" or openWindow == "Class" then
 				renderers[openWindow]()
@@ -1364,6 +1835,8 @@ function UI.Start()
 		end
 	end)
 	refreshAll()
+	refreshGuide()
+	refreshQuestBadge()
 	RunService.RenderStepped:Connect(updateCooldowns)
 
 	remotes.Sync.OnClientEvent:Connect(function(topic, data)
@@ -1402,6 +1875,12 @@ function UI.Start()
 			end
 			refreshRun()
 			refreshLobby()
+			refreshGuide()
+		elseif topic == "Quests" then
+			state.Quests = data
+			if openWindow == "Quests" then
+				renderQuests()
+			end
 		elseif topic == "Lobby" then
 			state.Lobby = data
 			refreshLobby()
@@ -1422,7 +1901,7 @@ function UI.Start()
 	remotes.Offer.OnClientEvent:Connect(showOffer)
 	remotes.Effect.OnClientEvent:Connect(function(kind, data)
 		if kind == "RunStart" then
-			showTitle(data.Name:upper(), `{data.Difficulty}  ·  Monster level {data.Level}`, data.Color)
+			showTitle(data.Name:upper(), `{data.Difficulty}  ·  Monster level {data.Level}` .. (if data.Featured then "  ·  FEATURED +50%" else ""), data.Color)
 		elseif kind == "BossIntro" then
 			showTitle(data.Name:upper(), if data.Blessed then "Blessed: a Legendary awaits everyone!" else "Boss fight!", THEME.Red)
 		elseif kind == "RoomClear" then
@@ -1442,6 +1921,16 @@ function UI.Start()
 			end
 		elseif kind == "Salvaged" then
 			showToast(`Auto-salvaged {data.Name} (+{data.Shards} shards)`, THEME.Muted)
+		elseif kind == "Achievement" then
+			showTitle("ACHIEVEMENT!", `{data.Name}  ·  Title: {data.Title}`, THEME.Gold)
+		elseif kind == "Combo" then
+			showCombo(data.Count, data.Window)
+		elseif kind == "ImpAppear" then
+			showToast("A Treasure Imp appeared! Catch it before it escapes!", THEME.Gold)
+		elseif kind == "ImpEscape" then
+			showToast("The Treasure Imp escaped...", THEME.Muted)
+		elseif kind == "Ping" then
+			showToast(`{data.Name}: {data.Text}`, THEME.Blue)
 		end
 	end)
 
@@ -1455,6 +1944,7 @@ function UI.Start()
 	end)
 
 	request("GetInventory")
+	task.spawn(request, "GetQuests")
 	-- Neue Spieler: Klassenwahl direkt nach dem Laden
 	task.delay(4, function()
 		if not player:GetAttribute("ClassChosen") then

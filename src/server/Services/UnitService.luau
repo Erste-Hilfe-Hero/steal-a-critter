@@ -19,7 +19,7 @@ local conveyorUnits = {} -- [Model] = { Code, X, Sold }
 local baseUnits = {} -- [Player] = { [slotKey] = Model }
 local carrying = {} -- [Player] = { Owner, SlotKey, Code, Visual, Model, StartedAt }
 local revenge = {} -- [Opfer] = { Thief = Player, Until = os.clock() }
-local holdStarted = {} -- [Player] = os.clock()
+local holdStarted = {} -- [Player] = { At = os.clock(), Prompt = ProximityPrompt }
 local lastSlap = {} -- [Player] = os.clock()
 
 local unitsByRarity = {}
@@ -140,9 +140,11 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	if not avenging then
 		required = math.max(0.4, required - services.FeatureService:StealHoldBonus(thief))
 	end
+	-- Das Halten muss an genau diesem Prompt begonnen haben (sonst koennte man an einem anderen
+	-- Prompt "vorhalten" und dann per Exploit sofort ausloesen)
 	local began = holdStarted[thief]
 	holdStarted[thief] = nil
-	if not began or os.clock() - began < required - 0.35 then
+	if not began or began.Prompt ~= prompt or os.clock() - began.At < required - 0.35 then
 		return
 	end
 	local character = thief.Character
@@ -194,7 +196,10 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 
 	carrying[thief] = { Owner = owner, SlotKey = slotKey, Code = code, Visual = visual, Model = model, Prompt = prompt, StartedAt = os.clock(), Highlight = highlight }
 	thief:SetAttribute("Carrying", def.Name)
+	-- Fuer den Dieb-Radar des Besitzers (Client zeigt Pfeil und Entfernung)
+	thief:SetAttribute("StealingFrom", owner.UserId)
 	notify(owner, `{thief.DisplayName} is stealing your {def.Name}! Slap them!`, RED)
+	services.Net.PlaySfx(owner, "Alarm")
 	services.FeatureService:OnStealStarted(thief, owner)
 	notify(thief, `You grabbed {def.Name}! Run back to your base!`, GOLD)
 end
@@ -211,7 +216,8 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 	model:PivotTo(slotCFrame(plot, slotKey, def))
 	local levelFactor = services.FeatureService:LevelFactor(player, slotKey)
 	local level = data.Levels and data.Levels[slotKey] or 0
-	UnitFactory.AddLabel(model, def, "+" .. Format.Cash(def.Income * levelFactor) .. "/s" .. (if level > 0 then `  ⭐{level}` else ""))
+	local favorite = data.Favorites and data.Favorites[slotKey] == true
+	UnitFactory.AddLabel(model, def, "+" .. Format.Cash(def.Income * levelFactor) .. "/s" .. (if level > 0 then `  ⭐{level}` else "") .. (if favorite then "  ❤" else ""))
 	model:SetAttribute("OwnerUserId", player.UserId)
 	model:SetAttribute("SlotKey", slotKey)
 
@@ -225,7 +231,7 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 	prompt:SetAttribute("OwnerUserId", player.UserId)
 	prompt.Parent = UnitFactory.PromptAnchor(model, def)
 	prompt.PromptButtonHoldBegan:Connect(function(thief)
-		holdStarted[thief] = os.clock()
+		holdStarted[thief] = { At = os.clock(), Prompt = prompt }
 	end)
 	prompt.Triggered:Connect(function(thief)
 		startSteal(thief, player, slotKey, prompt)
@@ -354,6 +360,7 @@ endSteal = function(thief: Player, success: boolean)
 	end
 	carrying[thief] = nil
 	thief:SetAttribute("Carrying", nil)
+	thief:SetAttribute("StealingFrom", nil)
 	local stolenDef = Units.Info(info.Code)
 	task.spawn(UnitService.Services.FeatureService.OnStealEnded, UnitService.Services.FeatureService, thief, success, stolenDef)
 	if info.Visual then
@@ -381,6 +388,10 @@ endSteal = function(thief: Player, success: boolean)
 			owner:SetAttribute("RevengeTargetId", thief.UserId)
 			owner:SetAttribute("RevengeUntil", workspace:GetServerTimeNow() + Config.RevengeDuration)
 			notify(thief, `You stole {def.Name}!`, GREEN)
+			services.Net.PlaySfx(thief, "Steal")
+			if services.ExtraService then
+				services.ExtraService:LogTheft(owner, thief, def)
+			end
 			services.ProgressService:Track(thief, "Stolen", 1)
 			services.EventService:AddGoalProgress(1)
 			services.RewardService:BountyBonus(thief, owner, def.Value)
@@ -390,6 +401,10 @@ endSteal = function(thief: Player, success: boolean)
 				services.Net.SendAnnounce(`{thief.DisplayName} stole a {def.Rarity} {def.Name} from {owner.DisplayName}!`, Config.RaritiesByName[def.Rarity].Color)
 			end
 			return
+		elseif not slot and thief.Parent then
+			-- Basis des Diebs ist waehrend des Tragens voll geworden: nicht still scheitern
+			notify(thief, "Your base is full, so the critter ran back home!", RED)
+			offerSlots(thief)
 		end
 	end
 
@@ -465,6 +480,7 @@ local function tryBuy(player: Player, model: Model)
 	conveyorUnits[model] = nil
 	services.DataService:AddCash(player, -def.Price)
 	notify(player, `Bought {def.Name}!`, GREEN)
+	services.Net.PlaySfx(player, "Buy")
 	services.ProgressService:Track(player, "Bought", 1)
 	services.EventService:AddGoalProgress(1)
 	UnitService:GiveUnit(player, def.Code, slot, model)
@@ -551,6 +567,10 @@ function UnitService:Sell(player: Player, slotKey: string)
 	if not info or not model or model:GetAttribute("BeingStolen") then
 		return
 	end
+	if data.Favorites and data.Favorites[slotKey] then
+		notify(player, `{info.Name} is a favorite ❤ - remove the heart in MORE > TRAIN to sell it.`, RED)
+		return
+	end
 	local amount = math.floor(info.Value * Config.SellShare)
 	self:RemoveBaseUnit(player, slotKey)
 	self.Services.DataService:AddCash(player, amount)
@@ -628,13 +648,17 @@ function UnitService:MutateBest(player: Player, mutationName: string): string?
 		return nil
 	end
 	local code = Units.Encode(bestInfo.Id, target.Name, bestInfo.Fusion)
-	-- Trainingsstufe und Tresor bleiben bei der Verwandlung erhalten
+	-- Trainingsstufe, Tresor und Favorit bleiben bei der Verwandlung erhalten
 	local level = data.Levels and data.Levels[bestKey]
 	local vaulted = data.Vault == bestKey
+	local favorite = data.Favorites and data.Favorites[bestKey]
 	self:RemoveBaseUnit(player, bestKey)
 	data.Levels[bestKey] = level
 	if vaulted then
 		data.Vault = bestKey
+	end
+	if favorite then
+		data.Favorites[bestKey] = true
 	end
 	self:GiveUnit(player, code, bestKey)
 	return Units.Info(code).Name
@@ -673,16 +697,24 @@ local function slap(player: Player)
 		return
 	end
 	UnitService.Services.ProgressService:Track(player, "Slaps", 1)
+	UnitService.Services.Net.PlaySfx(player, "Slap")
+	UnitService.Services.Net.PlaySfx(best, "Slap")
 	local humanoid = best.Character and best.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.WalkSpeed = 0
 		task.delay(Config.SlapStunTime, function()
 			if humanoid.Parent then
 				humanoid.WalkSpeed = best:GetAttribute("BaseWalkSpeed") or Config.DefaultWalkSpeed
+				-- Speed-Pad, Perk und Alarm wieder richtig anwenden (sonst ginge z.B. der Speed-Pad-Schub verloren)
+				UnitService.Services.FeatureService:ApplySpeed(best)
 			end
 		end)
 	end
 	if carrying[best] then
+		local stolen = carrying[best]
+		if UnitService.Services.ExtraService then
+			UnitService.Services.ExtraService:LogSave(stolen.Owner, player, best, Units.Info(stolen.Code))
+		end
 		endSteal(best, false)
 		notify(player, `You slapped {best.DisplayName} and saved the critter!`, GREEN)
 		notify(best, `{player.DisplayName} slapped you! You dropped the critter.`, RED)
@@ -717,7 +749,12 @@ end
 local function rebirth(player: Player)
 	local services = UnitService.Services
 	local data = services.DataService:Get(player)
-	if not data then
+	if not data or not baseUnits[player] then
+		return
+	end
+	-- Kreaturen auf Expedition wuerden sonst den Rebirth ueberleben
+	if services.ExtraService and services.ExtraService:HasExpeditions(player) then
+		notify(player, "Wait until your expeditions are back before you rebirth!", RED)
 		return
 	end
 	local cost = Config.RebirthCost(data.Rebirths)

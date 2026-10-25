@@ -128,10 +128,30 @@ function CameraController.Start()
 	local camera = workspace.CurrentCamera
 	local match = ReplicatedStorage:WaitForChild("Match")
 
-	-- Zoom mit Mausrad oder zwei Fingern
+	-- Zoom mit Mausrad oder zwei Fingern; Startwert aus den Einstellungen
+	local function applySetting()
+		local wanted = tonumber(player:GetAttribute("Setting_Zoom"))
+		if wanted then
+			zoom = math.clamp(wanted, 0.7, 1.4)
+		end
+	end
+	applySetting()
+	player:GetAttributeChangedSignal("Setting_Zoom"):Connect(applySetting)
 	UserInputService.InputChanged:Connect(function(input, processed)
 		if not processed and input.UserInputType == Enum.UserInputType.MouseWheel then
 			zoom = math.clamp(zoom - input.Position.Z * 0.08, 0.7, 1.4)
+		end
+	end)
+	-- Vorher fehlte das Zwei-Finger-Zoomen am Handy
+	local pinchStart = zoom
+	UserInputService.TouchPinch:Connect(function(_positions, scale, _velocity, state, processed)
+		if processed then
+			return
+		end
+		if state == Enum.UserInputState.Begin then
+			pinchStart = zoom
+		elseif scale > 0 then
+			zoom = math.clamp(pinchStart / scale, 0.7, 1.4)
 		end
 	end)
 

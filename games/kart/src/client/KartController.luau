@@ -22,6 +22,7 @@ local Controller = {
 	Drifting = false,
 	BoostTime = 0,
 	Spectate = false,
+	WrongWay = false,
 	OnEvent = nil :: ((string, any?) -> ())?,
 }
 
@@ -43,6 +44,8 @@ local throttleAt: number? = nil
 local wasCountdown = false
 local boosting = false
 local respawnRequested = false
+local tapGasAt: number? = nil -- Handy: Zeitpunkt (Restzeit) des ersten GAS-Tippens im Countdown
+local wrongWayTime = 0
 local camCf: CFrame? = nil
 local camYaw = 0
 local shake = 0
@@ -68,6 +71,21 @@ end
 
 function Controller.SetDrift(held: boolean)
 	driftHeld = held
+end
+
+-- Handy: GAS-Knopf im Countdown (zaehlt nur das erste Tippen, zu frueh = kein Raketenstart)
+function Controller.TapGas()
+	if workspace:GetAttribute("Phase") ~= "Countdown" or tapGasAt ~= nil then
+		return
+	end
+	tapGasAt = (workspace:GetAttribute("PhaseEnd") or 0) - now()
+	if tapGasAt > 1.3 then
+		event("Early", nil)
+	end
+end
+
+local function setting(key: string): boolean
+	return player:GetAttribute("Set_" .. key) ~= false
 end
 
 local function setSparks(drifting: boolean, tier: number)
@@ -134,6 +152,9 @@ local function start(model: Model)
 	geo = Tracks.Geometry(workspace:GetAttribute("TrackId"))
 	state = KartPhysics.new(player:GetAttribute("Kart") or "Ember", model.PrimaryPart :: BasePart, geo :: Tracks.Geometry)
 	throttleAt = nil
+	tapGasAt = nil
+	wrongWayTime = 0
+	Controller.WrongWay = false
 	camCf = nil
 	Controller.Active = true
 	bind()
@@ -147,6 +168,7 @@ local function stop()
 	state = nil
 	Controller.Speed, Controller.BoostTime, Controller.DriftCharge, Controller.DriftTier = 0, 0, 0, 0
 	Controller.Drifting = false
+	Controller.WrongWay = false
 	unbind()
 	if boosting then
 		boosting = false
@@ -216,7 +238,9 @@ local function step(dt: number)
 	end
 	if wasCountdown then
 		wasCountdown = false
-		local perfect = throttleAt ~= nil and throttleAt < 1.3 and throttleAt > 0.05
+		local launch = if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then tapGasAt else throttleAt
+		local perfect = launch ~= nil and launch < 1.3 and launch > 0.05
+		tapGasAt = nil
 		if player:GetAttribute("Pass_RocketStart") or perfect then
 			KartPhysics.Boost(s, Config.RocketStartBoost)
 			event("Rocket", nil)
@@ -238,6 +262,15 @@ local function step(dt: number)
 	Controller.DriftCharge = s.DriftCharge
 	Controller.DriftTier = s.DriftTier
 	Controller.Drifting = s.Drifting
+	-- Falsche Richtung: laenger als 1 s gegen die Fahrtrichtung der Strecke
+	local tangent = g.Tangents[s.LastIndex]
+	local forward = Vector3.new(-math.sin(s.Yaw), 0, -math.cos(s.Yaw))
+	if s.Speed > 12 and forward:Dot(Vector3.new(tangent.X, 0, tangent.Z).Unit) < -0.3 and not player:GetAttribute("Finished") then
+		wrongWayTime += dt
+	else
+		wrongWayTime = 0
+	end
+	Controller.WrongWay = wrongWayTime > 1
 	setSparks(s.Drifting, s.DriftTier)
 	local nowBoosting = s.BoostTime > 0
 	if nowBoosting ~= boosting then
@@ -281,11 +314,13 @@ local function updateCamera(dt: number)
 	local cf = camCf :: CFrame
 	if shake > 0 then
 		shake = math.max(0, shake - dt)
-		cf *= CFrame.new((math.random() - 0.5) * shake * 1.5, (math.random() - 0.5) * shake * 1.5, 0)
+		if setting("Shake") then
+			cf *= CFrame.new((math.random() - 0.5) * shake * 1.5, (math.random() - 0.5) * shake * 1.5, 0)
+		end
 	end
 	camera.CFrame = cf
 	local speedRatio = math.clamp(math.abs(Controller.Speed) / Config.MaxKartSpeed, 0, 1.4)
-	local fov = 68 + speedRatio * 10 + (if Controller.BoostTime > 0 then 8 else 0)
+	local fov = if setting("Fov") then 68 + speedRatio * 10 + (if Controller.BoostTime > 0 then 8 else 0) else 70
 	camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 5)
 end
 

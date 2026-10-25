@@ -56,11 +56,25 @@ end
 local discount = Config.PriceFor({ "Shortsword" }, "MinerPick")
 check("recipe discount", discount == 875 - 350, discount)
 
+-- Fortschritt: neuer Held, Meisterschaft, Quests, Erfolge, Emotes, Pings
+check("hero Ember", Config.HeroesById.Ember ~= nil and Config.Products.Hero_Ember ~= nil)
+check("mastery level 0 -> 1", Config.MasteryLevel(0) == 1, Config.MasteryLevel(0))
+check("mastery level max -> 7", Config.MasteryLevel(9600) == 7, Config.MasteryLevel(9600))
+check("account xp curve", Config.AccountXPToLevel(1) > 0 and Config.AccountLevelReward(5) > Config.AccountLevelReward(4))
+check("enough quests", #Config.Quests >= Config.QuestsPerDay, #Config.Quests)
+for _, achievement in Config.Achievements do
+	check(`achievement {achievement.Id}`, Config.AchievementsById[achievement.Id] == achievement and achievement.Goal > 0 and achievement.Title ~= "")
+end
+for code, reward in Config.Codes do
+	check(`code {code}`, string.upper(code) == code and reward > 0 and reward <= 200, reward)
+end
+check("emotes and pings", #Config.Emotes > 0 and #Config.Pings > 0 and Config.PingsById.Attack ~= nil)
+
 -- Services laden und starten
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local services = {}
-local ORDER = { "DataService", "CombatService", "WorldService", "LaneService", "JungleService", "VisionService", "HeroService", "BotService", "MatchService", "MonetizationService" }
+local ORDER = { "DataService", "CombatService", "WorldService", "LaneService", "JungleService", "VisionService", "HeroService", "BotService", "MatchService", "MonetizationService", "ProgressService" }
 local ok, err = pcall(function()
 	services.Net = require(folder.Services.Net)
 	for _, name in ORDER do
@@ -187,6 +201,19 @@ for _, hero in heroes.Heroes do
 end
 check("casts done", true)
 
+-- Der neue Held Ember wird von Bots evtl. nicht gewaehlt: seine Faehigkeiten einmal ueber einen geliehenen Helden ausloesen
+local caster = heroes.Heroes[1]
+local savedDef, savedId = caster.Def, caster.HeroId
+caster.Def, caster.HeroId = Config.HeroesById.Ember, "Ember"
+for _, key in Config.AbilityKeys do
+	caster.Ranks[key] = math.max(caster.Ranks[key] or 0, 1)
+	caster.Cooldowns[key] = 0
+	caster.Mana = caster.MaxMana
+	local castOk, castErr = pcall(heroes.Cast, heroes, caster, key, caster.Root and caster.Root.Position + Vector3.new(20, 0, 0) or nil)
+	check(`cast Ember {key}`, castOk, castErr)
+end
+caster.Def, caster.HeroId = savedDef, savedId
+
 -- Schaden am geschuetzten Nexus muss abprallen
 local before = lane.Nexus[2].HP
 combat:Damage(heroes.Heroes[1], lane.Nexus[2], 500)
@@ -261,6 +288,36 @@ for _, tower in lane.Towers do
 	end
 end
 table.insert(results, "INFO towers damaged: " .. hurt)
+
+-- Rundenende-Fortschritt mit Testdaten (Meldungen an Spieler abgeschaltet, es gibt hier keine)
+local progress = services.ProgressService
+local mvps = match:PickMVPs()
+check("mvp per team", mvps[1] ~= nil and mvps[2] ~= nil and mvps[1].Team == 1 and mvps[2].Team == 2)
+local sendNotify = services.Net.SendNotify
+services.Net.SendNotify = function() end
+local fake = {
+	Crystals = 0, Wins = 1, Matches = 1, Kills = 0, Deaths = 0, Assists = 0, CS = 0, Towers = 0, Wards = 0, Epics = 0, Monsters = 0,
+	Pentas = 0, MVPs = 0, WinStreak = 0, BestStreak = 0, AccountLevel = 1, AccountXP = 0, Mastery = {}, Quests = { Day = 0, List = {} },
+	Achievements = {}, Title = "", Codes = {}, Settings = { Sound = true, Numbers = true, Zoom = 1 }, Tutorial = false,
+}
+ok, err = pcall(function()
+	check("daily quests rolled", progress:EnsureQuests(fake) and #fake.Quests.List == Config.QuestsPerDay, #fake.Quests.List)
+	check("streak bonus", progress:UpdateStreak(fake, true) == 0 and progress:UpdateStreak(fake, true) == Config.WinStreak.PerWin, fake.WinStreak)
+	local info = progress:AfterMatch(nil :: any, fake, heroes.Heroes[1], true, true, 20)
+	check("mastery gained", (fake.Mastery[heroes.Heroes[1].HeroId] or 0) > 0 and info.MasteryGained > 0)
+	check("account xp gained", fake.AccountXP > 0 or fake.AccountLevel > 1, fake.AccountXP)
+	check("first win achievement", fake.Achievements.FirstWin == true and fake.Crystals > 0, fake.Crystals)
+	check("title text", progress:TitleText({ Title = "FirstWin", Achievements = fake.Achievements }) ~= "")
+	local played = 0
+	for _, quest in fake.Quests.List do
+		if quest.Id == "Play" and quest.Progress == 1 then
+			played += 1
+		end
+	end
+	table.insert(results, `INFO quests {#fake.Quests.List}, play-quest progressed {played}`)
+end)
+services.Net.SendNotify = sendNotify
+check("progress after match", ok, err)
 
 -- Runde beenden und neu aufbauen
 ok, err = pcall(function()

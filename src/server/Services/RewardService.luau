@@ -41,10 +41,9 @@ function RewardService:Refresh(player: Player)
 		gifts[index] = { Minutes = gift.Minutes, Claimed = session.Gifts[index] == true, Reward = reward(player, gift.Reward, gift.MinCash), Catalyst = gift.Catalyst == true }
 	end
 	progress:SetExtra(player, "Gifts", gifts)
-	-- Spielzeit der Sitzung in Sekunden zum Zeitpunkt des Sendens (Client rechnet ab dann selbst weiter)
-	progress:SetExtra(player, "SessionSeconds", os.clock() - session.Start)
+	-- Beginn der Sitzung; ProgressService rechnet beim Senden die Spielzeit aus (Client rechnet ab dann selbst weiter)
+	progress:SetExtra(player, "SessionStart", session.Start)
 	progress:SetExtra(player, "NextSpinAt", (data.LastSpinAt or 0) + Config.SpinCooldown)
-	progress:SetExtra(player, "Now", os.time())
 	progress:SetExtra(player, "BaseLevel", data.BaseLevel or 0)
 	progress:SetExtra(player, "BaseCost", if (data.BaseLevel or 0) < Config.BaseMaxLevel then Config.BaseUpgradeCost(data.BaseLevel or 0) else 0)
 	player:SetAttribute("BaseLevel", data.BaseLevel or 0)
@@ -76,6 +75,7 @@ local function claimGift(player: Player, index: any)
 		text ..= " and a Fusion Catalyst"
 	end
 	notify(player, text .. "!", GOLD)
+	RewardService.Services.Net.PlaySfx(player, "Reward")
 	RewardService:Refresh(player)
 	return true
 end
@@ -141,6 +141,7 @@ local function spin(player: Player)
 	task.delay(3.2, function()
 		if player.Parent then
 			notify(player, `🎡 Lucky Wheel: {prize.Name}! {text}`, prize.Color)
+			RewardService.Services.Net.PlaySfx(player, "Reward")
 			if prize.Weight <= 5 then
 				RewardService.Services.Net.SendAnnounce(`{player.DisplayName} won {prize.Name} on the Lucky Wheel!`, prize.Color)
 			end
@@ -169,6 +170,7 @@ local function redeem(player: Player, code: any)
 	local amount = reward(player, entry.Minutes, entry.Cash)
 	RewardService.Services.DataService:AddCash(player, amount)
 	notify(player, `Code {code}: +{Format.Cash(amount)}!`, GOLD)
+	RewardService.Services.Net.PlaySfx(player, "Reward")
 	return true, `+{Format.Cash(amount)}`
 end
 

@@ -37,6 +37,14 @@ end
 local function encounter(player: Player, area)
 	local services = EncounterService.Services
 	local beastId, level = EncounterService.Pick(area)
+	-- Schwarm auf dieser Route: oft die Schwarm-Bestie
+	local swarm = services.SwarmService and services.SwarmService:Override(area)
+	if swarm then
+		beastId = swarm
+	end
+	if services.ProgressService then
+		services.ProgressService:Bump(player, "Encounter", 1)
+	end
 	local shinyChance = Config.ShinyChance * services.MonetizationService:ServerShinyMultiplier() * services.MonetizationService:PlayerShinyMultiplier(player)
 	local shiny = random:NextNumber() < shinyChance
 	services.BattleService:StartWild(player, beastId, level, shiny)

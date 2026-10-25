@@ -26,6 +26,11 @@ TextChatService.OnIncomingMessage = function(message: TextChatMessage)
 		if rank and rank ~= "Newbie" then
 			prefix = `<font color="{sender:GetAttribute("RankColor") or "#FFFFFF"}">[{rank}]</font> {prefix}`
 		end
+		-- Titel aus Erfolgen (feste Texte aus Config, kein Spielertext)
+		local title = sender:GetAttribute("Title")
+		if typeof(title) == "string" and title ~= "" then
+			prefix = `<font color="#FFE14D">«{title}»</font> {prefix}`
+		end
 		local teamTag = sender.Team and TEAM_TAGS[sender.Team.Name]
 		if teamTag then
 			prefix = `{teamTag} {prefix}`

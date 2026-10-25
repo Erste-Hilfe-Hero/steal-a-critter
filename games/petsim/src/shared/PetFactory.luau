@@ -5,6 +5,8 @@ local Config = require(script.Parent.Config)
 local PetFactory = {}
 
 local GOLD = Color3.fromRGB(255, 205, 40)
+local RAINBOW = Color3.fromRGB(255, 120, 220) -- Startfarbe, PetFollow laesst den Farbton wandern
+PetFactory.RainbowStart = RAINBOW
 
 local function weld(a: BasePart, b: BasePart)
 	local constraint = Instance.new("WeldConstraint")
@@ -30,17 +32,20 @@ local function makePart(props): Part
 end
 
 -- Liefert ein Model, dessen PrimaryPart "Body" verankert ist; alle anderen Teile sind angeschweisst.
--- Vorne ist -Z (wie bei Roblox ueblich).
-function PetFactory.Build(typeId: string, golden: boolean?): Model
+-- Vorne ist -Z (wie bei Roblox ueblich). rainbow = Regenbogen-Stufe (ueber golden).
+function PetFactory.Build(typeId: string, golden: boolean?, rainbow: boolean?): Model
 	local def = Config.PetsById[typeId]
 	local rarity = Config.RaritiesByName[def.Rarity]
 	local s = rarity.Scale
-	local color = if golden then GOLD else def.Color
+	local color = if rainbow then RAINBOW elseif golden then GOLD else def.Color
 	local accent = color:Lerp(Color3.new(0, 0, 0), 0.3)
-	local material = if golden then Enum.Material.Neon else rarity.Material
+	local material = if golden or rainbow then Enum.Material.Neon else rarity.Material
 
 	local model = Instance.new("Model")
 	model.Name = def.Name
+	if rainbow then
+		model:SetAttribute("Rainbow", true)
+	end
 
 	local body = makePart({
 		Name = "Body",
@@ -81,13 +86,18 @@ function PetFactory.Build(typeId: string, golden: boolean?): Model
 	if rarity.Crown then
 		attach(makePart({ Name = "Crown", Size = Vector3.new(s * 0.45, s * 0.2, s * 0.45), Color = Color3.fromRGB(255, 215, 0), Material = Enum.Material.Neon }), CFrame.new(0, s * 0.62, 0.05))
 	end
-	if rarity.Sparkles or golden then
+	if rarity.Sparkles or golden or rainbow then
 		local sparkles = Instance.new("Sparkles")
-		sparkles.SparkleColor = if golden then GOLD else rarity.Color
+		sparkles.SparkleColor = if rainbow then Color3.new(1, 1, 1) elseif golden then GOLD else rarity.Color
 		sparkles.Parent = body
 	end
 
 	return model
+end
+
+-- Regenbogen-Haustiere: Farbton des Koerpers ueber die Zeit wandern lassen (vom Client jedes Frame aufgerufen)
+function PetFactory.RainbowColor(now: number, offset: number?): Color3
+	return Color3.fromHSV((now * 0.25 + (offset or 0)) % 1, 0.65, 1)
 end
 
 return PetFactory

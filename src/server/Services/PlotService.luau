@@ -25,6 +25,8 @@ function PlotService:Assign(player: Player)
 			plot.LockCooldownUntil = 0
 			plot.SignLabel.Text = player.DisplayName .. "'s Base"
 			playerPlots[player] = plot
+			-- Fuer die Einfuehrung (Pfeil zum eigenen Sperr-Knopf)
+			player:SetAttribute("PlotName", plot.Model.Name)
 			return plot
 		end
 	end
@@ -38,6 +40,9 @@ function PlotService:Release(player: Player)
 	end
 	plot.Owner = nil
 	plot.LockedUntil = 0
+	plot.LockCooldownUntil = 0
+	-- Gekaufte Basis-Farbe nicht an den naechsten Besitzer vererben
+	plot.Accent = plot.DefaultAccent or plot.Accent
 	plot.SignLabel.Text = "Empty Base"
 	plot.Barrier.Transparency = 1
 	plot.LockLabel.Text = "LOCK BASE"
@@ -127,7 +132,9 @@ function PlotService:Start()
 				self.Services.Net.SendNotify(player, "This is not your base!", Color3.fromRGB(255, 80, 80))
 				return
 			end
-			self:Lock(player, Config.LockDuration + self.Services.RewardService:GetLockBonus(player), false)
+			if self:Lock(player, Config.LockDuration + self.Services.RewardService:GetLockBonus(player), false) then
+				self.Services.ProgressService:Track(player, "Locks", 1)
+			end
 		end)
 	end
 

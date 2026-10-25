@@ -85,9 +85,23 @@ function LootService:GiveItem(player: Player, item: Items.Item, position: Vector
 		kept = false
 	else
 		table.insert(data.Inventory, item)
+		-- Einstellung "Auto-equip upgrades": bessere Teile sofort anlegen
+		if better and services.ProgressService:Setting(player, "AutoEquip") then
+			data.Equipped[item.Slot] = item.Id
+			services.HeroService:RefreshStats(player)
+		end
 	end
 	if position then
 		services.Net.Effect:FireClient(player, "Loot", { Position = position, Rarity = item.Rarity, Name = name, Better = better and kept })
+	end
+	if item.Rarity >= 5 then
+		data.LegendaryFound += 1
+	end
+	if item.Rarity >= 6 then
+		data.MythicFound += 1
+	end
+	if item.Rarity >= 3 then
+		services.ProgressService:Track(player, "FindRare")
 	end
 	if run then
 		local entry = services.DungeonService.Stats(run, player)
@@ -129,12 +143,15 @@ function LootService:RollKillDrops(player: Player, run, state, position: Vector3
 		for _ = 1, rng:NextInteger(Config.EliteDrops[1], Config.EliteDrops[2]) do
 			self:DropItem(player, run, { MinRarity = 2, Level = run.Level + 1, Luck = luck * 1.5 }, position)
 		end
+	elseif state.Treasure then
+		-- Schatz-Kobold: garantiert Rare oder besser
+		self:DropItem(player, run, { MinRarity = 3, Level = run.Level + 1, Luck = luck * 2 }, position)
 	elseif not state.Minion and rng:NextNumber() < Config.DropChance then
 		self:DropItem(player, run, { Luck = luck }, position)
 	end
 	-- Splitter als kleiner Bonus
-	if rng:NextNumber() < 0.25 or state.Elite or state.Boss then
-		self.Services.DataService:AddShards(player, (if state.Boss then 25 elseif state.Elite then 6 else 1) * run.Difficulty)
+	if rng:NextNumber() < 0.25 or state.Elite or state.Boss or state.Treasure then
+		self.Services.DataService:AddShards(player, (if state.Boss then 25 elseif state.Elite or state.Treasure then 6 else 1) * run.Difficulty)
 	end
 end
 
@@ -149,6 +166,7 @@ function LootService:Equip(player: Player, id: any): boolean
 	data.Equipped[item.Slot] = item.Id
 	self.Services.HeroService:RefreshStats(player)
 	self:SendInventory(player)
+	self.Services.ProgressService:Track(player, "Equip")
 	return true
 end
 
@@ -172,6 +190,9 @@ function LootService:EquipBest(player: Player): number
 	end
 	self.Services.HeroService:RefreshStats(player)
 	self:SendInventory(player)
+	if changed > 0 then
+		self.Services.ProgressService:Track(player, "Equip")
+	end
 	return changed
 end
 
@@ -181,7 +202,13 @@ function LootService:Salvage(player: Player, ids: { any }): (number, number)
 		return 0, 0
 	end
 	local count, shards = 0, 0
+	-- Nicht mehr Ids pruefen, als die Tasche ueberhaupt fassen kann (Schutz vor riesigen Listen)
+	local checked = 0
 	for _, id in ids do
+		checked += 1
+		if checked > Config.BaseInventory + Config.BackpackBonus then
+			break
+		end
 		local item, index = find(data, id)
 		if item and not item.Locked and not isEquipped(data, item) then
 			shards += salvage(player, data, item)
@@ -189,8 +216,12 @@ function LootService:Salvage(player: Player, ids: { any }): (number, number)
 			count += 1
 		end
 	end
+	data.Salvaged += count
 	self.Services.DataService:UpdateAttributes(player)
 	self:SendInventory(player)
+	if count > 0 then
+		self.Services.ProgressService:Track(player, "Salvage", count)
+	end
 	return count, shards
 end
 
@@ -224,8 +255,10 @@ function LootService:Enhance(player: Player, slot: string): (boolean, string?)
 	data.Gold -= gold
 	data.Shards -= shards
 	item.Plus += 1
+	data.BestPlus = math.max(data.BestPlus, item.Plus)
 	self.Services.HeroService:RefreshStats(player)
 	self:SendInventory(player)
+	self.Services.ProgressService:Track(player, "Enhance")
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if root then
 		self.Services.Net.Effect:FireClient(player, "Enhance", { Position = root.Position, Plus = item.Plus })
@@ -267,10 +300,11 @@ function LootService:Start()
 		return true, select(2, self:Salvage(player, ids))
 	end)
 	Net.Handle("SalvageUpTo", function(player, rarity)
-		if typeof(rarity) ~= "number" then
+		local value = self.Services.ProgressService.WholeNumber(rarity)
+		if not value then
 			return false
 		end
-		local count, shards = self:SalvageUpTo(player, math.clamp(math.floor(rarity), 1, 4))
+		local count, shards = self:SalvageUpTo(player, math.clamp(value, 1, 4))
 		return count, shards
 	end)
 	Net.Handle("Lock", function(player, id)
@@ -291,10 +325,12 @@ function LootService:Start()
 	end)
 	Net.Handle("SetAutoSalvage", function(player, level)
 		local data = self.Services.DataService:Get(player)
-		if not data or typeof(level) ~= "number" then
+		-- NaN wuerde gespeichert und jedes weitere Speichern scheitern lassen
+		local value = self.Services.ProgressService.WholeNumber(level)
+		if not data or not value then
 			return false
 		end
-		data.AutoSalvage = math.clamp(math.floor(level), 0, 3)
+		data.AutoSalvage = math.clamp(value, 0, 3)
 		self.Services.DataService:UpdateAttributes(player)
 		return true
 	end)

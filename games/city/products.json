@@ -16,5 +16,6 @@
   {"key": "MoneyRain", "name": "Money Rain", "description": "Rain cash over the whole city", "price": 99},
   {"key": "MissionSkip", "name": "Mission Skip", "description": "Finish your next daily mission", "price": 29},
   {"key": "StarterPack", "name": "Starter Pack", "description": "One time: $50K + Zoomer GT", "price": 79},
+  {"key": "MaxTune", "name": "Max Tune", "description": "Max engine tune for your selected car", "price": 49},
   {"key": "AdCash", "name": "Free Cash (Video Ad)", "description": "Reward for watching a video ad", "price": 5}
 ]

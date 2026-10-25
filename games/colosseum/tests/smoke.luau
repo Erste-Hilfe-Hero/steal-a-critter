@@ -18,6 +18,7 @@ local BeastModel = require(ReplicatedStorage.Shared.BeastModel)
 
 local Story = require(ReplicatedStorage.Shared.Story)
 local Beasts = require(ReplicatedStorage.Shared.Beasts)
+local Progress = require(ReplicatedStorage.Shared.Progress)
 local CollectionService = game:GetService("CollectionService")
 
 -- Konfiguration
@@ -83,6 +84,42 @@ check("xp curve grows", Config.XpToNext(30) > Config.XpToNext(5))
 for key, product in Config.DevProducts do
 	check("product id " .. key, product.Id ~= 0, product.Id)
 end
+
+-- Tagesaufgaben, Erfolge, Rad, Hort (Update 4)
+local quests = Progress.MakeQuests(20000, 42)
+check("3 daily quests", #quests.List == Progress.QuestsPerDay, #quests.List)
+local again = Progress.MakeQuests(20000, 42)
+check("quests stable per day", again.List[1].K == quests.List[1].K and again.List[3].G == quests.List[3].G)
+for _, quest in quests.List do
+	check("quest kind " .. quest.K, Progress.Quests[quest.K] ~= nil and quest.G > 0)
+end
+check("quest text", Progress.QuestText("Coins", 2500) == "Earn 2,500 coins", Progress.QuestText("Coins", 2500))
+local function bundleOk(name, reward)
+	for key in reward.Items or {} do
+		check(name .. " item " .. key, Config.Items[key] ~= nil)
+	end
+end
+for tier = 1, 3 do
+	bundleOk("quest reward " .. tier, Progress.QuestReward(tier))
+end
+bundleOk("quest bonus", Progress.QuestBonus)
+for _, slot in Progress.Wheel do
+	bundleOk("wheel " .. slot.Text, slot.Reward)
+end
+for _, milestone in Progress.DexMilestones do
+	bundleOk("dex reward " .. milestone.Key, milestone.Reward)
+	check("dex milestone reachable " .. milestone.Key, milestone.Need <= #Config.Beasts)
+end
+for _, gift in Progress.Gifts do
+	bundleOk("gift " .. gift.Key, gift.Reward)
+end
+check("wheel roll range", Progress.RollWheel(0) == 1 and Progress.RollWheel(1) == #Progress.Wheel)
+check("daycare xp capped", Progress.DaycareXp(10, 10 ^ 6) == Progress.DaycareXp(10, Progress.DaycareMaxMinutes))
+local sample = { Caught = 1, Crests = 8, Wins = 0, BestWave = 0, Trophies = 0, QuestsDone = 0, Flags = { champion = true }, Dex = {}, Beasts = {} }
+local context = Progress.Context(sample)
+check("achievement champion", Progress.AchievementDone(Progress.AchievementsById.champion, sample, context))
+check("achievement badge8", Progress.AchievementDone(Progress.AchievementsById.badge8, sample, context))
+check("achievement dex10 locked", not Progress.AchievementDone(Progress.AchievementsById.dex10, sample, context))
 for key, pass in Config.GamePasses do
 	check("pass product " .. key, pass.Id ~= 0 or pass.ProductId ~= 0)
 end
@@ -91,7 +128,7 @@ end
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local services = {}
-local ORDER = { "DataService", "WorldService", "BeastService", "BattleService", "StoryService", "EncounterService", "MonetizationService", "RewardService", "LeaderboardService", "CommunityService" }
+local ORDER = { "DataService", "WorldService", "BeastService", "BattleService", "StoryService", "EncounterService", "MonetizationService", "RewardService", "LeaderboardService", "CommunityService", "ProgressService", "SwarmService" }
 local ok, err = pcall(function()
 	local s = folder.Services
 	services.Net = require(s.Net)
@@ -181,6 +218,23 @@ if ok then
 		end
 		holder:Destroy()
 	end
+	-- Neue Services, Remotes, Bestenliste und Schwarm
+	check("progress service", services.ProgressService ~= nil and services.ProgressService.Bump ~= nil)
+	check("remote Progress", ReplicatedStorage.Remotes:FindFirstChild("Progress") ~= nil)
+	check("remote ProgressAction", ReplicatedStorage.Remotes:FindFirstChild("ProgressAction") ~= nil)
+	check("collector board", services.WorldService.Boards.DexCount ~= nil)
+	services.SwarmService:Begin("route1", "nibbit")
+	check("swarm started", workspace:GetAttribute("SwarmBeast") == "nibbit" and workspace:GetAttribute("SwarmArea") == "route1")
+	local swarmHits = 0
+	for _ = 1, 200 do
+		local id = services.SwarmService:Override(Story.AreasById.route1)
+		if id == "nibbit" then
+			swarmHits += 1
+		end
+	end
+	check("swarm overrides encounters", swarmHits > 50 and swarmHits < 150, swarmHits)
+	check("swarm only on its route", services.SwarmService:Override(Story.AreasById.route2) == nil)
+
 	local wave = internal.GauntletTeam(5)
 	check("gauntlet team", #wave >= 1, #wave)
 	local damage = internal.ComputeDamage(internal.MakeFighter("cindercub", 10), internal.MakeFighter("sproutling", 10), "Ember")

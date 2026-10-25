@@ -73,6 +73,8 @@ local function grantProduct(player: Player, key: string): boolean
 		services.Net.SendNotify(player, `+{Format.Number(amount)} Snowflakes!`, THEME.Ice)
 	elseif kind == "SkipStage" then
 		services.TimerService:Skip(player)
+	elseif kind == "Boost" then
+		services.EventService:AddBoost(player, product.Seconds)
 	elseif kind == "LowGravity" then
 		local untilTime = math.max(os.time(), workspace:GetAttribute("LowGravityUntil") or 0) + product.Seconds
 		workspace:SetAttribute("LowGravityUntil", untilTime)
@@ -114,7 +116,12 @@ local function processReceipt(info)
 	end
 	local passKey = passKeyByProductId[info.ProductId]
 	if passKey then
-		grantPass(player, passKey)
+		-- Fehler beim Vergeben (z. B. im Aussehen) darf ProcessReceipt nicht abbrechen lassen
+		local ok, err = pcall(grantPass, player, passKey)
+		if not ok then
+			warn("[Monetization] Pass-Vergabe fehlgeschlagen", passKey, err)
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
 	else
 		local key = productKeyById[info.ProductId]
 		if not key then
@@ -155,6 +162,11 @@ function MonetizationService:Prompt(player: Player, kind: string, key: string)
 			return
 		end
 		if key == "StarterPack" and player:GetAttribute("StarterPack") then
+			return
+		end
+		-- Kein Robux fuer einen Skip, der nichts bringt
+		if key == "SkipStage" and not self.Services.TimerService:CanSkip(player) then
+			self.Services.Net.SendNotify(player, "All stages are already unlocked!", THEME.Mint)
 			return
 		end
 		if product.Id ~= 0 then

@@ -133,10 +133,13 @@ end
 
 ---------------------------------------------------------------- Abstimmung
 
-local function finishVote()
-	local vote = activeVote
+local function finishVote(vote)
+	-- Nur die eigene Abstimmung beenden (eine abgebrochene alte darf keine neue beenden)
+	if not vote or activeVote ~= vote then
+		return
+	end
 	activeVote = nil
-	if not vote or not vote.Target.Parent then
+	if not vote.Target.Parent then
 		return
 	end
 	local voters = 0
@@ -201,9 +204,10 @@ commands.votekick = function(player: Player, args: string)
 		notify(player, "You can only vote out players with a lower rank.", RED)
 		return
 	end
-	activeVote = { Target = target, StartedBy = player, Voters = { [player.UserId] = true }, EndsAt = os.clock() + Config.VoteKickDuration }
+	local vote = { Target = target, StartedBy = player, Voters = { [player.UserId] = true }, EndsAt = os.clock() + Config.VoteKickDuration }
+	activeVote = vote
 	CommunityService.Services.Net.SendAnnounce(`{player.DisplayName} started a vote to remove {target.DisplayName}. Type /yes to agree ({Config.VoteKickDuration}s).`, GOLD)
-	task.delay(Config.VoteKickDuration, finishVote)
+	task.delay(Config.VoteKickDuration, finishVote, vote)
 end
 
 commands.announce = function(player: Player, args: string)
@@ -378,6 +382,12 @@ refreshNameplate = function(player: Player)
 	local vip = player:GetAttribute("Pass_VIP") == true
 	local rankLabel = gui:FindFirstChild("RankLine") :: TextLabel
 	local nameLabel = gui:FindFirstChild("NameLine") :: TextLabel
+	local titleLabel = gui:FindFirstChild("TitleLine") :: TextLabel?
+	if titleLabel then
+		local title = tostring(player:GetAttribute("Title") or "")
+		titleLabel.Text = if title ~= "" then `« {title} »` else ""
+		titleLabel.Visible = title ~= ""
+	end
 	rankLabel.Text = (RANK_ICONS[rank] or "") .. rank:upper() .. (if vip then "  ·  VIP" else "")
 	rankLabel.Visible = rank ~= "Newbie" or vip
 	nameLabel.Text = `{player.DisplayName}  ·  Lv {player:GetAttribute("Level") or 1}`
@@ -411,7 +421,7 @@ function CommunityService:AttachNameplate(player: Player, character: Model)
 	end
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Nameplate"
-	gui.Size = UDim2.fromScale(7, 1.8)
+	gui.Size = UDim2.fromScale(7, 2.3)
 	gui.StudsOffset = Vector3.new(0, 2.6, 0)
 	gui.MaxDistance = 100
 	gui.LightInfluence = 0
@@ -419,8 +429,11 @@ function CommunityService:AttachNameplate(player: Player, character: Model)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	layout.Parent = gui
-	makeLine(gui, 0.4, 1).Name = "RankLine"
-	makeLine(gui, 0.6, 2).Name = "NameLine"
+	makeLine(gui, 0.31, 1).Name = "RankLine"
+	local titleLine = makeLine(gui, 0.22, 2)
+	titleLine.Name = "TitleLine"
+	titleLine.TextColor3 = Color3.fromRGB(255, 214, 120)
+	makeLine(gui, 0.47, 3).Name = "NameLine"
 	-- Am Charakter statt am Kopf, sonst verschwindet das Schild, wenn Roblox den Kopf austauscht
 	gui.Adornee = head
 	gui.Parent = character
@@ -453,6 +466,9 @@ function CommunityService:OnPlayerReady(player: Player)
 		refreshNameplate(player)
 	end)
 	player:GetAttributeChangedSignal("Level"):Connect(function()
+		refreshNameplate(player)
+	end)
+	player:GetAttributeChangedSignal("Title"):Connect(function()
 		refreshNameplate(player)
 	end)
 	refreshNameplate(player)

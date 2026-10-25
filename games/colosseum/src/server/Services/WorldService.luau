@@ -665,6 +665,7 @@ local function buildTown(area)
 		boardAt(CFrame.lookAt(C + Vector3.new(-14, 0, 30), C + Vector3.new(-14, 0, 60)), "GAUNTLET LEGENDS", "BestWave", folder)
 		boardAt(CFrame.lookAt(C + Vector3.new(14, 0, 30), C + Vector3.new(14, 0, 60)), "DUEL CHAMPIONS", "Trophies", folder)
 		adPanel(CFrame.lookAt(C + Vector3.new(-14, 0, 60), C + Vector3.new(-14, 0, 30)), folder)
+		boardAt(CFrame.lookAt(C + Vector3.new(14, 0, 60), C + Vector3.new(14, 0, 30)), "TOP COLLECTORS", "DexCount", folder)
 	end
 	if area.Id == "voltara" then
 		-- Grossstadt: Hochhaeuser im Hintergrund und Werbetafel

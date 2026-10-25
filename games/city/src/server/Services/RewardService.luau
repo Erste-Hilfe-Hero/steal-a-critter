@@ -13,7 +13,11 @@ local RewardService = { Services = nil :: any }
 
 local C = Config.Colors
 local topStore = DataStoreService:GetOrderedDataStore("TurboTopCash_v1")
+local copStore = DataStoreService:GetOrderedDataStore("TurboTopCops_v1")
+local robberStore = DataStoreService:GetOrderedDataStore("TurboTopRobbers_v1")
 local sessionStart = {} -- [Player] = os.clock()
+local nameCache = {} -- [UserId] = Name (spart Web-Aufrufe bei jeder Aktualisierung)
+local written = {} -- [Brett .. UserId] = zuletzt gespeicherter Wert
 
 local function today(): number
 	return os.time() // 86400
@@ -94,6 +98,7 @@ function RewardService:ClaimMission(player: Player, index: number): (boolean, st
 	end
 	entry.Claimed = true
 	local amount = self.Services.DataService:Earn(player, mission.Reward * tier(player))
+	self.Services.ProgressService:AddXP(player, Config.Xp.Mission)
 	self:SyncMissions(player)
 	return true, `Mission reward +{Format.Cash(amount)}!`
 end
@@ -226,22 +231,21 @@ end
 
 ---------------------------------------------------------------- Rangliste
 
-local function refreshLeaderboard()
-	for _, player in Players:GetPlayers() do
-		local data = RewardService.Services.DataService:Get(player)
-		if data and data.TotalEarned > 0 then
-			pcall(topStore.SetAsync, topStore, tostring(player.UserId), math.floor(math.min(data.TotalEarned, 2 ^ 52)))
-		end
+local function nameOf(userId: number): string
+	local cached = nameCache[userId]
+	if cached then
+		return cached
 	end
-	local board = workspace:FindFirstChild("Leaderboard", true) :: BasePart?
-	if not board then
-		return
+	local ok, result = pcall(Players.GetNameFromUserIdAsync, Players, userId)
+	if ok and result then
+		nameCache[userId] = result
+		return result
 	end
-	local ok, pages = pcall(topStore.GetSortedAsync, topStore, false, 10)
-	if not ok then
-		return
-	end
-	local entries = pages:GetCurrentPage()
+	return "Player"
+end
+
+-- Zeichnet eine Rangliste auf ein Brett. format(value) macht aus dem Wert einen Text.
+local function drawBoard(board: BasePart, entries, format: (number) -> string)
 	local gui = board:FindFirstChild("BoardGui") :: SurfaceGui?
 	if not gui then
 		local newGui = Instance.new("SurfaceGui")
@@ -277,12 +281,43 @@ local function refreshLeaderboard()
 	end
 	row(board:GetAttribute("Title") or "TOP", C.Lemon, 0, 60)
 	for rank, entry in entries do
-		local name = "Player"
-		local okName, result = pcall(Players.GetNameFromUserIdAsync, Players, tonumber(entry.key) or 0)
-		if okName then
-			name = result
+		local name = nameOf(tonumber(entry.key) or 0)
+		row(`{rank}. {name}  {format(entry.value)}`, if rank == 1 then C.Orange elseif rank <= 3 then C.Teal else Color3.new(1, 1, 1), rank, 42)
+	end
+end
+
+local BOARDS = {
+	{ Part = "Leaderboard", Store = topStore, Value = function(data)
+		return data.TotalEarned
+	end, Format = Format.Cash },
+	{ Part = "TopCopsBoard", Store = copStore, Value = function(data)
+		return data.Stats.Arrests
+	end, Format = Format.Number },
+	{ Part = "TopRobbersBoard", Store = robberStore, Value = function(data)
+		return data.Stats.Robberies
+	end, Format = Format.Number },
+}
+
+local function refreshLeaderboard()
+	for _, info in BOARDS do
+		for _, player in Players:GetPlayers() do
+			local data = RewardService.Services.DataService:Get(player)
+			local value = math.floor(math.min(data and info.Value(data) or 0, 2 ^ 52))
+			local key = info.Part .. player.UserId
+			-- Nur schreiben, wenn sich der Wert geaendert hat (DataStore-Limits)
+			if value > 0 and written[key] ~= value then
+				if pcall(info.Store.SetAsync, info.Store, tostring(player.UserId), value) then
+					written[key] = value
+				end
+			end
 		end
-		row(`{rank}. {name}  {Format.Cash(entry.value)}`, if rank == 1 then C.Orange elseif rank <= 3 then C.Teal else Color3.new(1, 1, 1), rank, 42)
+		local board = workspace:FindFirstChild(info.Part, true) :: BasePart?
+		if board then
+			local ok, pages = pcall(info.Store.GetSortedAsync, info.Store, false, 10)
+			if ok then
+				drawBoard(board, pages:GetCurrentPage(), info.Format)
+			end
+		end
 	end
 end
 
@@ -297,6 +332,9 @@ end
 
 function RewardService:OnPlayerRemoving(player: Player)
 	sessionStart[player] = nil
+	for _, info in BOARDS do
+		written[info.Part .. player.UserId] = nil
+	end
 end
 
 function RewardService:Start()
@@ -325,6 +363,24 @@ function RewardService:Start()
 		while true do
 			pcall(refreshLeaderboard)
 			task.wait(120)
+		end
+	end)
+
+	-- Tageswechsel waehrend man spielt: Tagesbelohnung und Missionen erneuern
+	task.spawn(function()
+		while true do
+			task.wait(60)
+			for _, player in Players:GetPlayers() do
+				local data = self.Services.DataService:Get(player)
+				if data then
+					if data.Missions.Day ~= today() then
+						self:SyncMissions(player)
+					end
+					if player:GetAttribute("DailyReady") ~= (data.DailyDay ~= today()) then
+						self:UpdateDaily(player)
+					end
+				end
+			end
 		end
 	end)
 end

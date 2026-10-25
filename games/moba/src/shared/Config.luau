@@ -481,6 +481,27 @@ Config.Heroes = {
 		},
 		Build = { Start = { "GuardBuckler", "RedTonic" }, Items = { "WardenTreads", "MoonChalice", "SpiritWard", "BramblePlate", "EmberAegis", "GiantHeart" } },
 	},
+	{
+		-- Neu: Feuer-Magierin mit brennender Passive
+		Id = "Ember",
+		Name = "Ember",
+		Title = "The Cinder Sage",
+		Roles = { "Mid", "Support" },
+		Class = "Mage",
+		Icon = "☄️",
+		Crystals = 700,
+		Color = Color3.fromRGB(255, 130, 60),
+		Weapon = "Staff",
+		Stats = { HP = 570, HPPerLevel = 96, Mana = 420, ManaPerLevel = 30, AD = 52, ADPerLevel = 3, Armor = 20, ArmorPerLevel = 4.2, MR = 30, MRPerLevel = 1.3, AttackSpeed = 0.64, ASPerLevel = 0.015, Range = 25, Speed = 330, HPRegen = 1, ManaRegen = 1.5 },
+		Passive = { Id = "Kindling", Name = "Kindling", Desc = "Abilities set enemies ablaze: they burn for extra magic damage over 3 seconds." },
+		Abilities = {
+			Q = { Name = "Fireball", Icon = "🔥", Type = "Line", Length = 48, Width = 4, Speed = 120, MaxHits = 1, Cost = 55, Cooldown = ranks(6, -0.4), Damage = ranks(80, 40), AP = 0.75, DamageType = "Magic", Desc = "Hurl a fireball that hits the first enemy." },
+			W = { Name = "Flame Pillar", Icon = "🌋", Type = "Point", Range = 40, Radius = 9, Delay = 0.7, Cost = 65, Cooldown = ranks(10, -0.5), Damage = ranks(70, 45), AP = 0.6, DamageType = "Magic", Stun = 0.8, Desc = "A pillar of fire erupts and knocks enemies up." },
+			E = { Name = "Blaze Step", Icon = "💨", Type = "Blink", Range = 20, Cost = 70, Cooldown = ranks(18, -1.5), Damage = ranks(60, 35), AP = 0.5, DamageType = "Magic", BoltRange = 30, Desc = "Blink a short distance and shoot a homing ember." },
+			R = { Name = "Meteor Storm", Icon = "☄️", Type = "Zone", Range = 44, Radius = 13, Duration = 3, Tick = 0.5, Cost = 100, Cooldown = { 110, 90, 70 }, Damage = { 200, 300, 400 }, AP = 0.7, DamageType = "Magic", Slow = 0.35, SlowTime = 0.6, Desc = "Meteors crash down: big damage and a lasting slow in the area." },
+		},
+		Build = { Start = { "ApprenticeRing", "RedTonic" }, Items = { "SpellTreads", "ArchmageCrown", "VoidRod", "EchoStaff", "HourglassOfStasis", "MoonChalice" } },
+	},
 }
 Config.HeroesById = {}
 for index, hero in Config.Heroes do
@@ -643,6 +664,108 @@ Config.Rewards = { Win = 60, Loss = 25, PerKill = 4, PerAssist = 2, MaxKillBonus
 Config.DailyRewards = { 40, 60, 80, 100, 120, 150, 300 }
 Config.AdCooldown = 300
 
+---------------------------------------------------------------- Fortschritt: Konto-Stufe, Meisterschaft, Serien, MVP
+
+Config.AccountXP = { Win = 120, Loss = 70, PerMinute = 3 }
+function Config.AccountXPToLevel(level: number): number
+	return 300 + level * 60
+end
+-- Kristalle fuer jede neue Konto-Stufe (jede 5. Stufe mehr)
+function Config.AccountLevelReward(level: number): number
+	return if level % 5 == 0 then 150 else 25
+end
+
+Config.Mastery = { Thresholds = { 0, 600, 1500, 2800, 4500, 6800, 9600 }, Win = 300, Loss = 140, PerTakedown = 15, MaxTakedownBonus = 150, RewardPerLevel = 50 }
+-- Meisterschafts-Stufe (1-7), Punkte der aktuellen Stufe und der naechsten (oder nil bei Maximum)
+function Config.MasteryLevel(points: number): (number, number, number?)
+	local thresholds = Config.Mastery.Thresholds
+	local level = 1
+	for index, need in thresholds do
+		if points >= need then
+			level = index
+		end
+	end
+	return level, thresholds[level], thresholds[level + 1]
+end
+
+Config.WinStreak = { PerWin = 10, Max = 50 }
+Config.MVPBonus = 30
+
+---------------------------------------------------------------- Tages-Quests (3 pro Tag, Fortschritt am Rundenende)
+
+Config.QuestsPerDay = 3
+Config.Quests = {
+	{ Id = "Play", Text = "Play 2 matches", Stat = "Matches", Goal = 2, Reward = 40 },
+	{ Id = "Win", Text = "Win a match", Stat = "Wins", Goal = 1, Reward = 60 },
+	{ Id = "Takedowns", Text = "Get 10 takedowns", Stat = "Takedowns", Goal = 10, Reward = 50 },
+	{ Id = "Farm", Text = "Last-hit 80 minions or monsters", Stat = "CS", Goal = 80, Reward = 50 },
+	{ Id = "Towers", Text = "Help destroy 3 towers", Stat = "Towers", Goal = 3, Reward = 50 },
+	{ Id = "Wards", Text = "Place 6 wards", Stat = "Wards", Goal = 6, Reward = 40 },
+	{ Id = "Epic", Text = "Help slay 2 epic monsters", Stat = "Epics", Goal = 2, Reward = 60 },
+	{ Id = "Jungle", Text = "Slay 15 jungle monsters", Stat = "Monsters", Goal = 15, Reward = 45 },
+}
+Config.QuestsById = {}
+for _, quest in Config.Quests do
+	Config.QuestsById[quest.Id] = quest
+end
+
+---------------------------------------------------------------- Erfolge mit Titeln (Stat = Lebenszeit-Wert in den Spielerdaten)
+
+Config.Achievements = {
+	{ Id = "FirstWin", Name = "First Victory", Desc = "Win your first match", Stat = "Wins", Goal = 1, Title = "Rookie", Reward = 50 },
+	{ Id = "Veteran", Name = "Veteran", Desc = "Play 25 matches", Stat = "Matches", Goal = 25, Title = "Veteran", Reward = 100 },
+	{ Id = "Champion", Name = "Champion", Desc = "Win 50 matches", Stat = "Wins", Goal = 50, Title = "Champion", Reward = 300 },
+	{ Id = "Slayer", Name = "Slayer", Desc = "Get 100 kills", Stat = "Kills", Goal = 100, Title = "Slayer", Reward = 150 },
+	{ Id = "Guardian", Name = "Helping Hand", Desc = "Get 150 assists", Stat = "Assists", Goal = 150, Title = "Guardian", Reward = 150 },
+	{ Id = "Harvester", Name = "Harvester", Desc = "Last-hit 1,000 minions or monsters", Stat = "CS", Goal = 1000, Title = "Harvester", Reward = 150 },
+	{ Id = "Lanebreaker", Name = "Lanebreaker", Desc = "Help destroy 25 towers", Stat = "Towers", Goal = 25, Title = "Lanebreaker", Reward = 150 },
+	{ Id = "DragonTamer", Name = "Dragon Tamer", Desc = "Help slay 10 epic monsters", Stat = "Epics", Goal = 10, Title = "Dragon Tamer", Reward = 150 },
+	{ Id = "Seer", Name = "All-Seeing", Desc = "Place 100 wards", Stat = "Wards", Goal = 100, Title = "Seer", Reward = 100 },
+	{ Id = "StarPlayer", Name = "Star Player", Desc = "Be MVP 5 times", Stat = "MVPs", Goal = 5, Title = "Star Player", Reward = 200 },
+	{ Id = "Legend", Name = "PENTA!", Desc = "Get a Penta Kill", Stat = "Pentas", Goal = 1, Title = "Legend", Reward = 250 },
+	{ Id = "OnFire", Name = "On Fire", Desc = "Win 5 matches in a row", Stat = "BestStreak", Goal = 5, Title = "Unstoppable", Reward = 200 },
+	{ Id = "Master", Name = "True Master", Desc = "Reach mastery 7 with any hero", Stat = "BestMastery", Goal = 7, Title = "Master", Reward = 300 },
+}
+Config.AchievementsById = {}
+for index, achievement in Config.Achievements do
+	achievement.Order = index
+	Config.AchievementsById[achievement.Id] = achievement
+end
+
+---------------------------------------------------------------- Codes, Emotes, Pings
+
+-- Codes zum Weitergeben (z. B. in der Gruppe); jeder Code einmal pro Spieler
+Config.Codes = { LANEBREAKERS = 100, FIRSTBLOOD = 75, DRAGONSOUL = 150 }
+
+Config.Emotes = {
+	{ Id = "Wave", Icon = "👋" },
+	{ Id = "Laugh", Icon = "😄" },
+	{ Id = "Thumbs", Icon = "👍" },
+	{ Id = "Wow", Icon = "😮" },
+	{ Id = "Party", Icon = "🎉" },
+	{ Id = "GG", Icon = "🤝", Text = "GG" },
+}
+Config.EmotesById = {}
+for _, emote in Config.Emotes do
+	Config.EmotesById[emote.Id] = emote
+end
+Config.EmoteCooldown = 2.5
+
+Config.Pings = {
+	{ Id = "Attack", Icon = "⚔️", Text = "Attack!", Color = Color3.fromRGB(255, 110, 90) },
+	{ Id = "Danger", Icon = "⚠️", Text = "Careful!", Color = Color3.fromRGB(255, 200, 70) },
+	{ Id = "OnMyWay", Icon = "🏃", Text = "On my way!", Color = Color3.fromRGB(110, 231, 160) },
+	{ Id = "Help", Icon = "🆘", Text = "Help me!", Color = Color3.fromRGB(120, 200, 255) },
+	{ Id = "Missing", Icon = "❓", Text = "Enemy missing!", Color = Color3.fromRGB(255, 240, 140) },
+}
+Config.PingsById = {}
+for _, ping in Config.Pings do
+	Config.PingsById[ping.Id] = ping
+end
+Config.PingLimit = { Count = 3, Window = 6 }
+
+Config.LeaderboardStore = "Lanebreakers_Wins_v1"
+
 ---------------------------------------------------------------- Developer Products (IDs kommen beim Veroeffentlichen in ProductIds.json)
 
 local ids = {}
@@ -671,6 +794,7 @@ Config.Products = {
 	Hero_Volt = { Name = "Volt", Kind = "Hero", Hero = "Volt", Price = 149, Description = "Unlock Volt, the Storm Blade" },
 	Hero_Varg = { Name = "Varg", Kind = "Hero", Hero = "Varg", Price = 149, Description = "Unlock Varg, the Iron Wolf" },
 	Hero_Gaff = { Name = "Gaff", Kind = "Hero", Hero = "Gaff", Price = 149, Description = "Unlock Gaff, the Lantern Warden" },
+	Hero_Ember = { Name = "Ember", Kind = "Hero", Hero = "Ember", Price = 149, Description = "Unlock Ember, the Cinder Sage" },
 	Skin_Inferno = { Name = "Inferno Skin", Kind = "Skin", Skin = "Inferno", Price = 149, Description = "Burning weapon and aura for all heroes" },
 	Skin_Frost = { Name = "Frost Crystal Skin", Kind = "Skin", Skin = "Frost", Price = 149, Description = "Icy weapon and aura for all heroes" },
 	Skin_Gold = { Name = "Royal Gold Skin", Kind = "Skin", Skin = "Gold", Price = 249, Description = "Shining gold weapon and aura for all heroes" },

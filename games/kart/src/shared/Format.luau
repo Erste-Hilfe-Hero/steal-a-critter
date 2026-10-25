@@ -29,4 +29,12 @@ function Format.Time(seconds: number): string
 	return string.format("%d:%02d", seconds // 60, seconds % 60)
 end
 
+-- Rennzeit mit Hundertsteln, z. B. 1:23.45
+function Format.RaceTime(seconds: number): string
+	seconds = math.max(0, seconds)
+	local whole = math.floor(seconds)
+	local hundredths = math.floor((seconds - whole) * 100)
+	return string.format("%d:%02d.%02d", whole // 60, whole % 60, hundredths)
+end
+
 return Format

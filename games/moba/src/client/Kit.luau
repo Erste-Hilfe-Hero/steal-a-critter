@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Sounds = require(script.Parent.Sounds)
 
 local Kit = {}
 
@@ -104,6 +105,7 @@ local function button(props, style: string?): TextButton
 	props.MaxText = nil
 	local result = create("TextButton", props, children) :: TextButton
 	result.MouseButton1Down:Connect(function()
+		Sounds.Play("Click")
 		TweenService:Create(scale, TweenInfo.new(0.06), { Scale = 0.93 }):Play()
 	end)
 	result.MouseButton1Up:Connect(function()

@@ -36,6 +36,45 @@ Ein spielbarer Garten-Tycoon nach dem Vorbild von *Grow a Garden* (2025 das meis
 
 Die "dauerhaften" Vorteile werden als Developer Products verkauft und gespeichert, damit alles per API angelegt werden kann. Kaufabwicklung über `ProcessReceipt` mit Kaufhistorie und sofortigem Speichern.
 
+## Update 2 (Oktober 2026)
+
+### Behobene Fehler
+
+1. Wer das Spiel während der Bann-Prüfung verließ, bekam trotzdem einen Garten zugewiesen. Der Garten blieb dann für immer belegt.
+2. Freundes-Bonus: Beim Verlassen wurden Freundschaften anderer Spieler gelöscht, deren UserId zufällig dieselben Ziffern enthielt.
+3. Vote-Kick: Der Timer einer abgebrochenen Abstimmung konnte eine neuere Abstimmung zu früh beenden.
+4. Natürliches Wetter konnte ein gekauftes Gewitter oder einen gekauften Regen überschreiben.
+5. Samenladen: Der eigene Vorrat hing am Player-Objekt. Nach dem Neu-Beitreten konnte man seltene Samen erneut kaufen.
+6. Store: "OWNED" wurde manchmal von der verspäteten Preisabfrage wieder mit dem Preis überschrieben.
+7. ProcessReceipt hat Käufe vergeben, obwohl die Spielerdaten nicht geladen waren (sie wären nie gespeichert worden). Jetzt gilt NotProcessedYet, und Roblox liefert den Kauf später erneut aus.
+8. Upgrades erschienen in zufälliger Reihenfolge. Jetzt ist die Reihenfolge fest.
+9. Rebirth ohne Sicherheitsabfrage: Ein versehentlicher Tipp auf dem Handy setzte alles zurück. Jetzt muss man zweimal tippen. Der Hinweistext nennt jetzt auch die Früchte.
+10. "Grow All Now" (39 R$) ließ sich auch mit leerem Garten kaufen. Jetzt erscheint stattdessen ein Hinweis.
+11. Meldungen stapelten sich ohne Grenze und verdeckten auf dem Handy das HUD. Beim Ausblenden blieb außerdem der Hintergrund stehen.
+12. Wer einen gewöhnlichen Samen kaufte, bekam keine Rückmeldung.
+13. Zeiten über einer Stunde (z. B. eine verlängerte Golden Hour) wurden als "75:00" angezeigt. Jetzt erscheinen sie als h:mm:ss.
+14. Typfehler in der Spielersuche (findPlayer) beseitigt. Zusätzlich prüft der Server beim Pflanzen, ob das Feld dem Spieler gehört und frei ist.
+
+### 15 neue Features
+
+1. **Schaufel** in der Samenleiste: Pflanzen ausgraben, damit das Feld wieder frei ist. Bei Legendary und Mythic muss man zur Sicherheit zweimal tippen.
+2. **PLANT ALL**: bepflanzt alle freien Felder mit dem gewählten Samen.
+3. **Rucksack-Upgrade** (+25 Plätze pro Stufe, bis zu 10 Stufen) unter UPGRADES.
+4. **Tagesaufgaben** (QUESTS): jeden Tag 3 neue Aufgaben in drei Schwierigkeiten. Die Belohnung (Münzen und XP) wächst mit dem Verdienst.
+5. **Erfolge mit Titeln** (BOOK): 14 Erfolge. Jeder schaltet einen Titel frei, der über dem Namensschild steht.
+6. **Pflanzen-Index** (BOOK): Jede entdeckte Pflanze und Mutation gibt dauerhaft +2 % Fruchtwert.
+7. **Gärtner-Level**: XP fürs Ernten, ein XP-Balken im HUD und "Level" in der Rangliste. Jede Stufe bringt Münzen und +1 % Fruchtwert.
+8. **Glücksrad** (WHEEL): alle 4 Stunden eine kostenlose Drehung (kein Robux). Mögliche Gewinne: Münzen, Samen bis Mythic oder 10 Minuten 2x Sell. Die Chancen stehen offen im Fenster.
+9. **Codes** (SETTINGS): GARDEN, SPROUT, MAGIC, RAINBOW. Jeder Code ist einmal pro Konto einlösbar.
+10. **Einstellungen**: Sound-Effekte, große Ansagen und die Pets anderer Spieler lassen sich ein- und ausschalten. Die Einstellungen werden gespeichert.
+11. **Tag und Nacht** (15-Minuten-Zyklus, in allen Servern gleich). Nachts gibt es die neue Mutation **Moonlit (x3)**.
+12. **Pets** (PETS): 5 Begleiter für Münzen (Wachstum, Wert oder Mutationschance). Sie folgen dem Spieler, schweben und bleiben bei Rebirth erhalten.
+13. **Garten-Designs**: 6 Boden- und Zaunfarben, für alle sichtbar. "Midnight Bloom" ist ab Level 30 gratis.
+14. **Top Gardeners**: eine Tafel am Marktplatz mit den 10 besten Gärtnern aller Server (OrderedDataStore).
+15. **Einführung für neue Spieler**: ein Banner mit 4 Schritten und ein leuchtender Leitstrahl zum Ziel. Am Ende gibt es eine Belohnung.
+
+Neue Developer Products (über `products.json`): **Super Backpack** (149 R$, +100 Rucksackplätze für immer) und **Rainbow Unicorn Pet** (399 R$, +50 % Wert, +30 % Wachstum, +30 % Mutationen).
+
 ## Community-Ränge
 
 Wie in Steal a Critter: Ränge nach aktiver Spielzeit (Member, Regular, Veteran, Guardian), Owner BigBabaAli. Chat-Befehle `/rank /yes /votekick /announce /kick /ban /unban /revoke /restore`, schimmernde Namensschilder.
@@ -61,9 +100,13 @@ src/server/Services/
   DataService.luau              ← Speichern (DataStore, Autosave, BindToClose)
   WorldService.luau             ← baut Marktplatz und einen Garten pro Spieler per Code
   GardenService.luau            ← Pflanzen, Wachstum (auch offline), Ernte, Verkauf, Upgrades, Rebirth, Tagesbelohnung, Freunde
-  EventService.luau             ← Samenladen mit Restock und Wetter
+  EventService.luau             ← Samenladen mit Restock, Wetter, Tag und Nacht
+  ProgressService.luau          ← Aufgaben, Erfolge/Titel, Index, Level, Glücksrad, Codes, Einstellungen, Einführung
+  CosmeticService.luau          ← Pets und Garten-Designs
+  LeaderboardService.luau       ← Top-Gardeners-Tafel (alle Server)
   MonetizationService.luau      ← dauerhafte Vorteile, Developer Products, Premium
   CommunityService.luau         ← Ränge und Moderation
 src/client/init.client.luau     ← Chat-Tags, Namensschilder
 src/client/UI.luau              ← HUD, Samenleiste, Samenladen, Upgrades, Store
+src/client/Extras.luau          ← Quests, Glücksrad, Pets, Buch, Einstellungen, Einführung
 ```

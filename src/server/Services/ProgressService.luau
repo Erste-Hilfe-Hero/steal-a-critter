@@ -128,6 +128,10 @@ function ProgressService:Track(player: Player, stat: string, amount: number?)
 	if self.Services.FeatureService then
 		self.Services.FeatureService:OnStat(player, stat, amount :: number)
 	end
+	-- Einfuehrung, Wochen-Quests und Titel (Update 4)
+	if self.Services.ExtraService then
+		self.Services.ExtraService:OnStat(player, stat, amount :: number)
+	end
 end
 
 -- Meldet neu erreichte Erfolge (abholen im Fenster AWARDS)
@@ -197,7 +201,9 @@ local function claimQuest(player: Player, index: any)
 		text ..= ` ALL QUESTS DONE: +{Format.Cash(bonus)} bonus! New quests tomorrow.`
 	end
 	ProgressService.Services.Net.SendNotify(player, text, GOLD)
+	ProgressService.Services.Net.PlaySfx(player, "Reward")
 	ProgressService:CheckAchievements(player)
+	dirty[player] = true
 	return true, text
 end
 
@@ -213,6 +219,7 @@ local function claimAchievement(player: Player, id: any)
 	data.Achievements[id] = true
 	ProgressService.Services.DataService:AddCash(player, achievement.Cash)
 	ProgressService.Services.Net.SendNotify(player, `🏆 {achievement.Name}: +{Format.Cash(achievement.Cash)}!`, GOLD)
+	ProgressService.Services.Net.PlaySfx(player, "Reward")
 	dirty[player] = true
 	return true
 end
@@ -229,6 +236,7 @@ local function claimIndex(player: Player)
 	data.IndexClaimed = (data.IndexClaimed or 0) + 1
 	ProgressService.Services.DataService:AddCash(player, milestone.Cash)
 	ProgressService.Services.Net.SendNotify(player, `📖 Index milestone {milestone.Count}: +{Format.Cash(milestone.Cash)}!`, GOLD)
+	ProgressService.Services.Net.PlaySfx(player, "Reward")
 	dirty[player] = true
 	return true
 end
@@ -297,6 +305,13 @@ local function buildState(player: Player)
 	}
 	for key, value in extraState[player] or {} do
 		state[key] = value
+	end
+	-- Zeitwerte erst beim Senden berechnen: der Client rechnet ab dem Empfang weiter. Vorher wurden alte Werte
+	-- bei jedem Sync erneut geschickt, dadurch liefen Geschenk- und Glueckrad-Timer hinterher.
+	state.Now = os.time()
+	if state.SessionStart then
+		state.SessionSeconds = os.clock() - state.SessionStart
+		state.SessionStart = nil
 	end
 	return state
 end

@@ -22,6 +22,11 @@ local lastCrime = {} -- [Player] = os.clock()
 local lastBlast = {} -- [Player] = os.clock()
 local bags = {} -- [Player] = Betrag
 local robberyState = {} -- [Key] = { Left = number, OpenAt = number }
+local lastGrab = {} -- [Player] = os.clock() (Haltezeit auch auf dem Server pruefen)
+local stuns = {} -- [Humanoid] = { Until, WalkSpeed, JumpPower, JumpHeight }
+local jailInfo = {} -- [Player] = { Sentence = Sekunden, Saved = durch Putzen gesparte Sekunden }
+local lastChore = {} -- [Player] = os.clock()
+local GRAB_RANGE = 16
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -182,13 +187,20 @@ function JobService:Arrest(officer: Player, robber: Player)
 	if officer:GetAttribute("Pass_SWAT") then
 		base *= 1.5
 	end
+	local doubled = self.Services.EventService:Active("DoubleBounty")
+	if doubled then
+		base *= 2
+	end
 	local reward = self.Services.DataService:Earn(officer, base)
 	local data = self.Services.DataService:Get(officer)
 	if data then
 		data.Stats.Arrests += 1
 	end
 	self.Services.RewardService:Progress(officer, "Arrest", 1)
-	notify(officer, `Arrested {robber.DisplayName}! Bounty +{Format.Cash(reward)}`, C.Green)
+	self.Services.ProgressService:AddXP(officer, Config.Xp.Arrest)
+	self.Services.ProgressService:Event(officer, "Job")
+	self.Services.ProgressService:Check(officer)
+	notify(officer, `Arrested {robber.DisplayName}! Bounty +{Format.Cash(reward)}` .. (if doubled then " (DOUBLE BOUNTY)" else ""), C.Green)
 	self.Services.Net.SendAnnounce(`Officer {officer.DisplayName} arrested {robber.DisplayName}!`, C.Police)
 	self:Jail(robber, stars)
 end
@@ -202,6 +214,8 @@ function JobService:Jail(robber: Player, stars: number)
 	self:UpdateWantedStat(robber)
 	local seconds = Config.JailBase + Config.JailPerStar * stars
 	robber:SetAttribute("JailUntil", now() + seconds)
+	robber:SetAttribute("ChoreLeft", seconds * Config.ChoreMaxShare)
+	jailInfo[robber] = { Sentence = seconds, Saved = 0 }
 	local data = self.Services.DataService:Get(robber)
 	if data then
 		data.Stats.Jailed += 1
@@ -230,6 +244,8 @@ end
 
 function JobService:Release(player: Player, broke: boolean?)
 	player:SetAttribute("JailUntil", nil)
+	player:SetAttribute("ChoreLeft", nil)
+	jailInfo[player] = nil
 	local spawn = self.Services.WorldService.Spawns.Robbers
 	local character = player.Character
 	if character and spawn then
@@ -307,13 +323,26 @@ function JobService:Blast(officer: Player, handle: BasePart)
 		notify(best, "Your car got zapped! Engine stalled!", C.Robber)
 	else
 		best:SetAttribute("StunnedUntil", now() + Config.StunTime)
-		local speed = humanoid.WalkSpeed
+		-- Urspruengliche Werte nur beim ersten Treffer merken, sonst wuerde ein zweiter Treffer 0 speichern
+		local stun = stuns[humanoid]
+		if not stun then
+			stun = { WalkSpeed = humanoid.WalkSpeed, JumpPower = humanoid.JumpPower, JumpHeight = humanoid.JumpHeight, Until = 0 }
+			stuns[humanoid] = stun
+		end
+		local stunUntil = os.clock() + Config.StunTime
+		stun.Until = stunUntil
 		humanoid.WalkSpeed = 0
 		humanoid.JumpPower = 0
+		humanoid.JumpHeight = 0
 		task.delay(Config.StunTime, function()
+			if stuns[humanoid] ~= stun or stun.Until ~= stunUntil then
+				return -- ein neuerer Treffer verlaengert die Betaeubung
+			end
+			stuns[humanoid] = nil
 			if humanoid.Parent then
-				humanoid.WalkSpeed = if speed > 0 then speed else 18
-				humanoid.JumpPower = 50
+				humanoid.WalkSpeed = stun.WalkSpeed
+				humanoid.JumpPower = stun.JumpPower
+				humanoid.JumpHeight = stun.JumpHeight
 			end
 		end)
 		notify(best, "Zapped! You are frozen!", C.Robber)
@@ -340,6 +369,12 @@ function JobService:AddWanted(player: Player, amount: number)
 		self.Services.Net.SendAnnounce(`{player.DisplayName} is MOST WANTED ({after} stars)!`, C.Robber)
 		self.Services.MonetizationService:Offer(player, "ClearWanted", "The whole police force is after you!")
 	end
+end
+
+-- Alle Sterne weg (Robux-Produkt oder Spray-Werkstatt)
+function JobService:ClearWanted(player: Player)
+	player:SetAttribute("Wanted", 0)
+	self:UpdateWantedStat(player)
 end
 
 function JobService:BagMax(player: Player): number
@@ -414,36 +449,30 @@ function JobService:Rob(player: Player, key: string)
 		notify(player, `The {info.Name} is empty! Back in {Format.Time(state.OpenAt - os.clock())}`, C.Robber)
 		return
 	end
-	local bag = bags[player] or 0
-	local max = self:BagMax(player)
-	if bag >= max then
-		notify(player, "Your bag is full! Cash in at the HIDEOUT.", C.Lemon)
-		if not player:GetAttribute("Pass_BigBag") then
-			self.Services.MonetizationService:Offer(player, "Pass_BigBag", "Carry twice as much loot!")
-		end
+	-- Server-Pruefung: nah genug dran und nicht schneller als die Haltezeit (gegen Exploits)
+	local root = rootOf(player)
+	local point = self.Services.WorldService.RobPoints[key]
+	if not root or (point and (root.Position - point.Position).Magnitude > GRAB_RANGE) then
 		return
 	end
+	local hold = info.Hold * (if player:GetAttribute("Pass_BigBag") then 0.5 else 1)
+	local t = os.clock()
+	if t - (lastGrab[player] or -math.huge) < hold * 0.8 then
+		return
+	end
+	lastGrab[player] = t
 	local first = state.Left == info.Grabs
+	local amount = self:GiveLoot(player, info.Loot, info.Stars)
+	if not amount then
+		return
+	end
 	state.Left -= 1
 	if state.Left <= 0 then
 		state.OpenAt = os.clock() + info.Cooldown
 		workspace:SetAttribute("Closed_" .. key, true)
 	end
-	local amount = math.min(info.Loot, max - bag)
-	self:SetBag(player, bag + amount)
-	self:AddWanted(player, info.Stars)
-	local data = self.Services.DataService:Get(player)
-	if data then
-		data.Stats.Robberies += 1
-	end
-	self.Services.RewardService:Progress(player, "Rob", 1)
-	notify(player, `+{Format.Cash(amount)} loot! Bag {Format.Cash(bag + amount)}/{Format.Cash(max)}. Get to the HIDEOUT!`, C.Green)
-	local hideout = self.Services.WorldService.Hideout
-	if hideout then
-		self.Services.Net.SendMarker(player, hideout.Position, "HIDEOUT", "Hideout")
-	end
+	notify(player, `+{Format.Cash(amount)} loot! Bag {Format.Cash(bags[player] or 0)}/{Format.Cash(self:BagMax(player))}. Get to the HIDEOUT!`, C.Green)
 	if first then
-		local point = self.Services.WorldService.RobPoints[key]
 		for _, cop in Players:GetPlayers() do
 			if teamOf(cop) == "Police" then
 				notify(cop, `ALARM! The {info.Name} is being robbed!`, C.Robber)
@@ -455,6 +484,36 @@ function JobService:Rob(player: Player, key: string)
 	end
 end
 
+-- Beute in den Sack (Laden oder Geldtransporter). Gibt den Betrag zurueck, nil wenn der Sack voll ist.
+function JobService:GiveLoot(player: Player, base: number, stars: number): number?
+	local bag = bags[player] or 0
+	local max = self:BagMax(player)
+	if bag >= max then
+		notify(player, "Your bag is full! Cash in at the HIDEOUT.", C.Lemon)
+		if not player:GetAttribute("Pass_BigBag") then
+			self.Services.MonetizationService:Offer(player, "Pass_BigBag", "Carry twice as much loot!")
+		end
+		return nil
+	end
+	local loot = base * (if self.Services.EventService:Active("CrimeWave") then 2 else 1)
+	local amount = math.min(loot, max - bag)
+	self:SetBag(player, bag + amount)
+	self:AddWanted(player, stars)
+	local data = self.Services.DataService:Get(player)
+	if data then
+		data.Stats.Robberies += 1
+	end
+	self.Services.RewardService:Progress(player, "Rob", 1)
+	self.Services.ProgressService:AddXP(player, Config.Xp.Rob)
+	self.Services.ProgressService:Event(player, "Job")
+	self.Services.ProgressService:Check(player)
+	local hideout = self.Services.WorldService.Hideout
+	if hideout then
+		self.Services.Net.SendMarker(player, hideout.Position, "HIDEOUT", "Hideout")
+	end
+	return amount
+end
+
 function JobService:CashIn(player: Player)
 	local bag = bags[player] or 0
 	if bag <= 0 then
@@ -463,6 +522,8 @@ function JobService:CashIn(player: Player)
 	self:SetBag(player, 0)
 	local amount = self.Services.DataService:Earn(player, bag)
 	self.Services.RewardService:Progress(player, "CashIn", 1)
+	self.Services.ProgressService:AddXP(player, Config.Xp.CashIn)
+	self.Services.ProgressService:Event(player, "Job")
 	self.Services.Net.SendMarker(player, nil)
 	notify(player, `Cashed in {Format.Cash(amount)}!`, C.Green)
 	if amount >= 5_000 then
@@ -543,14 +604,18 @@ local function updateJob(player: Player, job, root: BasePart)
 			if os.clock() - job.StartedAt < job.Distance / 220 then
 				return
 			end
-			local amount = JobService.Services.DataService:Earn(player, job.Pay)
+			local rush = JobService.Services.EventService:Active("RushHour")
+			local amount = JobService.Services.DataService:Earn(player, job.Pay * (if rush then 2 else 1))
 			chain[player] = (chain[player] or 0) + 1
 			local data = JobService.Services.DataService:Get(player)
 			if data then
 				data.Stats.Deliveries += 1
 			end
 			JobService.Services.RewardService:Progress(player, "Deliver", 1)
-			notify(player, `Delivered! +{Format.Cash(amount)}  Next one is waiting...`, C.Green)
+			JobService.Services.ProgressService:AddXP(player, Config.Xp.Delivery)
+			JobService.Services.ProgressService:Event(player, "Job")
+			JobService.Services.ProgressService:Check(player)
+			notify(player, `Delivered! +{Format.Cash(amount)}` .. (if rush then " (RUSH HOUR x2)" else "") .. "  Next one is waiting...", C.Green)
 			nextDelivery(player, root.Position)
 		end
 	elseif job.Kind == "Race" then
@@ -577,6 +642,9 @@ local function updateJob(player: Player, job, root: BasePart)
 					JobService.Services.DataService:UpdateAttributes(player)
 				end
 				JobService.Services.RewardService:Progress(player, "Race", 1)
+				JobService.Services.ProgressService:AddXP(player, Config.Xp.Race)
+				JobService.Services.ProgressService:Event(player, "Job")
+				JobService.Services.ProgressService:Check(player)
 				notify(player, `FINISH! {string.format("%.1f", elapsed)}s  +{Format.Cash(amount)}` .. (if record then "  NEW RECORD!" else ""), C.Lemon)
 				return
 			end
@@ -617,6 +685,9 @@ function JobService:OnPlayerRemoving(player: Player)
 	lastCrime[player] = nil
 	lastBlast[player] = nil
 	bags[player] = nil
+	lastGrab[player] = nil
+	jailInfo[player] = nil
+	lastChore[player] = nil
 end
 
 function JobService:Start()
@@ -637,6 +708,34 @@ function JobService:Start()
 	end)
 	net.Handle("StartDelivery", function(player)
 		return self:StartDelivery(player)
+	end)
+	-- Putzdienst im Gefaengnis: jeder Wisch spart etwas Zeit (hoechstens die Haelfte der Strafe)
+	net.Chore.OnServerEvent:Connect(function(player)
+		local jailUntil = player:GetAttribute("JailUntil")
+		local info = jailInfo[player]
+		if typeof(jailUntil) ~= "number" or not info then
+			return
+		end
+		local t = os.clock()
+		if t - (lastChore[player] or -math.huge) < Config.ChoreInterval then
+			return
+		end
+		lastChore[player] = t
+		local maxSaved = info.Sentence * Config.ChoreMaxShare
+		local save = math.min(Config.ChoreSeconds, maxSaved - info.Saved)
+		if save <= 0 then
+			return
+		end
+		info.Saved += save
+		player:SetAttribute("JailUntil", jailUntil - save)
+		player:SetAttribute("ChoreLeft", math.max(0, maxSaved - info.Saved))
+		local data = self.Services.DataService:Get(player)
+		if data then
+			data.Stats.Chores += 1
+			if data.Stats.Chores % 10 == 0 then
+				self.Services.ProgressService:Check(player)
+			end
+		end
 	end)
 
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)

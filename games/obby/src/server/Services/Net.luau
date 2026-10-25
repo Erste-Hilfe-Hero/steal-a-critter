@@ -18,6 +18,14 @@ Net.Announce = remote("Announce") -- Server -> alle
 Net.Died = remote("Died") -- Client -> Server (Kill-Teil beruehrt oder heruntergefallen)
 Net.EquipTrail = remote("EquipTrail") -- Client -> Server
 Net.FakePurchase = remote("FakePurchase") -- Client -> Server (nur Studio)
+Net.Sync = remote("Sync") -- Client -> Server: Zustand anfordern; Server -> Client: Zustand (Quests, Erfolge, Einstellungen, Statistik)
+Net.ClaimDaily = remote("ClaimDaily") -- Client -> Server
+Net.ClaimQuest = remote("ClaimQuest") -- Client -> Server (Quest-Index)
+Net.EquipTitle = remote("EquipTitle") -- Client -> Server (Erfolg-Id oder "")
+Net.RedeemCode = remote("RedeemCode") -- Client -> Server (Code-Text)
+Net.BuyTrail = remote("BuyTrail") -- Client -> Server (Trail-Id, Kauf mit Coins)
+Net.SetSetting = remote("SetSetting") -- Client -> Server (Key, boolean)
+Net.SelectStage = remote("SelectStage") -- Client -> Server (Stage-Nummer, nur bereits erreichte)
 
 folder.Parent = ReplicatedStorage
 

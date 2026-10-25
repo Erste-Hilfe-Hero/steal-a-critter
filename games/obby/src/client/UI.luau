@@ -1,4 +1,5 @@
--- Baut das komplette HUD per Code: Stage-Karte, Skip-Button, Menue, Shop, Trails, Meldungen und Banner.
+-- Baut das komplette HUD per Code: Stage-Karte, Skip-Button, Menue, Shop, Trails, Quests, Titel,
+-- Einstellungen/Codes/Emotes/Statistik, Coins, Speedrun-Timer, Meldungen und Banner.
 -- Alles ist fuer eine Basisgroesse von 1000x560 gebaut und wird per UIScale an den Bildschirm angepasst (Handy bis PC).
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
@@ -6,11 +7,39 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Format = require(ReplicatedStorage.Shared.Format)
 
 local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local UI = {}
+
+-- Zustand vom Server (Quests, Erfolge, Einstellungen, Statistik); nil bis zum ersten Sync
+UI.State = nil :: any
+local stateListeners = {} :: { (any) -> () }
+
+function UI.OnState(callback: (any) -> ())
+	table.insert(stateListeners, callback)
+	if UI.State then
+		task.spawn(callback, UI.State)
+	end
+end
+
+local function emitState()
+	for _, listener in stateListeners do
+		task.spawn(listener, UI.State)
+	end
+end
+
+-- Einstellung lesen (vor dem ersten Sync gilt der Standardwert)
+function UI.GetSetting(key: string): boolean
+	local state = UI.State
+	if state and state.Settings and state.Settings[key] ~= nil then
+		return state.Settings[key]
+	end
+	local setting = Config.SettingsByKey[key]
+	return setting ~= nil and setting.Default
+end
 
 local THEME = {
 	Panel = Color3.fromRGB(24, 22, 38),
@@ -272,8 +301,8 @@ local function row(parent: Instance, title: string, description: string, order: 
 		LayoutOrder = order,
 		Parent = parent,
 	}, { corner(12), edge(0.88) })
-	text({ Position = UDim2.fromOffset(14, 9), Size = UDim2.new(1, -170, 0, 26), Text = title, Font = BODY_HEAVY, TextSize = 21, TextXAlignment = Enum.TextXAlignment.Left, Parent = frame })
-	text({
+	local titleLabel = text({ Position = UDim2.fromOffset(14, 9), Size = UDim2.new(1, -170, 0, 26), Text = title, Font = BODY_HEAVY, TextSize = 21, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = frame })
+	local descriptionLabel = text({
 		Position = UDim2.fromOffset(14, 36),
 		Size = UDim2.new(1, -170, 0, 20),
 		Text = description,
@@ -283,7 +312,7 @@ local function row(parent: Instance, title: string, description: string, order: 
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = frame,
 	})
-	return frame
+	return frame, titleLabel, descriptionLabel
 end
 
 local function rowButton(frame: Frame, color: Color3)
@@ -321,9 +350,15 @@ local function hasPass(key: string): boolean
 	return player:GetAttribute("Pass_" .. key) == true
 end
 
+local function ownedTrails(): { [string]: boolean }?
+	return UI.State and UI.State.OwnedTrails
+end
+
 local function unlockText(trail): string
 	local unlock = trail.Unlock
-	if unlock.Pass == "VIP" then
+	if unlock.Coins then
+		return `Buy for {Format.Number(unlock.Coins)} coins`
+	elseif unlock.Pass == "VIP" then
 		return "VIP exclusive"
 	elseif unlock.Pass then
 		return "Trail Pack"
@@ -356,13 +391,16 @@ local function buildTrailRow(parent: Instance, trail)
 	swatch.Position = UDim2.fromOffset(4, 0)
 	local action = rowButton(frame, THEME.Green)
 	local function refresh()
-		local unlocked = Config.TrailUnlocked(trail, player:GetAttribute("BestStage") or 1, player:GetAttribute("Wins") or 0, hasPass)
+		local unlocked = Config.TrailUnlocked(trail, player:GetAttribute("BestStage") or 1, player:GetAttribute("Wins") or 0, hasPass, ownedTrails())
 		if player:GetAttribute("Trail") == trail.Id then
 			action.Text = "EQUIPPED"
 			action.BackgroundColor3 = THEME.Gray
 		elseif unlocked then
 			action.Text = "EQUIP"
 			action.BackgroundColor3 = THEME.Green
+		elseif trail.Unlock.Coins then
+			action.Text = "🪙 " .. Format.Number(trail.Unlock.Coins)
+			action.BackgroundColor3 = if (player:GetAttribute("Coins") or 0) >= trail.Unlock.Coins then THEME.Gold else THEME.Gray
 		elseif trail.Unlock.Pass then
 			action.Text = "UNLOCK"
 			action.BackgroundColor3 = THEME.Gold
@@ -372,13 +410,20 @@ local function buildTrailRow(parent: Instance, trail)
 		end
 	end
 	refresh()
-	for _, attribute in { "Trail", "BestStage", "Wins", "Pass_VIP", "Pass_TrailPack" } do
+	for _, attribute in { "Trail", "BestStage", "Wins", "Pass_VIP", "Pass_TrailPack", "Coins" } do
 		player:GetAttributeChangedSignal(attribute):Connect(refresh)
 	end
+	UI.OnState(refresh)
 	action.Activated:Connect(function()
-		local unlocked = Config.TrailUnlocked(trail, player:GetAttribute("BestStage") or 1, player:GetAttribute("Wins") or 0, hasPass)
+		local unlocked = Config.TrailUnlocked(trail, player:GetAttribute("BestStage") or 1, player:GetAttribute("Wins") or 0, hasPass, ownedTrails())
 		if unlocked then
 			remotes.EquipTrail:FireServer(trail.Id)
+		elseif trail.Unlock.Coins then
+			if (player:GetAttribute("Coins") or 0) >= trail.Unlock.Coins then
+				remotes.BuyTrail:FireServer(trail.Id)
+			else
+				UI.Toast(`You need {Format.Number(trail.Unlock.Coins)} coins. Play, do quests or get coins in the Shop!`, THEME.Gold)
+			end
 		elseif trail.Unlock.Pass then
 			UI.Buy("Pass", trail.Unlock.Pass)
 		end
@@ -406,9 +451,9 @@ function UI.HighlightSkip()
 end
 
 local function menuButton(parent: Instance, icon: string, caption: string, color: Color3, order: number): TextButton
-	local b = button({ Size = UDim2.fromOffset(72, 72), Text = "", LayoutOrder = order, Parent = parent }, color)
-	text({ Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 36), Text = icon, TextSize = 32, Parent = b })
-	text({ Position = UDim2.new(0, 0, 1, -26), Size = UDim2.new(1, 0, 0, 20), Text = caption, Font = BODY_HEAVY, TextSize = 15, Outline = 1.5, Parent = b })
+	local b = button({ Size = UDim2.fromOffset(64, 64), Text = "", LayoutOrder = order, Parent = parent }, color)
+	text({ Position = UDim2.fromOffset(0, 4), Size = UDim2.new(1, 0, 0, 34), Text = icon, TextSize = 28, Parent = b })
+	text({ Position = UDim2.new(0, 0, 1, -23), Size = UDim2.new(1, 0, 0, 18), Text = caption, Font = BODY_HEAVY, TextSize = 14, Outline = 1.5, Parent = b })
 	return b
 end
 
@@ -448,6 +493,30 @@ function UI.Start()
 	local stageLabel = text({ Position = UDim2.fromOffset(0, 22), Size = UDim2.new(1, 0, 0, 32), Text = "STAGE 1", Font = TITLE, TextSize = 30, RichText = true, Outline = 2, Parent = card })
 	local bar = create("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 58), Size = UDim2.new(1, -36, 0, 10), BackgroundColor3 = Color3.fromRGB(14, 12, 24), Parent = card }, { corner(5) })
 	local fill = create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = THEME.Green, Parent = bar }, { corner(5), create("UIGradient", { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(200, 200, 200)), Rotation = 90 }) })
+	-- Stage-Auswahl: zurueck zu einer frueheren Stage oder wieder vor bis zur besten
+	local prevStage = button({ Position = UDim2.fromOffset(10, 18), Size = UDim2.fromOffset(38, 36), Text = "◀", TextSize = 18, Visible = false, Parent = card }, THEME.Blue)
+	local nextStage = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 18), Size = UDim2.fromOffset(38, 36), Text = "▶", TextSize = 18, Visible = false, Parent = card }, THEME.Blue)
+	local function refreshStageButtons()
+		local stage = player:GetAttribute("Stage") or 1
+		local best = player:GetAttribute("BestStage") or 1
+		prevStage.Visible = stage > 1
+		nextStage.Visible = stage < best
+	end
+	refreshStageButtons()
+	player:GetAttributeChangedSignal("Stage"):Connect(refreshStageButtons)
+	player:GetAttributeChangedSignal("BestStage"):Connect(refreshStageButtons)
+	prevStage.Activated:Connect(function()
+		local stage = player:GetAttribute("Stage") or 1
+		if stage > 1 then
+			remotes.SelectStage:FireServer(stage - 1)
+		end
+	end)
+	nextStage.Activated:Connect(function()
+		local stage = player:GetAttribute("Stage") or 1
+		if stage < (player:GetAttribute("BestStage") or 1) then
+			remotes.SelectStage:FireServer(stage + 1)
+		end
+	end)
 
 	local rankChip = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -506,23 +575,43 @@ function UI.Start()
 		UI.Buy("Product", "SkipStage")
 	end)
 
-	-- Menue links
+	-- Menue links: 2 Spalten, damit es auf dem Handy nicht in den Bereich des Steuer-Sticks reicht
 	local side = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 14, 0.45, 0),
-		Size = UDim2.fromOffset(72, 160),
+		Position = UDim2.new(0, 14, 0.42, 0),
+		Size = UDim2.fromOffset(136, 208),
 		BackgroundTransparency = 1,
 		Parent = inner,
-	}, { create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }) })
+	}, {
+		create("UIGridLayout", {
+			CellSize = UDim2.fromOffset(64, 64),
+			CellPadding = UDim2.fromOffset(8, 8),
+			FillDirectionMaxCells = 2,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
 	local shopButton = menuButton(side, "🛒", "Shop", THEME.Gold, 1)
 	local trailButton = menuButton(side, "✨", "Trails", THEME.Purple, 2)
+	local questButton = menuButton(side, "📜", "Quests", THEME.Green, 3)
+	local titleButton = menuButton(side, "🏅", "Titles", THEME.Blue, 4)
+	local moreButton = menuButton(side, "⚙️", "More", THEME.Gray, 5)
+	-- Punkt am Quest-Knopf, wenn etwas abzuholen ist
+	local questDot = create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(1, -6, 0, 6),
+		Size = UDim2.fromOffset(18, 18),
+		BackgroundColor3 = THEME.Red,
+		Visible = false,
+		ZIndex = 3,
+		Parent = questButton,
+	}, { corner(9), create("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1) }) })
 
 	local shop, shopList = window(inner, "Shop", THEME.Gold)
 	section(shopList, "Forever", THEME.Gold, 0)
 	for i, item in sortedEntries(Config.GamePasses) do
 		buildShopRow(shopList, "Pass", item.Key, item.Entry, THEME.Gold, i)
 	end
-	section(shopList, "Skips & Trolls", THEME.Blue, 50)
+	section(shopList, "Skips, Coins & Trolls", THEME.Blue, 50)
 	for i, item in sortedEntries(Config.DevProducts) do
 		buildShopRow(shopList, "Product", item.Key, item.Entry, THEME.Blue, 50 + i)
 	end
@@ -538,6 +627,297 @@ function UI.Start()
 	trailButton.Activated:Connect(function()
 		toggle(trails)
 	end)
+
+	---------------------------------------------------------------- Quests + taegliche Belohnung
+	local quests, questList = window(inner, "Quests", THEME.Green)
+	section(questList, "Daily Reward", THEME.Gold, 0)
+	local dailyRow, dailyTitle, dailyDesc = row(questList, "Daily Reward", "", 1)
+	local dailyButton = rowButton(dailyRow, THEME.Gold)
+	dailyButton.Activated:Connect(function()
+		if UI.State and UI.State.Daily.Ready then
+			remotes.ClaimDaily:FireServer()
+		end
+	end)
+	section(questList, "Daily Quests (new every day)", THEME.Green, 10)
+	local questRows = {}
+	for i = 1, #Config.QuestTypes do
+		local frame, title, desc = row(questList, "", "", 10 + i)
+		local claim = rowButton(frame, THEME.Green)
+		claim.Activated:Connect(function()
+			local quest = UI.State and UI.State.Quests[i]
+			if quest and not quest.Claimed and quest.Progress >= quest.Target then
+				remotes.ClaimQuest:FireServer(i)
+			end
+		end)
+		questRows[i] = { Title = title, Description = desc, Button = claim }
+	end
+	questButton.Activated:Connect(function()
+		toggle(quests)
+		if quests.Visible then
+			remotes.Sync:FireServer() -- neuer Tag? Quests und Belohnung auffrischen
+		end
+	end)
+
+	local function questText(quest): (string, string)
+		for _, questType in Config.QuestTypes do
+			if questType.Type == quest.Type then
+				local target = if questType.Minutes then quest.Target // 60 else quest.Target
+				local progress = if questType.Minutes then quest.Progress // 60 else quest.Progress
+				return string.format(questType.Text, target), `{progress}/{target}  ·  Reward: {quest.Reward} coins`
+			end
+		end
+		return quest.Type, ""
+	end
+
+	local dailyShown = false
+	UI.OnState(function(state)
+		local daily = state.Daily
+		dailyTitle.Text = if daily.Ready then `Day {daily.Streak}: {daily.Reward} coins` else `Streak: {daily.Streak} day(s)`
+		dailyDesc.Text = if daily.Ready then "Come back every day: day 7 gives 400 coins!" else `Come back tomorrow for {daily.Reward} coins`
+		dailyButton.Text = if daily.Ready then "CLAIM" else "CLAIMED"
+		dailyButton.BackgroundColor3 = if daily.Ready then THEME.Gold else THEME.Gray
+		local anyReady = daily.Ready
+		for i, rowInfo in questRows do
+			local quest = state.Quests[i]
+			if quest then
+				local title, desc = questText(quest)
+				rowInfo.Title.Text = title
+				rowInfo.Description.Text = desc
+				if quest.Claimed then
+					rowInfo.Button.Text = "DONE ✓"
+					rowInfo.Button.BackgroundColor3 = THEME.Gray
+				elseif quest.Progress >= quest.Target then
+					rowInfo.Button.Text = "CLAIM"
+					rowInfo.Button.BackgroundColor3 = THEME.Green
+					anyReady = true
+				else
+					rowInfo.Button.Text = `{math.floor(quest.Progress / quest.Target * 100)}%`
+					rowInfo.Button.BackgroundColor3 = THEME.Gray
+				end
+			end
+		end
+		questDot.Visible = anyReady
+		-- Beim Betreten einmal die taegliche Belohnung zeigen
+		if not dailyShown then
+			dailyShown = true
+			if daily.Ready and UI.GetSetting("DailyPopup") and not quests.Visible then
+				toggle(quests)
+			end
+		end
+	end)
+
+	---------------------------------------------------------------- Titel (Erfolge)
+	local titles, titleList = window(inner, "Titles", THEME.Blue)
+	section(titleList, "Achievements unlock name tag titles", THEME.Blue, 0)
+	local noneRow = row(titleList, "No title", "Show only your rank on your name tag", 1)
+	local noneButton = rowButton(noneRow, THEME.Gray)
+	noneButton.Activated:Connect(function()
+		if (player:GetAttribute("Title") or "") ~= "" then
+			remotes.EquipTitle:FireServer("")
+		end
+	end)
+	local titleRows = {}
+	for _, achievement in Config.Achievements do
+		local frame = row(titleList, achievement.Title, `{achievement.Description}  ·  +{achievement.Reward} coins`, 1 + achievement.Order)
+		local equip = rowButton(frame, THEME.Blue)
+		equip.Activated:Connect(function()
+			if UI.State and UI.State.Achievements[achievement.Id] and player:GetAttribute("Title") ~= achievement.Id then
+				remotes.EquipTitle:FireServer(achievement.Id)
+			end
+		end)
+		titleRows[achievement.Id] = equip
+	end
+	titleButton.Activated:Connect(function()
+		toggle(titles)
+	end)
+	local function refreshTitles()
+		local state = UI.State
+		local current = player:GetAttribute("Title") or ""
+		noneButton.Text = if current == "" then "SELECTED" else "REMOVE"
+		for id, equip in titleRows do
+			local unlocked = state and state.Achievements[id]
+			if current == id then
+				equip.Text = "EQUIPPED"
+				equip.BackgroundColor3 = THEME.Gray
+			elseif unlocked then
+				equip.Text = "EQUIP"
+				equip.BackgroundColor3 = THEME.Blue
+			else
+				equip.Text = "🔒 LOCKED"
+				equip.BackgroundColor3 = THEME.Gray
+			end
+		end
+	end
+	UI.OnState(refreshTitles)
+	player:GetAttributeChangedSignal("Title"):Connect(refreshTitles)
+
+	---------------------------------------------------------------- Mehr: Einstellungen, Codes, Emotes, Statistik
+	local more, moreList = window(inner, "More", THEME.Gray)
+	section(moreList, "Settings", THEME.Muted, 0)
+	local settingButtons = {}
+	for i, setting in Config.Settings do
+		local frame = create("Frame", { Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = THEME.Row, LayoutOrder = i, Parent = moreList }, { corner(12), edge(0.88) })
+		text({ Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -170, 1, 0), Text = setting.Name, Font = BODY_HEAVY, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = frame })
+		local toggleButton = rowButton(frame, THEME.Green)
+		toggleButton.Activated:Connect(function()
+			local value = not UI.GetSetting(setting.Key)
+			-- sofort lokal anwenden, der Server speichert
+			if UI.State then
+				UI.State.Settings[setting.Key] = value
+				emitState()
+			end
+			remotes.SetSetting:FireServer(setting.Key, value)
+		end)
+		settingButtons[setting.Key] = toggleButton
+	end
+	local function refreshSettings()
+		for key, toggleButton in settingButtons do
+			local on = UI.GetSetting(key)
+			toggleButton.Text = if on then "ON" else "OFF"
+			toggleButton.BackgroundColor3 = if on then THEME.Green else THEME.Gray
+		end
+	end
+	refreshSettings()
+	UI.OnState(refreshSettings)
+
+	section(moreList, "Codes", THEME.Gold, 20)
+	local codeRow = create("Frame", { Size = UDim2.new(1, 0, 0, 66), BackgroundColor3 = THEME.Row, LayoutOrder = 21, Parent = moreList }, { corner(12), edge(0.88) })
+	local codeBox = create("TextBox", {
+		Position = UDim2.fromOffset(12, 11),
+		Size = UDim2.new(1, -170, 0, 44),
+		BackgroundColor3 = THEME.Panel,
+		ClearTextOnFocus = false,
+		PlaceholderText = "Enter code (try RAINBOW)",
+		PlaceholderColor3 = THEME.Muted,
+		Text = "",
+		TextColor3 = THEME.Text,
+		Font = BODY_HEAVY,
+		TextSize = 19,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ClipsDescendants = true,
+		Parent = codeRow,
+	}, { corner(10), create("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }) })
+	local redeem = rowButton(codeRow, THEME.Gold)
+	redeem.Text = "REDEEM"
+	local function submitCode()
+		local code = codeBox.Text
+		if code:match("%S") then
+			remotes.RedeemCode:FireServer(code:sub(1, 30))
+			codeBox.Text = ""
+		end
+	end
+	redeem.Activated:Connect(submitCode)
+	codeBox.FocusLost:Connect(function(enterPressed)
+		if enterPressed then
+			submitCode()
+		end
+	end)
+
+	section(moreList, "Emotes (R15 avatars)", THEME.Purple, 30)
+	local emoteGrid = create("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 31, Parent = moreList }, {
+		create("UIGridLayout", { CellSize = UDim2.fromOffset(112, 50), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
+	})
+	for i, emote in Config.Emotes do
+		local emoteButton = button({ Text = `{emote.Icon} {emote.Name}`, TextSize = 17, LayoutOrder = i, Parent = emoteGrid }, THEME.Purple)
+		emoteButton.Activated:Connect(function()
+			local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+			if not humanoid or humanoid.Health <= 0 then
+				return
+			end
+			local ok, played = pcall(humanoid.PlayEmote, humanoid, emote.Id)
+			if ok and played then
+				more.Visible = false
+			else
+				UI.Toast("Emotes need an R15 avatar standing on the ground.", THEME.Red)
+			end
+		end)
+	end
+
+	section(moreList, "Your Stats", THEME.Blue, 40)
+	local statRows = {}
+	local STATS = {
+		{ Key = "Wins", Name = "Wins" },
+		{ Key = "BestStage", Name = "Best stage" },
+		{ Key = "BestTime", Name = "Fastest run (no skips)" },
+		{ Key = "Deaths", Name = "Respawns" },
+		{ Key = "PlayTime", Name = "Active play time" },
+		{ Key = "Gems", Name = "Rainbow gems found" },
+		{ Key = "CoinsEarned", Name = "Coins earned" },
+		{ Key = "Streak", Name = "Daily streak" },
+	}
+	for i, stat in STATS do
+		local frame = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = THEME.Row, LayoutOrder = 40 + i, Parent = moreList }, { corner(10) })
+		text({ Position = UDim2.fromOffset(14, 0), Size = UDim2.new(0.6, -14, 1, 0), Text = stat.Name, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = frame })
+		statRows[stat.Key] = text({ Position = UDim2.new(0.6, 0, 0, 0), Size = UDim2.new(0.4, -14, 1, 0), Text = "-", Font = BODY_HEAVY, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Right, Parent = frame })
+	end
+	UI.OnState(function(state)
+		local stats = state.Stats
+		statRows.Wins.Text = Format.Number(stats.Wins)
+		statRows.BestStage.Text = `{stats.BestStage} / {Config.StageCount}`
+		statRows.BestTime.Text = if stats.BestTime > 0 then Config.FormatRunTime(stats.BestTime) else "-"
+		statRows.Deaths.Text = Format.Number(stats.Deaths)
+		statRows.PlayTime.Text = string.format("%dh %02dm", stats.PlayTime // 3600, (stats.PlayTime % 3600) // 60)
+		statRows.Gems.Text = `{stats.Gems} / {#Config.Worlds}`
+		statRows.CoinsEarned.Text = Format.Number(stats.CoinsEarned)
+		statRows.Streak.Text = `{stats.Streak} day(s)`
+	end)
+	moreButton.Activated:Connect(function()
+		toggle(more)
+		if more.Visible then
+			remotes.Sync:FireServer() -- Statistik auffrischen
+		end
+	end)
+
+	---------------------------------------------------------------- Coins und Speedrun-Timer (oben rechts)
+	local topRight = create("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 8),
+		Size = UDim2.fromOffset(170, 80),
+		BackgroundTransparency = 1,
+		Parent = inner,
+	}, { create("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Right, SortOrder = Enum.SortOrder.LayoutOrder }) })
+	local function chip(order: number): (Frame, TextLabel)
+		local frame = create("Frame", {
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 34),
+			BackgroundColor3 = THEME.Panel,
+			BackgroundTransparency = 0.12,
+			LayoutOrder = order,
+			Parent = topRight,
+		}, { corner(17), edge(), create("UIPadding", { PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14) }) })
+		local label = text({ AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Text = "", Font = BODY_HEAVY, TextSize = 20, Parent = frame })
+		return frame, label
+	end
+	local _, coinLabel = chip(1)
+	coinLabel.TextColor3 = Color3.fromRGB(255, 215, 80)
+	local timerChip, timerLabel = chip(2)
+	timerChip.Visible = false
+	local function refreshCoins()
+		coinLabel.Text = "🪙 " .. Format.Number(player:GetAttribute("Coins") or 0)
+	end
+	refreshCoins()
+	player:GetAttributeChangedSignal("Coins"):Connect(refreshCoins)
+	task.spawn(function()
+		while gui.Parent do
+			local started = player:GetAttribute("RunStart")
+			local show = typeof(started) == "number" and UI.GetSetting("Timer")
+			timerChip.Visible = show
+			if typeof(started) == "number" and show then
+				timerLabel.Text = "⏱ " .. Config.FormatRunTime(workspace:GetServerTimeNow() - started)
+			end
+			task.wait(0.1)
+		end
+	end)
+
+	remotes.Sync.OnClientEvent:Connect(function(state)
+		if typeof(state) ~= "table" then
+			return
+		end
+		UI.State = state
+		emitState()
+	end)
+	remotes.Sync:FireServer()
+
 
 	remotes.Notify.OnClientEvent:Connect(UI.Toast)
 	remotes.Announce.OnClientEvent:Connect(showAnnouncement)

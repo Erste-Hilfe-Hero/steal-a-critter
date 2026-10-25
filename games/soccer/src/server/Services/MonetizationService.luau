@@ -191,7 +191,9 @@ local function grantProduct(player: Player, key: string): boolean
 		services.Net.SendAnnounce(`{player.DisplayName} activated {string.upper(product.Name)}!`, if product.Kind == "Rage" then C.Red else C.Cyan)
 		return true
 	elseif product.Kind == "RocketShot" then
-		player:SetAttribute("RocketShots", (player:GetAttribute("RocketShots") or 0) + product.Shots)
+		-- gespeichert, damit gekaufte Schuesse ein Verlassen ueberleben
+		data.RocketShots = (data.RocketShots or 0) + product.Shots
+		player:SetAttribute("RocketShots", data.RocketShots)
 		services.Net.SendNotify(player, `ROCKET SHOT x{product.Shots}! Your next kicks are 60% harder`, C.Orange)
 		return true
 	elseif product.Kind == "TeamBoost" then

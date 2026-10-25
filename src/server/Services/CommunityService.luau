@@ -377,10 +377,22 @@ refreshNameplate = function(player: Player)
 	end
 	local rank = player:GetAttribute("Rank") or "Newbie"
 	local vip = player:GetAttribute("Pass_VIP") == true
+	-- Gewaehlter Titel (Update 4, ExtraService) steht mit in der Rang-Zeile
+	local title = player:GetAttribute("Title")
 	local rankLabel = gui:FindFirstChild("RankLine") :: TextLabel
 	local nameLabel = gui:FindFirstChild("NameLine") :: TextLabel
-	rankLabel.Text = (RANK_ICONS[rank] or "") .. rank:upper() .. (if vip then "  ·  VIP" else "")
-	rankLabel.Visible = rank ~= "Newbie" or vip
+	local parts = {}
+	if rank ~= "Newbie" then
+		table.insert(parts, (RANK_ICONS[rank] or "") .. rank:upper())
+	end
+	if type(title) == "string" and title ~= "" then
+		table.insert(parts, `"{title:upper()}"`)
+	end
+	if vip then
+		table.insert(parts, "VIP")
+	end
+	rankLabel.Text = table.concat(parts, "  ·  ")
+	rankLabel.Visible = #parts > 0
 	nameLabel.Text = player.DisplayName
 	for _, child in rankLabel:GetChildren() do
 		if child:IsA("UIGradient") then
@@ -469,6 +481,9 @@ function CommunityService:OnPlayerReady(player: Player)
 	end)
 	updateRankAttributes(player)
 	player:GetAttributeChangedSignal("Pass_VIP"):Connect(function()
+		refreshNameplate(player)
+	end)
+	player:GetAttributeChangedSignal("Title"):Connect(function()
 		refreshNameplate(player)
 	end)
 	refreshNameplate(player)

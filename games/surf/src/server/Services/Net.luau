@@ -24,6 +24,10 @@ Net.Purchase = remote("Purchase") -- Client -> Server ("Pass"/"Product", Key): K
 Net.WatchAd = remote("WatchAd") -- Client -> Server
 Net.ClaimDaily = remote("ClaimDaily") -- Client -> Server
 Net.ClientLog = remote("ClientLog") -- Client -> Server (Fehler und Zustand fuer die Fehlersuche)
+-- Update 2
+Net.Progress = remote("Progress") -- Client -> Server ("Title", Id) / ("Claim", QuestId) / ("Code", Text) / ("Spin") / ("Settings", Tabelle)
+Net.ProgressSync = remote("ProgressSync") -- Server -> ein Spieler (Erfolge, Aufgaben, Medaillen, Statistik, Einstellungen)
+Net.Reward = remote("Reward") -- Server -> ein Spieler ("Achievement", Id) / ("Spin", Index, Text)
 
 folder.Parent = ReplicatedStorage
 

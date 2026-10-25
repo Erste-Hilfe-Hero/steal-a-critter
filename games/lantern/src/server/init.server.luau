@@ -13,6 +13,7 @@ local Services = {
 	MonetizationService = require(script.Services.MonetizationService),
 	RewardService = require(script.Services.RewardService),
 	CommunityService = require(script.Services.CommunityService),
+	ProgressService = require(script.Services.ProgressService),
 }
 
 local ORDER = {
@@ -26,6 +27,7 @@ local ORDER = {
 	"MonetizationService",
 	"RewardService",
 	"CommunityService",
+	"ProgressService",
 }
 
 for _, name in ORDER do
@@ -41,6 +43,7 @@ end
 local function onCharacterAdded(player: Player, character: Model)
 	task.spawn(Services.CommunityService.AttachNameplate, Services.CommunityService, player, character)
 	task.spawn(Services.DungeonService.OnCharacterAdded, Services.DungeonService, player, character)
+	task.spawn(Services.ProgressService.OnCharacterAdded, Services.ProgressService, player, character)
 	Services.HeroService:OnCharacterAdded(player, character)
 end
 
@@ -63,6 +66,7 @@ local function onPlayerAdded(player: Player)
 	Services.RewardService:OnPlayerReady(player)
 	Services.MonetizationService:OnPlayerReady(player)
 	Services.CommunityService:OnPlayerReady(player)
+	Services.ProgressService:OnPlayerReady(player)
 	player:LoadCharacter()
 end
 
@@ -71,13 +75,15 @@ for _, player in Players:GetPlayers() do
 	task.spawn(onPlayerAdded, player)
 end
 
+-- Jeder Schritt einzeln geschuetzt: ein Fehler darf das Speichern am Ende nie verhindern
+local LEAVE_ORDER = { "CommunityService", "DungeonService", "CombatService", "LootService", "MonetizationService", "RewardService", "ProgressService", "HeroService" }
+
 Players.PlayerRemoving:Connect(function(player)
-	Services.CommunityService:OnPlayerRemoving(player)
-	Services.DungeonService:OnPlayerRemoving(player)
-	Services.CombatService:OnPlayerRemoving(player)
-	Services.LootService:OnPlayerRemoving(player)
-	Services.MonetizationService:OnPlayerRemoving(player)
-	Services.RewardService:OnPlayerRemoving(player)
-	Services.HeroService:OnPlayerRemoving(player)
+	for _, name in LEAVE_ORDER do
+		local ok, err = pcall(Services[name].OnPlayerRemoving, Services[name], player)
+		if not ok then
+			warn(`[Server] {name}.OnPlayerRemoving:`, err)
+		end
+	end
 	Services.DataService:Release(player)
 end)

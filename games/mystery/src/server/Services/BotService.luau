@@ -321,11 +321,11 @@ local function think(bot)
 	end
 	-- Fallengelassenen Blaster holen
 	if actor.Role == "Innocent" then
-		local gun = services.CombatService:GetDroppedGun()
+		local gun = services.CombatService:GetDroppedGun(pos)
 		if gun and (gun:GetPivot().Position - pos).Magnitude < 60 then
 			moveTo(bot, gun:GetPivot().Position)
 			if (gun:GetPivot().Position - pos).Magnitude < 5 then
-				services.CombatService:TryPickup(actor)
+				services.CombatService:TryPickup(actor, gun)
 			end
 			return
 		end

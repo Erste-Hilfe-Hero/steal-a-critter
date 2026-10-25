@@ -14,6 +14,8 @@ Config.ExtraEquipAmount = 3
 Config.MaxStorage = 75
 Config.GoldenCraftAmount = 5 -- 5 gleiche Haustiere -> 1 goldenes
 Config.GoldenMultiplier = 3
+Config.RainbowCraftAmount = 5 -- 5 gleiche goldene Haustiere -> 1 Regenbogen-Haustier
+Config.RainbowMultiplier = 2 -- zusaetzlich zur goldenen Staerke (also 6x)
 Config.DamageTick = 0.25 -- Sekunden
 Config.AutoTargetRange = 28 -- Haustiere greifen automatisch Sachen in der Naehe an
 Config.TapRange = 90
@@ -157,6 +159,109 @@ Config.DevProducts = {
 
 -- Taegliches Geschenk: Muenzen fuer so viele Eier der besten Zone
 Config.DailyEggs = 2
+-- Serie: jeder Tag in Folge gibt +50 % mehr (bis Tag 7), Tag 7 schenkt zusaetzlich einen Boost
+Config.StreakMax = 7
+Config.StreakBonusPer = 0.5
+Config.StreakDay7BoostSeconds = 900
+
+function Config.DailyGiftEggs(streak: number): number
+	local day = math.clamp(streak, 1, Config.StreakMax)
+	return Config.DailyEggs * (1 + (day - 1) * Config.StreakBonusPer)
+end
+
+-- Antippen: jeder Tipp auf eine Sache macht Extra-Schaden (Anteil der eigenen Staerke)
+Config.TapDamageShare = 0.3
+Config.TapCooldown = 0.15
+
+-- Happy Hour: in allen Servern gleichzeitig alle 20 Minuten 3 Minuten doppelte Muenzen
+Config.HappyHourEvery = 20 * 60
+Config.HappyHourLength = 3 * 60
+Config.HappyHourMultiplier = 2
+
+-- Sekunden bis zur naechsten Happy Hour bzw. Restzeit der laufenden (rein rechnerisch, fuer Server und Client)
+function Config.HappyHourState(now: number): (boolean, number)
+	local phase = now % Config.HappyHourEvery
+	if phase < Config.HappyHourLength then
+		return true, Config.HappyHourLength - phase
+	end
+	return false, Config.HappyHourEvery - phase
+end
+
+-- Sammel-Index: jedes komplett entdeckte Ei gibt dauerhaft +5 % Muenzen
+Config.IndexBonusPerEgg = 0.05
+
+-- Tagesaufgaben: jeden Tag 3 verschiedene aus diesem Pool. Belohnung = Muenzen fuer N Eier der besten Zone.
+Config.QuestPool = {
+	{ Id = "break40", Kind = "Break", Goal = 40, Text = "Break 40 things", Eggs = 2 },
+	{ Id = "break120", Kind = "Break", Goal = 120, Text = "Break 120 things", Eggs = 4 },
+	{ Id = "chest10", Kind = "Chest", Goal = 10, Text = "Break 10 chests or vaults", Eggs = 3 },
+	{ Id = "hatch5", Kind = "Hatch", Goal = 5, Text = "Hatch 5 eggs", Eggs = 2 },
+	{ Id = "hatch20", Kind = "Hatch", Goal = 20, Text = "Hatch 20 eggs", Eggs = 5 },
+	{ Id = "play10", Kind = "Play", Goal = 10, Text = "Play 10 minutes", Eggs = 2 },
+	{ Id = "tap60", Kind = "Tap", Goal = 60, Text = "Tap coin piles or chests 60 times", Eggs = 2 },
+	{ Id = "gift2", Kind = "Gift", Goal = 2, Text = "Open 2 playtime gifts", Eggs = 2 },
+}
+Config.QuestsPerDay = 3
+
+-- Waehlt fuer Tag und Spieler immer dieselben 3 Aufgaben (verschiedene Arten)
+function Config.QuestsForDay(day: number, userId: number): { string }
+	local rng = Random.new(day * 7919 + userId % 100_000)
+	local pool = table.clone(Config.QuestPool)
+	local picked, kinds = {}, {}
+	while #picked < Config.QuestsPerDay and #pool > 0 do
+		local entry = table.remove(pool, rng:NextInteger(1, #pool))
+		if not kinds[entry.Kind] then
+			kinds[entry.Kind] = true
+			table.insert(picked, entry.Id)
+		end
+	end
+	return picked
+end
+
+-- Erfolge: werden automatisch vergeben, bringen Muenzen und einen Titel fuer das Namensschild.
+-- Stat = Zaehler in den Spielerdaten (siehe ProgressService)
+Config.Achievements = {
+	{ Id = "hatch1", Title = "Hatchling", Text = "Hatch your first egg", Stat = "Hatched", Goal = 1, Eggs = 1 },
+	{ Id = "hatch100", Title = "Egg Cracker", Text = "Hatch 100 eggs", Stat = "Hatched", Goal = 100, Eggs = 5 },
+	{ Id = "hatch1000", Title = "Egg Master", Text = "Hatch 1,000 eggs", Stat = "Hatched", Goal = 1000, Eggs = 20 },
+	{ Id = "break500", Title = "Smasher", Text = "Break 500 things", Stat = "Broken", Goal = 500, Eggs = 5 },
+	{ Id = "break5000", Title = "Destroyer", Text = "Break 5,000 things", Stat = "Broken", Goal = 5000, Eggs = 20 },
+	{ Id = "golden1", Title = "Gold Digger", Text = "Craft a golden pet", Stat = "GoldenMade", Goal = 1, Eggs = 5 },
+	{ Id = "rainbow1", Title = "Rainbow Maker", Text = "Craft a rainbow pet", Stat = "RainbowMade", Goal = 1, Eggs = 10 },
+	{ Id = "zone3", Title = "Explorer", Text = "Unlock Frosty Peaks", Stat = "BestZone", Goal = 3, Eggs = 3 },
+	{ Id = "zone6", Title = "Star Traveler", Text = "Unlock Star Station", Stat = "BestZone", Goal = 6, Eggs = 10 },
+	{ Id = "rebirth1", Title = "Reborn", Text = "Rebirth once", Stat = "Rebirths", Goal = 1, Eggs = 10 },
+	{ Id = "index15", Title = "Collector", Text = "Discover 15 different pets", Stat = "Discovered", Goal = 15, Eggs = 10 },
+	{ Id = "streak7", Title = "Loyal Friend", Text = "Reach a 7 day gift streak", Stat = "Streak", Goal = 7, Eggs = 10 },
+}
+
+-- Geschenke fuer Spielzeit in dieser Sitzung (Minuten seit dem Beitreten)
+Config.PlaytimeRewards = {
+	{ Minutes = 5, Eggs = 1 },
+	{ Minutes = 10, Eggs = 2 },
+	{ Minutes = 15, BoostSeconds = 300 },
+	{ Minutes = 25, Eggs = 4 },
+	{ Minutes = 40, Eggs = 6 },
+	{ Minutes = 60, BoostSeconds = 900 },
+}
+
+-- Codes (Gross-/Kleinschreibung egal). Jeder Code einmal pro Spieler.
+Config.Codes = {
+	RELEASE = { Eggs = 3 },
+	HATCHTIME = { Eggs = 5 },
+	SPEEDY = { BoostSeconds = 600 },
+}
+
+-- Einstellungen, die der Spieler umschalten kann (Standardwerte)
+Config.Settings = {
+	Sound = true,
+	OtherPets = true,
+	CoinPops = true,
+	Guide = true,
+}
+
+-- Schnellreise zwischen freigeschalteten Zonen
+Config.TeleportCooldown = 3
 
 -- Community-Raenge: nur aktive Spielzeit zaehlt (wer 2 Minuten nichts tut, gilt als AFK).
 -- Rechte bauen aufeinander auf: jeder Rang hat auch alle Rechte der Raenge darunter.
@@ -199,6 +304,16 @@ for index, rarity in Config.Rarities do
 	Config.RaritiesByName[rarity.Name] = rarity
 end
 
+Config.AchievementsById = {}
+for _, achievement in Config.Achievements do
+	Config.AchievementsById[achievement.Id] = achievement
+end
+
+Config.QuestsById = {}
+for _, quest in Config.QuestPool do
+	Config.QuestsById[quest.Id] = quest
+end
+
 Config.EggsById = {}
 Config.EggByZone = {}
 for _, egg in Config.Eggs do
@@ -211,12 +326,33 @@ for _, breakable in Config.Breakables do
 	Config.BreakablesById[breakable.Id] = breakable
 end
 
-function Config.PetPower(typeId: string, golden: boolean?): number
+function Config.PetPower(typeId: string, golden: boolean?, rainbow: boolean?): number
 	local def = Config.PetsById[typeId]
 	if not def then
 		return 0
 	end
+	if rainbow then
+		return def.Power * Config.GoldenMultiplier * Config.RainbowMultiplier
+	end
 	return def.Power * (if golden then Config.GoldenMultiplier else 1)
+end
+
+-- Wie viele Eier sind komplett entdeckt? discovered = { [typeId] = true }
+function Config.CompletedEggs(discovered): number
+	local count = 0
+	for _, egg in Config.Eggs do
+		local complete = true
+		for _, entry in egg.Pets do
+			if not discovered[entry.Pet] then
+				complete = false
+				break
+			end
+		end
+		if complete then
+			count += 1
+		end
+	end
+	return count
 end
 
 -- Chancen eines Eis mit Glueck: Gewichte ab "Rare" werden multipliziert, danach auf 100 % normiert

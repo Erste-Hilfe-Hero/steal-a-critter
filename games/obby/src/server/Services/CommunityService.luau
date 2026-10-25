@@ -108,11 +108,11 @@ local function updateRankAttributes(player: Player)
 	end
 end
 
-local function findPlayer(query: string?): Player?
-	if not query or query == "" then
+local function findPlayer(raw: string?): Player?
+	if not raw or raw == "" then
 		return nil
 	end
-	query = query:lower()
+	local query: string = (raw :: string):lower()
 	for _, player in Players:GetPlayers() do
 		if player.Name:lower() == query or player.DisplayName:lower() == query then
 			return player
@@ -128,10 +128,14 @@ end
 
 ---------------------------------------------------------------- Abstimmung
 
-local function finishVote()
-	local vote = activeVote
+-- vote = die Abstimmung, zu der dieser Timer gehoert. Laeuft inzwischen eine andere
+-- (weil das Ziel gegangen ist und neu abgestimmt wird), darf der alte Timer sie nicht beenden.
+local function finishVote(vote)
+	if not vote or activeVote ~= vote then
+		return
+	end
 	activeVote = nil
-	if not vote or not vote.Target.Parent then
+	if not vote.Target.Parent then
 		return
 	end
 	local voters = 0
@@ -196,9 +200,10 @@ commands.votekick = function(player: Player, args: string)
 		notify(player, "You can only vote out players with a lower rank.", RED)
 		return
 	end
-	activeVote = { Target = target, StartedBy = player, Voters = { [player.UserId] = true }, EndsAt = os.clock() + Config.VoteKickDuration }
+	local vote = { Target = target, StartedBy = player, Voters = { [player.UserId] = true }, EndsAt = os.clock() + Config.VoteKickDuration }
+	activeVote = vote
 	CommunityService.Services.Net.SendAnnounce(`{player.DisplayName} started a vote to remove {target.DisplayName}. Type /yes to agree ({Config.VoteKickDuration}s).`, GOLD)
-	task.delay(Config.VoteKickDuration, finishVote)
+	task.delay(Config.VoteKickDuration, finishVote, vote)
 end
 
 commands.announce = function(player: Player, args: string)

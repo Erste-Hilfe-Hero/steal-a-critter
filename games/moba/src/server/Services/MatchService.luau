@@ -234,6 +234,7 @@ function MatchService:CreatePlayerHero(player: Player, team: number, inherit)
 		Spells = spellsFor(player, role),
 		Skin = data and data.Skin or "Default",
 		AutoBuy = if data then data.AutoBuy else true,
+		Title = self.Services.ProgressService:TitleText(data),
 	})
 	if inherit then
 		self:Inherit(hero, inherit)
@@ -367,18 +368,48 @@ function MatchService:EndMatch(winner: number)
 			hero.Humanoid.WalkSpeed = 0
 		end
 	end
+	-- MVP pro Team (auch Bots koennen MVP werden)
+	local mvps = self:PickMVPs()
+	for team = 1, 2 do
+		local best = mvps[team]
+		state:SetAttribute("MVP" .. team, if best then `{best.Name}` else "")
+	end
+	local star = mvps[winner]
+	if star then
+		task.delay(2.5, function()
+			local def = Config.HeroesById[star.HeroId]
+			self.Services.Net.SendAnnounce(`⭐ MVP: {star.Name}{if def then " (" .. def.Name .. ")" else ""}`, Config.Teams[winner].Color)
+		end)
+	end
 	for player in self.Participants do
 		if player.Parent then
 			local hero = heroes:GetByPlayer(player)
 			if hero then
-				self:Reward(player, hero, hero.Team == winner)
+				self:Reward(player, hero, hero.Team == winner, mvps[hero.Team] == hero, if star then star.Name else "")
 			end
 		end
 	end
 end
 
-function MatchService:Reward(player: Player, hero, won: boolean)
+-- Wertung fuer den besten Spieler eines Teams
+local function mvpScore(hero): number
+	return hero.Kills * 3 + hero.Assists * 2 - hero.Deaths + (hero.CreepScore or 0) / 20 + (hero.TowerTakedowns or 0) * 2 + (hero.EpicTakedowns or 0) * 2
+end
+
+function MatchService:PickMVPs(): { [number]: any }
+	local best, bestScore = {}, {}
+	for _, hero in self.Services.HeroService.Heroes do
+		local score = mvpScore(hero)
+		if not best[hero.Team] or score > bestScore[hero.Team] then
+			best[hero.Team], bestScore[hero.Team] = hero, score
+		end
+	end
+	return best
+end
+
+function MatchService:Reward(player: Player, hero, won: boolean, mvp: boolean?, mvpName: string?)
 	local dataService = self.Services.DataService
+	local progress = self.Services.ProgressService
 	local data = dataService:Get(player)
 	if not data then
 		return
@@ -388,6 +419,8 @@ function MatchService:Reward(player: Player, hero, won: boolean)
 	local bonus = math.min(rewards.MaxKillBonus, hero.Kills * rewards.PerKill + hero.Assists * rewards.PerAssist)
 	local today = dataService.Today()
 	local firstWin = won and data.LastWinDay < today
+	local streakBonus = progress:UpdateStreak(data, won)
+	local mvpBonus = if mvp then Config.MVPBonus else 0
 	local multiplier = 1
 	if data.Passes.Pass_VIP then
 		multiplier *= 1.5
@@ -395,7 +428,7 @@ function MatchService:Reward(player: Player, hero, won: boolean)
 	if data.Passes.Pass_DoubleCrystals then
 		multiplier *= 2
 	end
-	local total = math.floor((base + bonus + (if firstWin then rewards.FirstWinBonus else 0)) * multiplier)
+	local total = math.floor((base + bonus + (if firstWin then rewards.FirstWinBonus else 0) + streakBonus + mvpBonus) * multiplier)
 	data.Matches += 1
 	data.Kills += hero.Kills
 	data.Deaths += hero.Deaths
@@ -404,7 +437,10 @@ function MatchService:Reward(player: Player, hero, won: boolean)
 		data.Wins += 1
 		data.LastWinDay = today
 	end
+	local minutes = math.floor(self:Elapsed() / 60)
+	local progressInfo = progress:AfterMatch(player, data, hero, won, mvp == true, minutes)
 	dataService:AddCrystals(player, total)
+	progress:PostWins(player, data)
 	self.Services.Net.MatchResult:FireClient(player, {
 		Won = won,
 		Crystals = total,
@@ -418,7 +454,13 @@ function MatchService:Reward(player: Player, hero, won: boolean)
 		CS = hero.CreepScore,
 		HeroId = hero.HeroId,
 		Level = hero.Level,
-		Minutes = math.floor(self:Elapsed() / 60),
+		Minutes = minutes,
+		Streak = data.WinStreak,
+		StreakBonus = streakBonus,
+		MVP = mvp == true,
+		MVPBonus = mvpBonus,
+		MVPName = mvpName or "",
+		Progress = progressInfo,
 	})
 	task.spawn(dataService.Save, dataService, player)
 	self.Services.MonetizationService:AfterMatch(player, won)
@@ -519,6 +561,8 @@ function MatchService:Reset()
 	self.Participants = {}
 	self.Votes = {}
 	self.VoteCooldown = {}
+	state:SetAttribute("MVP1", "")
+	state:SetAttribute("MVP2", "")
 	self:Publish()
 	for _, player in Players:GetPlayers() do
 		player:SetAttribute("Hero", nil)

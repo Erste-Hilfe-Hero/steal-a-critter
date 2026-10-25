@@ -288,7 +288,11 @@ local function buildTown()
 		sign.Name = "Sign"
 		local level = label(gate, `LEVEL {dungeon.Level}+`, dungeon.Accent, UDim2.fromOffset(180, 30), Vector3.new(0, 10, 0))
 		level.Name = "LevelSign"
-		WorldService.Portals[index] = { Pad = pad, Position = pad.Position, Model = portal }
+		-- Dungeon des Tages: Schild wird vom ProgressService eingeschaltet
+		local featuredSign = label(gate, "FEATURED: +50% GOLD & XP", Color3.fromRGB(255, 220, 90), UDim2.fromOffset(260, 30), Vector3.new(0, 15, 0))
+		featuredSign.Name = "FeaturedSign"
+		featuredSign.Enabled = false
+		WorldService.Portals[index] = { Pad = pad, Position = pad.Position, Model = portal, Featured = featuredSign }
 	end
 
 	-- Klassenschrein im Westen
@@ -352,6 +356,12 @@ local function buildTown()
 	-- Unsichtbare Grenze
 	for _, wall in { { 0, 300, 640, 2 }, { 0, -300, 640, 2 }, { 300, 0, 2, 640 }, { -300, 0, 2, 640 } } do
 		part({ Name = "Boundary", Size = Vector3.new(wall[3], 60, wall[4]), Position = Vector3.new(wall[1], 30, wall[2]), Transparency = 1 })
+	end
+end
+
+function WorldService:SetFeatured(index: number)
+	for i, portal in self.Portals do
+		portal.Featured.Enabled = i == index
 	end
 end
 

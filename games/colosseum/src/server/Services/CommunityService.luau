@@ -133,10 +133,13 @@ end
 
 ---------------------------------------------------------------- Abstimmung
 
-local function finishVote()
-	local vote = activeVote
+local function finishVote(vote)
+	-- Nur die eigene Abstimmung beenden (eine neuere darf nicht zu frueh enden)
+	if not vote or activeVote ~= vote then
+		return
+	end
 	activeVote = nil
-	if not vote or not vote.Target.Parent then
+	if not vote.Target.Parent then
 		return
 	end
 	local voters = 0
@@ -201,9 +204,10 @@ commands.votekick = function(player: Player, args: string)
 		notify(player, "You can only vote out players with a lower rank.", RED)
 		return
 	end
-	activeVote = { Target = target, StartedBy = player, Voters = { [player.UserId] = true }, EndsAt = os.clock() + Config.VoteKickDuration }
+	local vote = { Target = target, StartedBy = player, Voters = { [player.UserId] = true }, EndsAt = os.clock() + Config.VoteKickDuration }
+	activeVote = vote
 	CommunityService.Services.Net.SendAnnounce(`{player.DisplayName} started a vote to remove {target.DisplayName}. Type /yes to agree ({Config.VoteKickDuration}s).`, GOLD)
-	task.delay(Config.VoteKickDuration, finishVote)
+	task.delay(Config.VoteKickDuration, finishVote, vote)
 end
 
 commands.announce = function(player: Player, args: string)
@@ -376,10 +380,13 @@ refreshNameplate = function(player: Player)
 	end
 	local rank = player:GetAttribute("Rank") or "Newbie"
 	local vip = player:GetAttribute("Pass_VIP") == true
+	local title = player:GetAttribute("Title")
+	local hasTitle = typeof(title) == "string" and title ~= ""
 	local rankLabel = gui:FindFirstChild("RankLine") :: TextLabel
 	local nameLabel = gui:FindFirstChild("NameLine") :: TextLabel
-	rankLabel.Text = (RANK_ICONS[rank] or "") .. rank:upper() .. (if vip then "  ·  VIP" else "")
-	rankLabel.Visible = rank ~= "Newbie" or vip
+	-- Gewaehlter Titel aus den Erfolgen steht hinter dem Rang
+	rankLabel.Text = (RANK_ICONS[rank] or "") .. rank:upper() .. (if vip then "  ·  VIP" else "") .. (if hasTitle then `  ·  {title}` else "")
+	rankLabel.Visible = rank ~= "Newbie" or vip or hasTitle
 	nameLabel.Text = player.DisplayName
 	for _, child in rankLabel:GetChildren() do
 		if child:IsA("UIGradient") then
@@ -447,6 +454,9 @@ function CommunityService:OnPlayerReady(player: Player)
 	end)
 	updateRankAttributes(player)
 	player:GetAttributeChangedSignal("Pass_VIP"):Connect(function()
+		refreshNameplate(player)
+	end)
+	player:GetAttributeChangedSignal("Title"):Connect(function()
 		refreshNameplate(player)
 	end)
 	refreshNameplate(player)

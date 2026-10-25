@@ -82,6 +82,7 @@ function InventoryService:OpenCrate(player: Player, crateId: any)
 	end
 	self:Grant(player, pick.Kind, pick.Id, 1)
 	self.Services.ProgressService:Track(player, "Crate", 1)
+	self.Services.ProgressService:AddStat(player, "CratesOpened", 1)
 	local item = Config.GetItem(pick.Kind, pick.Id)
 	if item and (item.Rarity == "Godly" or item.Rarity == "Legendary") then
 		self.Services.Net.SendAnnounce(`{player.DisplayName} unboxed {string.upper(item.Rarity)} {item.Name}!`, Config.Rarities[Config.RarityIndex[item.Rarity]].Color)

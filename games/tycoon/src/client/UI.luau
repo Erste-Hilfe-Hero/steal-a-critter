@@ -84,11 +84,14 @@ end
 local SOUNDS = {
 	Harvest = "rbxasset://sounds/electronicpingshort.wav",
 	Sell = "rbxasset://sounds/electronicpingshort.wav",
+	Click = "rbxasset://sounds/button.wav",
+	Reward = "rbxasset://sounds/victory.wav",
 }
 
 local function playSound(kind: string, pitch: number)
 	local id = SOUNDS[kind]
-	if not id then
+	-- Einstellung "Sound Effects" (SETTINGS)
+	if not id or player:GetAttribute("Set_Sfx") == false then
 		return
 	end
 	local sound = Instance.new("Sound")
@@ -135,7 +138,19 @@ end
 local toastContainer: Frame
 local announceLabel: TextLabel
 
+local MAX_TOASTS = 4
+
 local function showToast(text: string, color: Color3?)
+	-- Nicht mehr als 4 Meldungen gleichzeitig (sonst ueberlagern sie das HUD auf dem Handy)
+	local toasts = {}
+	for _, child in toastContainer:GetChildren() do
+		if child:IsA("TextLabel") then
+			table.insert(toasts, child)
+		end
+	end
+	for i = 1, #toasts - MAX_TOASTS + 1 do
+		toasts[i]:Destroy()
+	end
 	local toast = label({
 		Size = UDim2.new(1, 0, 0, 32),
 		Text = text,
@@ -146,7 +161,14 @@ local function showToast(text: string, color: Color3?)
 	})
 	corner(16).Parent = toast
 	task.delay(3.5, function()
-		TweenService:Create(toast, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+		if not toast.Parent then
+			return
+		end
+		TweenService:Create(toast, TweenInfo.new(0.4), { TextTransparency = 1, BackgroundTransparency = 1 }):Play()
+		local textStroke = toast:FindFirstChildOfClass("UIStroke")
+		if textStroke then
+			TweenService:Create(textStroke, TweenInfo.new(0.4), { Transparency = 1 }):Play()
+		end
 		task.wait(0.4)
 		toast:Destroy()
 	end)
@@ -238,7 +260,8 @@ local function buildStoreRow(parent: Instance, order: number, kind: string, key:
 	if productId ~= 0 then
 		task.spawn(function()
 			local ok, result = pcall(MarketplaceService.GetProductInfo, MarketplaceService, productId, Enum.InfoType.Product)
-			if ok and result and result.PriceInRobux then
+			-- Gekaufte Vorteile bleiben "OWNED" (die Preisabfrage kommt oft erst danach zurueck)
+			if ok and result and result.PriceInRobux and not (kind == "Pass" and player:GetAttribute("Pass_" .. key)) then
 				buy.Text = "R$ " .. result.PriceInRobux
 			end
 		end)
@@ -255,6 +278,11 @@ local function buildStoreRow(parent: Instance, order: number, kind: string, key:
 	end
 	buy.Activated:Connect(function()
 		if kind == "Pass" and player:GetAttribute("Pass_" .. key) then
+			return
+		end
+		-- Grow All ohne Pflanzen waere verschenktes Robux
+		if entry.Kind == "GrowAll" and (player:GetAttribute("PlantCount") or 0) == 0 then
+			showToast("Plant some seeds first, then make them ripe instantly!", Color3.fromRGB(255, 80, 80))
 			return
 		end
 		if productId ~= 0 then
@@ -290,7 +318,7 @@ function UI.Start()
 	local top = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 6),
-		Size = UDim2.fromOffset(440, 150),
+		Size = UDim2.fromOffset(440, 170),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, { create("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }) })
@@ -300,11 +328,15 @@ function UI.Start()
 	local lastCoins = 0
 	local bagLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", LayoutOrder = 2, Parent = top })
 	local eventLabel = label({ Size = UDim2.new(1, 0, 0, 24), Text = "", TextColor3 = Color3.fromRGB(140, 200, 255), LayoutOrder = 3, Parent = top })
-	local rankLabel = label({ Size = UDim2.new(1, 0, 0, 20), Text = "", TextColor3 = Color3.fromRGB(200, 200, 255), LayoutOrder = 4, Parent = top })
+	local rankLabel = label({ Size = UDim2.new(1, 0, 0, 20), Text = "", TextColor3 = Color3.fromRGB(200, 200, 255), LayoutOrder = 5, Parent = top })
+	-- Gaertner-Level mit XP-Balken
+	local levelBar = create("Frame", { Size = UDim2.new(0.62, 0, 0, 18), BackgroundColor3 = Color3.fromRGB(15, 25, 20), BackgroundTransparency = 0.3, LayoutOrder = 4, Parent = top }, { corner(9) })
+	local levelFill = create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(150, 110, 255), Parent = levelBar }, { corner(9) })
+	local levelText = label({ Size = UDim2.new(1, -8, 1, 0), Position = UDim2.fromOffset(4, 0), Text = "", ZIndex = 2, Parent = levelBar })
 
 	announceLabel = label({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 160),
+		Position = UDim2.new(0.5, 0, 0, 182),
 		Size = UDim2.new(0.75, 0, 0, 34),
 		Visible = false,
 		Parent = gui,
@@ -347,6 +379,16 @@ function UI.Start()
 		CanvasSize = UDim2.new(),
 		Parent = gui,
 	}, { create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }) })
+	-- Werkzeuge vorne in der Leiste: Schaufel (Pflanzen ausgraben) und "Alles bepflanzen"
+	local shovelSlot = button({ Size = UDim2.fromOffset(86, 64), Text = "SHOVEL", LayoutOrder = -2, Parent = hotbar }, Color3.fromRGB(150, 100, 60))
+	local shovelStroke = shovelSlot:FindFirstChildOfClass("UIStroke") :: UIStroke
+	shovelSlot.Activated:Connect(function()
+		remotes.SetTool:FireServer(if player:GetAttribute("Tool") == "Shovel" then nil else "Shovel")
+	end)
+	local plantAllSlot = button({ Size = UDim2.fromOffset(86, 64), Text = "PLANT ALL", LayoutOrder = -1, Parent = hotbar }, Color3.fromRGB(60, 170, 80))
+	plantAllSlot.Activated:Connect(function()
+		remotes.PlantAll:FireServer()
+	end)
 	local slotButtons = {}
 	for _, seed in Config.Seeds do
 		local slot = button({ Size = UDim2.fromOffset(86, 64), Text = "", LayoutOrder = seed.Index, Visible = false, Parent = hotbar }, Color3.fromRGB(45, 55, 60))
@@ -384,10 +426,10 @@ function UI.Start()
 		remotes.BuyUpgrade:FireServer("Tile")
 	end)
 	local upgradeRows = {}
-	local order = 2
-	for key, upgrade in Config.Upgrades do
-		local _, _, info, buy = makeRow(upgradeList, order, upgrade.Name)
-		order += 1
+	-- Feste Reihenfolge (ein Dictionary hat keine)
+	for i, item in sortedEntries(Config.Upgrades) do
+		local key, upgrade = item.Key, item.Entry
+		local _, _, info, buy = makeRow(upgradeList, 1 + i, upgrade.Name)
 		buy.Activated:Connect(function()
 			remotes.BuyUpgrade:FireServer(key)
 		end)
@@ -395,13 +437,26 @@ function UI.Start()
 	end
 	local _, _, rebirthInfo, rebirthBuy = makeRow(upgradeList, 10, "REBIRTH", Color3.fromRGB(200, 130, 255))
 	rebirthBuy.BackgroundColor3 = Color3.fromRGB(160, 80, 255)
+	-- Zweimal tippen: Rebirth setzt viel zurueck, ein versehentlicher Tipp auf dem Handy waere bitter
+	local rebirthConfirmUntil = 0
 	rebirthBuy.Activated:Connect(function()
-		remotes.RequestRebirth:FireServer()
+		local coins = player:GetAttribute("Coins") or 0
+		if coins < (player:GetAttribute("RebirthCost") or 0) then
+			remotes.RequestRebirth:FireServer() -- Server meldet, wie viel fehlt
+			return
+		end
+		if os.clock() < rebirthConfirmUntil then
+			rebirthConfirmUntil = 0
+			remotes.RequestRebirth:FireServer()
+		else
+			rebirthConfirmUntil = os.clock() + 4
+			showToast("Tap REBIRTH again to confirm. Your garden starts over!", Color3.fromRGB(200, 140, 255))
+		end
 	end)
 	label({
 		Size = UDim2.new(1, -10, 0, 40),
 		LayoutOrder = 11,
-		Text = "Rebirth resets coins, seeds, plants, tiles and upgrades but keeps a permanent fruit value bonus.",
+		Text = "Rebirth resets coins, seeds, plants, fruits, tiles and upgrades but keeps a permanent fruit value bonus, pets and designs.",
 		TextColor3 = Color3.fromRGB(190, 190, 200),
 		Parent = upgradeList,
 	})
@@ -440,7 +495,14 @@ function UI.Start()
 	end)
 
 	remotes.Notify.OnClientEvent:Connect(showToast)
-	remotes.Announce.OnClientEvent:Connect(showAnnouncement)
+	remotes.Announce.OnClientEvent:Connect(function(text: string, color: Color3?)
+		-- Einstellung "Big Announcements" aus: als kleine Meldung zeigen
+		if player:GetAttribute("Set_Announce") == false then
+			showToast(text, color)
+		else
+			showAnnouncement(text, color)
+		end
+	end)
 	remotes.Effect.OnClientEvent:Connect(function(kind: string, position: Vector3?, text: string, color: Color3)
 		if kind == "Harvest" and position then
 			floatText(position, text, color)
@@ -448,8 +510,29 @@ function UI.Start()
 		elseif kind == "Sell" then
 			playSound("Sell", 0.8)
 			showAnnouncement(text, color)
+		elseif kind == "LevelUp" then
+			playSound("Reward", 1.1)
+			showAnnouncement(text, color)
+		elseif kind == "Reward" then
+			playSound("Reward", 1)
 		end
 	end)
+
+	-- Neue Fenster (Aufgaben, Gluecksrad, Pets, Buch, Einstellungen) und Einfuehrung
+	local Extras = require(script.Parent.Extras)
+	Extras.Start(gui, {
+		create = create,
+		label = label,
+		button = button,
+		corner = corner,
+		makeWindow = makeWindow,
+		makeRow = makeRow,
+		toggle = toggle,
+		showToast = showToast,
+		playSound = playSound,
+		GREY = GREY,
+		ROW = ROW,
+	})
 
 	-- Anzeige laufend aktualisieren
 	task.spawn(function()
@@ -463,9 +546,16 @@ function UI.Start()
 			end
 			lastCoins = coins
 			local fruits = player:GetAttribute("FruitCount") or 0
+			local bagSize = player:GetAttribute("BackpackSize") or Config.BackpackSize
 			local bagValue = math.floor((player:GetAttribute("FruitValue") or 0) * multiplier)
-			bagLabel.Text = `Backpack {fruits}/{Config.BackpackSize}  ·  worth {Format.Cash(bagValue)}  ·  x{multiplier}`
-			bagLabel.TextColor3 = if fruits >= Config.BackpackSize then Color3.fromRGB(255, 90, 90) else Color3.new(1, 1, 1)
+			bagLabel.Text = `Backpack {fruits}/{bagSize}  ·  worth {Format.Cash(bagValue)}  ·  x{multiplier}`
+			bagLabel.TextColor3 = if fruits >= bagSize then Color3.fromRGB(255, 90, 90) else Color3.new(1, 1, 1)
+
+			local gardenLevel = player:GetAttribute("Level") or 1
+			local xp = player:GetAttribute("Xp") or 0
+			local xpNeed = math.max(1, player:GetAttribute("XpNeed") or 1)
+			levelText.Text = `Level {gardenLevel}  ·  {xp}/{xpNeed} XP`
+			levelFill.Size = UDim2.fromScale(math.clamp(xp / xpNeed, 0, 1), 1)
 
 			local now = workspace:GetServerTimeNow()
 			local events = {}
@@ -476,6 +566,13 @@ function UI.Start()
 			local goldenLeft = (workspace:GetAttribute("GoldenUntil") or 0) - now
 			if goldenLeft > 0 then
 				table.insert(events, `GOLDEN HOUR {Format.Time(goldenLeft)}`)
+			end
+			if workspace:GetAttribute("Night") then
+				table.insert(events, `NIGHT (Moonlit x3) {Format.Time((workspace:GetAttribute("NightChangeAt") or 0) - now)}`)
+			end
+			local boostLeft = (player:GetAttribute("BoostUntil") or 0) - os.time()
+			if boostLeft > 0 then
+				table.insert(events, `2x SELL {Format.Time(boostLeft)}`)
 			end
 			local friends = player:GetAttribute("Friends") or 0
 			if friends > 0 then
@@ -489,8 +586,12 @@ function UI.Start()
 				rankLabel.TextColor3 = Color3.fromHex(player:GetAttribute("RankColor"))
 			end
 
-			-- Samenleiste
-			local selected = player:GetAttribute("SelectedSeed")
+			-- Samenleiste (mit Schaufel ist kein Samen markiert)
+			local shovel = player:GetAttribute("Tool") == "Shovel"
+			local selected = if shovel then nil else player:GetAttribute("SelectedSeed")
+			shovelStroke.Color = if shovel then Color3.fromRGB(255, 230, 60) else Color3.new(0, 0, 0)
+			shovelStroke.Thickness = if shovel then 4 else 2
+			shovelSlot.Text = if shovel then "SHOVEL ON" else "SHOVEL"
 			for id, slot in slotButtons do
 				local count = player:GetAttribute("Seed_" .. id) or 0
 				slot.Button.Visible = count > 0
@@ -543,7 +644,7 @@ function UI.Start()
 			local rebirthCost = player:GetAttribute("RebirthCost") or 0
 			local current = 1 + rebirths * Config.RebirthMultiplierPer
 			rebirthInfo.Text = `Bonus x{current} -> x{current + Config.RebirthMultiplierPer}`
-			rebirthBuy.Text = Format.Cash(rebirthCost)
+			rebirthBuy.Text = if os.clock() < rebirthConfirmUntil then "CONFIRM?" else Format.Cash(rebirthCost)
 			rebirthBuy.BackgroundColor3 = if coins >= rebirthCost then Color3.fromRGB(160, 80, 255) else GREY
 			task.wait(0.25)
 		end

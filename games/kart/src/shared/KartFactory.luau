@@ -108,7 +108,7 @@ local function dummy(model: Model, root: BasePart, color: Color3)
 	end
 end
 
-export type BuildOptions = { Bot: boolean?, DriverColor: Color3? }
+export type BuildOptions = { Bot: boolean?, DriverColor: Color3?, Paint: string? }
 
 function KartFactory.Build(kartId: string, flameId: string?, options: BuildOptions?): Model
 	local kart = Config.KartsById[kartId] or Config.Karts[1]
@@ -130,6 +130,11 @@ function KartFactory.Build(kartId: string, flameId: string?, options: BuildOptio
 
 	local color, accent = kart.Color, kart.Accent
 	local style = kart.Style
+	-- Lackierung ueberschreibt die Werksfarben
+	local paint = opts.Paint and Config.PaintsById[opts.Paint]
+	if paint and paint.Color then
+		color, accent = paint.Color, paint.Accent
+	end
 
 	if style == "Buggy" then
 		part(model, root, { Name = "Floor", Size = Vector3.new(4.4, 0.5, 7), Color = accent, Offset = CFrame.new(0, -0.3, 0) })
@@ -222,6 +227,15 @@ function KartFactory.Build(kartId: string, flameId: string?, options: BuildOptio
 		attachment.Position = Vector3.new(x, -1.2, 3.4)
 		attachment.Parent = root
 		sparkEmitter(attachment)
+	end
+
+	if paint and paint.Metal then
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") and d.Color == color and d.Transparency < 1 then
+				d.Material = Enum.Material.Metal
+				d.Reflectance = 0.2
+			end
+		end
 	end
 
 	return model

@@ -53,6 +53,16 @@ local function defaultData()
 		LastActiveDay = 0,
 		RankRevoked = false, -- vom Owner entzogen: maximal Regular
 		RobuxSpent = 0,
+		-- Fortschritt neben der Geschichte (ProgressService)
+		Quests = { Day = 0, List = {}, Bonus = false }, -- Tagesaufgaben
+		QuestsDone = 0,
+		Achievements = {}, -- [ErfolgId] = true
+		Title = "", -- gewaehlter Titel (ErfolgId)
+		DexClaimed = {}, -- ["m10"] = true (Bestiarium-Belohnungen)
+		LastSpin = 0, -- os.time() des letzten Gluecksrads
+		Daycare = {}, -- { Uid = uid, Since = os.time() }
+		Favorites = {}, -- [uid] = true (geschuetzt vor dem Freilassen)
+		Settings = {}, -- [Name] = boolean
 	}
 end
 

@@ -45,6 +45,15 @@ local function grantPass(player: Player, key: string)
 	player:SetAttribute("Pass_" .. key, true)
 	MonetizationService:ApplyPassEffects(player)
 	MonetizationService.Services.Net.SendNotify(player, `Thanks! {Config.GamePasses[key].Name} unlocked forever!`, GOLD)
+	-- Pet aus dem Pass gleich ausruesten
+	local cosmetic = MonetizationService.Services.CosmeticService
+	if cosmetic then
+		for _, pet in Config.Pets do
+			if pet.Pass == key then
+				pcall(cosmetic.EquipPet, cosmetic, player, pet.Id)
+			end
+		end
+	end
 end
 
 function MonetizationService:LoadPasses(player: Player)
@@ -115,6 +124,11 @@ local function processReceipt(info)
 	end
 	local data = services.DataService:Get(player)
 	if not data then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	-- Daten konnten nicht geladen werden: nichts vergeben, was nicht gespeichert wird (Roblox fragt beim naechsten Beitritt erneut)
+	if not services.DataService:CanSave(player) then
+		services.Net.SendNotify(player, "Your purchase will be delivered when your data is available. Please rejoin.", GOLD)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 	if services.DataService:HasReceipt(player, info.PurchaseId) then

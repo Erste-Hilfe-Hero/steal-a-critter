@@ -14,5 +14,6 @@
   {"key": "BossBlessing", "name": "Boss Blessing", "description": "The next boss drops a Legendary for everyone in your party", "price": 149},
   {"key": "StarterPack", "name": "Starter Pack", "description": "One time only: Epic Lantern weapon, 2,500 gold, 300 shards, 30 min 2x XP", "price": 79},
   {"key": "AdRevive", "name": "Free Revive (Video Ad)", "description": "Reward for watching a video ad: revive", "price": 5},
-  {"key": "AdGold", "name": "Free Gold (Video Ad)", "description": "Reward for watching a video ad: gold", "price": 5}
+  {"key": "AdGold", "name": "Free Gold (Video Ad)", "description": "Reward for watching a video ad: gold", "price": 5},
+  {"key": "RoyalAura", "name": "Royal Aura", "description": "An exclusive golden aura that sparkles around your hero", "price": 149}
 ]

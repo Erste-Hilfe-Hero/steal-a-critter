@@ -460,6 +460,12 @@ function LaneService:StructureGold(unit, killer)
 	if killer and killer.Kind == "Hero" and not table.find(near, killer) then
 		table.insert(near, killer)
 	end
+	-- Fuer Quests und Erfolge: wer bei einem Turm dabei war
+	if unit.Kind == "Tower" then
+		for _, hero in near do
+			hero.TowerTakedowns = (hero.TowerTakedowns or 0) + 1
+		end
+	end
 	if #near > 0 and (unit.Gold or 0) > 0 then
 		for _, hero in near do
 			heroes:GiveGold(hero, unit.Gold / #near, Combat.Position(unit))

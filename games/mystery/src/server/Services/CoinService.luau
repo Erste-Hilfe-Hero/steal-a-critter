@@ -39,6 +39,7 @@ function CoinService:Multiplier(player: Player): number
 	end
 	m *= 1 + math.min((friendCount[player] or 0) * CC.FriendBoost, CC.FriendBoostMax)
 	m *= self.Services.RoundService:CoinMultiplier()
+	m *= self.Services.RoundService:EventCoinMultiplier()
 	return m
 end
 
@@ -179,6 +180,10 @@ local function countFriends(player: Player)
 				count += 1
 			end
 		end
+	end
+	-- Spieler kann waehrend der Abfrage gegangen sein (sonst bliebe ein Eintrag fuer immer)
+	if not player.Parent then
+		return
 	end
 	friendCount[player] = count
 	player:SetAttribute("Friends", count)

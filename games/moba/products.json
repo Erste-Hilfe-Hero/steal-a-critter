@@ -10,6 +10,7 @@
   {"key": "Hero_Volt", "name": "Hero: Volt", "description": "Unlock Volt, the Storm Blade", "price": 149},
   {"key": "Hero_Varg", "name": "Hero: Varg", "description": "Unlock Varg, the Iron Wolf", "price": 149},
   {"key": "Hero_Gaff", "name": "Hero: Gaff", "description": "Unlock Gaff, the Lantern Warden", "price": 149},
+  {"key": "Hero_Ember", "name": "Hero: Ember", "description": "Unlock Ember, the Cinder Sage", "price": 149},
   {"key": "Skin_Inferno", "name": "Inferno Skin", "description": "Burning weapon and aura for all heroes", "price": 149},
   {"key": "Skin_Frost", "name": "Frost Crystal Skin", "description": "Icy weapon and aura for all heroes", "price": 149},
   {"key": "Skin_Gold", "name": "Royal Gold Skin", "description": "Shining gold weapon and aura for all heroes", "price": 249},

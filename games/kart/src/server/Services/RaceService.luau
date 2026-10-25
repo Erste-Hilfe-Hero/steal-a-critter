@@ -20,6 +20,7 @@ local RaceService = {
 	LastTrack = nil :: string?,
 	FirstFinish = nil :: number?,
 	Choices = {} :: { string },
+	Heartbeat = nil :: RBXScriptConnection?,
 }
 
 local FLAME = Color3.fromRGB(255, 110, 20)
@@ -143,7 +144,8 @@ local function hit(victim, attacker)
 		return
 	end
 	local t = now()
-	if victim.InfernoUntil > t then
+	-- Unverwundbar mit Inferno und waehrend man sich noch dreht (sonst trifft Inferno-Rammen 10x pro Sekunde)
+	if victim.InfernoUntil > t or victim.SpinUntil > t then
 		return
 	end
 	if victim.ShieldUntil > t then
@@ -160,6 +162,9 @@ local function hit(victim, attacker)
 	syncAttributes(victim)
 	if attacker and attacker ~= victim then
 		notify(attacker, `You blasted {victim.Name}!`, FLAME)
+		if attacker.Player then
+			RaceService.Services.ProgressService:Add(attacker.Player, "Hits", 1)
+		end
 	end
 end
 
@@ -229,6 +234,9 @@ local function useItem(racer)
 		racer.Item2 = nil
 	end
 	local t = now()
+	if racer.Player and not racer.SuperUse then
+		RaceService.Services.ProgressService:Add(racer.Player, "ItemsUsed", 1)
+	end
 	local pos, dir = position(racer), look(racer)
 	local flat = Vector3.new(dir.X, 0, dir.Z)
 	flat = if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
@@ -299,6 +307,9 @@ local function rollItem(racer): string
 end
 
 local function giveItem(racer)
+	if racer.Player then
+		RaceService.Services.ProgressService:Add(racer.Player, "Boxes", 1)
+	end
 	local canDouble = racer.Player and racer.Player:GetAttribute("Pass_DoubleItems")
 	if racer.Item == nil then
 		racer.Item = rollItem(racer)
@@ -341,7 +352,7 @@ local function newRacer(model: Model, name: string)
 	}
 end
 
-local function nameTag(model: Model, name: string, color: Color3, cpu: boolean)
+local function nameTag(model: Model, name: string, color: Color3, cpu: boolean, level: number?)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "NameTag"
 	gui.Size = UDim2.fromOffset(160, 30)
@@ -351,7 +362,7 @@ local function nameTag(model: Model, name: string, color: Color3, cpu: boolean)
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
 	t.Size = UDim2.fromScale(1, 1)
-	t.Text = if cpu then name .. "  CPU" else name
+	t.Text = if cpu then name .. "  CPU" elseif level then `LV {level}  {name}` else name
 	t.TextScaled = true
 	t.FontFace = Font.new("rbxasset://fonts/families/Sarpanch.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 	t.TextColor3 = color
@@ -374,13 +385,14 @@ local function spawnPlayer(player: Player, slot: number)
 	if not player:GetAttribute("Kart_" .. kartId) then
 		kartId = "Ember"
 	end
-	local model = KartFactory.Build(kartId, data.Flame)
+	local paintId = if data.Paints[data.Paint] then data.Paint else "Factory"
+	local model = KartFactory.Build(kartId, data.Flame, { Paint = paintId })
 	model.Name = player.Name
 	model:SetAttribute("Driver", player.UserId)
 	model:SetAttribute("RacerName", player.DisplayName)
 	model:PivotTo(services.TrackService:GridCFrame(slot))
 	model.Parent = kartsFolder
-	nameTag(model, player.DisplayName, if player:GetAttribute("Pass_VIP") then GOLD else Color3.new(1, 1, 1), false)
+	nameTag(model, player.DisplayName, if player:GetAttribute("Pass_VIP") then GOLD else Color3.new(1, 1, 1), false, player:GetAttribute("Level") :: number?)
 	local root = model.PrimaryPart :: BasePart
 	pcall(root.SetNetworkOwner, root, player)
 
@@ -442,6 +454,10 @@ local function spawnBot(slot: number, botIndex: number)
 end
 
 local function clearRace()
+	if RaceService.Heartbeat then
+		RaceService.Heartbeat:Disconnect()
+		RaceService.Heartbeat = nil
+	end
 	for _, racer in RaceService.Racers do
 		if racer.Player then
 			racer.Player:SetAttribute("Racing", nil)
@@ -466,6 +482,15 @@ local function updatePlayerProgress(racer, geo)
 	end
 	local idx = Tracks.Nearest(geo, root.Position, racer.Index, 15, 40)
 	local prev = racer.Index
+	-- Schutz gegen Teleportieren: vorwaerts nur so weit, wie ein Kart in der Zeit fahren kann (mit Reserve)
+	local clock = os.clock()
+	local elapsed = clock - (racer.ProgressAt or clock)
+	racer.ProgressAt = clock
+	local delta = (idx - prev + n / 2) % n - n / 2
+	local maxAhead = math.ceil(elapsed * 300 / (geo.Length / n)) + 3
+	if delta > maxAhead then
+		idx = prev
+	end
 	if prev > n * 0.75 and idx < n * 0.25 then
 		if racer.Halfway or racer.Lap == 0 then
 			racer.Lap += 1
@@ -624,6 +649,9 @@ local function updatePickups(current)
 			if coin.ReadyAt <= t and (coin.Position - rp).Magnitude < 5.5 then
 				coin.ReadyAt = t + 10
 				coin.Part.Transparency = 1
+				if racer.Player then
+					RaceService.Services.ProgressService:Add(racer.Player, "TrackCoins", 1)
+				end
 				if racer.RaceCoins < Config.MaxRaceCoins then
 					racer.RaceCoins += 1
 					syncAttributes(racer)
@@ -665,11 +693,16 @@ end
 
 local function updatePlaces(raceStart: number)
 	local list = table.clone(RaceService.Racers)
+	-- Rang: im Ziel (0) vor noch fahrend (1) vor ausgeschieden (2); sonst ist die Sortierung nicht eindeutig
+	local function rank(r): number
+		return if r.DNF then 2 elseif r.Finished then 0 else 1
+	end
 	table.sort(list, function(a, b)
-		if a.Finished ~= b.Finished then
-			return a.Finished and not a.DNF
+		local ra, rb = rank(a), rank(b)
+		if ra ~= rb then
+			return ra < rb
 		end
-		if a.Finished and b.Finished then
+		if ra == 0 then
 			return a.FinishTime < b.FinishTime
 		end
 		return a.Progress > b.Progress
@@ -825,7 +858,8 @@ function RaceService:StartRace(trackId: string)
 			hadHumans = true
 		end
 	end
-	local heartbeat = RunService.Heartbeat:Connect(function(dt)
+	local heartbeat
+	heartbeat = RunService.Heartbeat:Connect(function(dt)
 		local leaderHuman = nil
 		for _, racer in self.Racers do
 			if racer.Player and not racer.Finished then
@@ -863,6 +897,7 @@ function RaceService:StartRace(trackId: string)
 			updatePlaces(raceStart)
 		end
 	end)
+	self.Heartbeat = heartbeat
 
 	-- Ende: alle Menschen im Ziel, Zeitlimit oder Gnadenfrist nach dem Sieger
 	while true do
@@ -890,6 +925,7 @@ function RaceService:StartRace(trackId: string)
 		end
 	end
 	heartbeat:Disconnect()
+	self.Heartbeat = nil
 	updatePlaces(raceStart)
 	self:FinishRace(raceStart)
 end
@@ -929,7 +965,21 @@ function RaceService:FinishRace(raceStart: number)
 					data.Podiums += 1
 				end
 				services.DataService:UpdateAttributes(player)
-				services.Net.Results:FireClient(player, board, { Place = racer.Place, Coins = coins, Multiplier = services.MonetizationService:CoinMultiplier(player) })
+				local progressOk, extra = pcall(services.ProgressService.AfterRace, services.ProgressService, player, self.LastTrack, racer.Place, #list, if racer.Finished then racer.FinishTime else nil)
+				if not progressOk then
+					warn("[RaceService] Fortschritt fehlgeschlagen:", extra)
+					extra = {}
+				end
+				services.Net.Results:FireClient(player, board, {
+					Place = racer.Place,
+					Coins = coins + (extra.StreakBonus or 0),
+					Multiplier = services.MonetizationService:CoinMultiplier(player),
+					Xp = extra.Xp,
+					Streak = extra.Streak,
+					StreakBonus = extra.StreakBonus,
+					Best = extra.Best,
+					NewBest = extra.NewBest,
+				})
 				task.delay(4, function()
 					services.MonetizationService:AfterRace(player, racer.Place)
 				end)
@@ -937,7 +987,9 @@ function RaceService:FinishRace(raceStart: number)
 		end
 	end
 	for _, player in Players:GetPlayers() do
-		if not racerOf(player) then
+		local racer = racerOf(player)
+		-- Zuschauer und ausgeschiedene Fahrer sehen das Ergebnis ohne Belohnung
+		if not racer or racer.DNF then
 			services.Net.Results:FireClient(player, board, nil)
 		end
 	end
@@ -978,16 +1030,21 @@ function RaceService:Start()
 		end
 		data.SuperItems -= 1
 		services.DataService:UpdateAttributes(player)
-		local keep, keep2 = racer.Item, racer.Item2
+		local keep, keep2, keepReady = racer.Item, racer.Item2, racer.ItemReadyAt
 		racer.Item, racer.Item2, racer.ItemReadyAt = "Inferno", nil, 0
+		racer.SuperUse = true
 		useItem(racer)
-		racer.Item, racer.Item2 = keep, keep2
+		racer.SuperUse = nil
+		racer.Item, racer.Item2, racer.ItemReadyAt = keep, keep2, keepReady
 		syncAttributes(racer)
 	end)
 	services.Net.Boosting.OnServerEvent:Connect(function(player, on)
 		local racer = racerOf(player)
-		if racer then
-			setFlame(racer, on == true)
+		local flag = on == true
+		-- Nur echte Wechsel verarbeiten (Spam wuerde sonst jedes Mal alle Teile durchsuchen)
+		if racer and racer.FlameOn ~= flag then
+			racer.FlameOn = flag
+			setFlame(racer, flag)
 		end
 	end)
 	Players.PlayerRemoving:Connect(function(player)

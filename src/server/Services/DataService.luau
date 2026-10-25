@@ -57,7 +57,17 @@ local function defaultData()
 		GiftDay = 0,
 		GiftsToday = 0,
 		BaseColor = "",
-		Settings = {}, -- Client-Einstellungen (Namensschilder, Hinweise, Details, Kumpel)
+		Settings = {}, -- Client-Einstellungen (Namensschilder, Hinweise, Details, Kumpel, Sounds)
+		-- Update 4 (alle neu: alte Spielstaende bekommen hier ihre Startwerte)
+		Tutorial = 0, -- erledigte Einfuehrungs-Schritte
+		Weekly = { Week = 0, List = {} }, -- Wochen-Quests
+		Title = "", -- gewaehlter Titel ("" = keiner)
+		TitlesSeen = {}, -- [TitelId] = true (Freischaltung schon gemeldet)
+		FreeEggAt = 0, -- os.time(), ab wann das naechste Gratis-Ei bereit ist
+		Expeditions = {}, -- { Code, Level, Ends, Trip, Cash }
+		Favorites = {}, -- [Slot] = true (kann nicht verkauft werden)
+		TheftLog = {}, -- neueste zuerst: { Kind, Who, Critter, At }
+		Decor = {}, -- [DekoId] = true
 	}
 end
 

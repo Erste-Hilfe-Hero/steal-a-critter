@@ -66,22 +66,37 @@ end
 
 ---------------------------------------------------------------- Faehigkeiten
 
+-- Unsichtbarkeit (Shadow und Ghost-Power-Up). Ueberlappen sich zwei, wird nur verlaengert:
+-- sonst wuerde der zweite die schon halb-durchsichtigen Werte speichern und der Spieler bliebe unsichtbar.
+local cloaks = {} -- [Model] = { Saved = { [Instance] = number }, Until = number }
 local function cloak(actor, duration: number)
-	local saved = {}
-	for _, d in actor.Model:GetDescendants() do
-		if (d:IsA("BasePart") and d.Name ~= "HumanoidRootPart") or d:IsA("Decal") then
-			saved[d] = d.Transparency
-			d.Transparency = math.max(d.Transparency, 0.93)
+	local model = actor.Model
+	local state = cloaks[model]
+	local untilTime = now() + duration
+	if state then
+		state.Until = math.max(state.Until, untilTime)
+	else
+		state = { Saved = {}, Until = untilTime }
+		cloaks[model] = state
+		for _, d in model:GetDescendants() do
+			if (d:IsA("BasePart") and d.Name ~= "HumanoidRootPart") or d:IsA("Decal") then
+				state.Saved[d] = d.Transparency
+				d.Transparency = math.max(d.Transparency, 0.93)
+			end
 		end
+		model:SetAttribute("Cloaked", true)
 	end
-	actor.Model:SetAttribute("Cloaked", true)
 	task.delay(duration, function()
-		for d, value in saved do
+		if cloaks[model] ~= state or now() < state.Until - 0.05 then
+			return
+		end
+		cloaks[model] = nil
+		for d, value in state.Saved do
 			if d.Parent then
 				d.Transparency = value
 			end
 		end
-		actor.Model:SetAttribute("Cloaked", false)
+		model:SetAttribute("Cloaked", false)
 	end)
 end
 
@@ -204,8 +219,13 @@ local function applyPowerUp(actor, def)
 	services.Net.Fx:FireAllClients("PowerUp", { Position = actor.Root.Position, Color = def.Color })
 end
 
+local function luckyBoxes(): boolean
+	local mod = AbilityService.Services.RoundService.Modifier
+	return mod ~= nil and mod.Id == "LuckyBoxes"
+end
+
 local function spawnPowerUp()
-	if #spots == 0 or #powerFolder:GetChildren() >= Config.PowerUps.Max then
+	if #spots == 0 or #powerFolder:GetChildren() >= Config.PowerUps.Max * (if luckyBoxes() then 2 else 1) then
 		return
 	end
 	local spot = spots[math.random(1, #spots)]
@@ -271,7 +291,7 @@ function AbilityService:StartRound(map)
 		task.wait(6)
 		spawnPowerUp()
 		while running do
-			task.wait(Config.PowerUps.SpawnEvery)
+			task.wait(Config.PowerUps.SpawnEvery / (if luckyBoxes() then 3 else 1))
 			if running then
 				spawnPowerUp()
 			end

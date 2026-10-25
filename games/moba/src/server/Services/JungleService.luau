@@ -292,12 +292,17 @@ function JungleService:OnMonsterDeath(unit, killer)
 		if info.Epic then
 			for _, member in teamHeroes(team) do
 				heroes:GiveGold(member, info.Gold, if member == hero then position else nil)
+				-- Fuer Quests und Erfolge: Helfer in der Naehe zaehlen mit
+				if member == hero or (Combat.Alive(member) and (Combat.Position(member) - position).Magnitude <= 70) then
+					member.EpicTakedowns = (member.EpicTakedowns or 0) + 1
+				end
 			end
 			heroes:ShareXP(team, position, info.XP, true)
 		else
 			heroes:GiveGold(hero, info.Gold, position)
 			heroes:AddXP(hero, info.XP * Config.XPMultiplier)
 			hero.CreepScore = (hero.CreepScore or 0) + 1
+			hero.MonsterKills = (hero.MonsterKills or 0) + 1
 		end
 		heroes:OnUnitKilled(hero, unit)
 		local teamName = Config.Teams[team].Name

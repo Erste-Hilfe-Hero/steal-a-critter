@@ -9,7 +9,7 @@ local Format = require(ReplicatedStorage.Shared.Format)
 local TimerService = { Services = nil :: any }
 
 local THEME = Config.Theme
-local runs = {} -- [Player] = { Stage, StageStart, RunStart, Ranked, StageClean }
+local runs = {} -- [Player] = { Stage, StageStart, RunStart, Ranked, StageClean, Splits, LastFall }
 local STAGES = #Config.Stages
 
 function TimerService:Init(services)
@@ -40,6 +40,7 @@ function TimerService:Begin(player: Player, stage: number, ranked: boolean)
 	run.Ranked = ranked and not lowGravity()
 	run.RunStart = nil
 	run.StageStart = nil
+	run.Splits = {}
 	run.StageClean = not lowGravity()
 	setStage(player, stage)
 	teleport(player, self.Services.WorldService:GetSpawn(stage), stage)
@@ -73,14 +74,26 @@ function TimerService:Skip(player: Player)
 	if not run or not data then
 		return
 	end
+	-- Die naechste noch gesperrte Stage freischalten (vorher: aktuelle Stage + 1, das war oft schon frei
+	-- und der Kauf damit verschenkt). Ist alles frei, geht es einfach eine Stage weiter.
 	local from = if run.Stage == 0 then data.MaxStage else run.Stage
-	local target = math.min(from + 1, STAGES)
+	local target = if data.MaxStage < STAGES then data.MaxStage + 1 else math.min(from + 1, STAGES)
 	data.MaxStage = math.max(data.MaxStage, target)
 	self:Begin(player, target, false)
 	self.Services.Net.SendNotify(player, `Skipped to Stage {target}!`, THEME.Gold)
 end
 
 -- Alle laufenden Zeiten ungueltig machen (z. B. Mondschwerkraft fuer den Server)
+-- Lohnt sich "Skip Stage" gerade? (nicht, wenn schon alles frei ist und man auf der letzten Stage/in der Lobby steht)
+function TimerService:CanSkip(player: Player): boolean
+	local run = runs[player]
+	local data = self.Services.DataService:Get(player)
+	if not run or not data then
+		return false
+	end
+	return data.MaxStage < STAGES or (run.Stage > 0 and run.Stage < STAGES)
+end
+
 function TimerService:InvalidateAll()
 	for player, run in runs do
 		run.Ranked = false
@@ -89,7 +102,7 @@ function TimerService:InvalidateAll()
 	end
 end
 
-local function nearZone(player: Player, zonePart: BasePart): boolean
+local function nearZone(player: Player, zonePart: BasePart, tolerance: number?): boolean
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root then
@@ -97,7 +110,7 @@ local function nearZone(player: Player, zonePart: BasePart): boolean
 	end
 	local localPos = zonePart.CFrame:PointToObjectSpace(root.Position)
 	local half = zonePart.Size / 2
-	local tol = Config.FinishTolerance
+	local tol = tolerance or Config.FinishTolerance
 	return math.abs(localPos.X) < half.X + tol and math.abs(localPos.Y) < half.Y + tol and math.abs(localPos.Z) < half.Z + tol
 end
 
@@ -138,11 +151,28 @@ local function finishStage(player: Player, stage: number, clientStage: any, clie
 			result.StagePB = true
 			services.LeaderboardService:SubmitStage(player, stage, stageTime)
 		end
+		-- Medaille (Bronze/Silber/Gold) nur fuer saubere Laeufe
+		local medal, newMedal, bonus = services.ProgressService:RecordMedal(player, stage, stageTime)
+		result.Medal = medal
+		result.NewMedal = newMedal
+		result.Flakes += bonus
+	end
+	-- Zwischenzeit im gewerteten Lauf, verglichen mit dem Bestzeit-Lauf
+	if run.Ranked and run.RunStart then
+		local split = officialTime(clientRun, now - run.RunStart)
+		run.Splits = run.Splits or {}
+		run.Splits[stage] = split
+		result.Split = split
+		local pbSplit = data.PBSplits[tostring(stage)]
+		if typeof(pbSplit) == "number" then
+			result.SplitDelta = split - pbSplit
+		end
 	end
 	data.Clears += 1
 	local reward = if firstClear then Config.Rewards.StageFirst(stage) else Config.Rewards.StageRepeat(stage)
 	result.Flakes += services.DataService:AddFlakes(player, reward)
 	data.MaxStage = math.max(data.MaxStage, math.min(stage + 1, STAGES))
+	services.ProgressService:OnStageClear(player, stage, result.StagePB == true)
 
 	if stage < STAGES then
 		run.StageClean = not lowGravity()
@@ -164,11 +194,23 @@ local function finishStage(player: Player, stage: number, clientStage: any, clie
 			data.BestTime = runTime
 			result.RunPB = true
 			mapReward += Config.Rewards.PersonalBest
+			-- Zwischenzeiten dieses Laufs als neue Vergleichswerte merken
+			-- (Schluessel als Text, damit der DataStore keine Luecken-Arrays bekommt)
+			local splits = {}
+			for i = 1, STAGES do
+				local split = run.Splits and run.Splits[i]
+				if split then
+					splits[tostring(i)] = split
+				end
+			end
+			splits[tostring(STAGES)] = runTime
+			data.PBSplits = splits
 			services.LeaderboardService:Submit(player, runTime)
 			services.Net.SendAnnounce(`{player.DisplayName} set a new personal best on surf_ski: {Format.Run(runTime)}!`, THEME.Ice)
 		end
 	end
 	result.Flakes += services.DataService:AddFlakes(player, mapReward)
+	services.ProgressService:OnMapClear(player)
 	run.RunStart = nil
 	run.Ranked = false
 	setStage(player, 0)
@@ -205,11 +247,14 @@ function TimerService:Start()
 				self:Begin(player, stage, stage == 1)
 			end
 		elseif action == "Leave" then
-			if stage == run.Stage and run.Stage > 0 then
+			-- Nur direkt an der Startzone: sonst koennte man "Leave" kurz vor dem Ziel schicken und die Uhr neu starten
+			local info = services.WorldService:GetStageInfo(run.Stage)
+			if stage == run.Stage and run.Stage > 0 and info and nearZone(player, info.Start, Config.StartTolerance) then
 				run.StageStart = os.clock()
 				if run.Stage == 1 then
 					-- Stage 1 verlassen = neuer Lauf (wie auf CS-Servern)
 					run.RunStart = os.clock()
+					run.Splits = {}
 					run.Ranked = not lowGravity()
 					run.StageClean = not lowGravity()
 					player:SetAttribute("Ranked", run.Ranked)
@@ -218,7 +263,12 @@ function TimerService:Start()
 		elseif action == "Fell" then
 			if stage == run.Stage then
 				run.StageStart = nil
-				data.Falls += 1
+				-- Nicht beliebig oft zaehlen (Erfolg "Snow Angel")
+				local now = os.clock()
+				if now - (run.LastFall or 0) > 1.5 then
+					run.LastFall = now
+					data.Falls += 1
+				end
 			end
 		elseif action == "UsedCheckpoint" then
 			run.Ranked = false
@@ -234,7 +284,7 @@ end
 
 -- Direkt auf Stage 1 starten (die Lobby erreicht man ueber den Lobby-Knopf); der Respawn bringt einen hin
 function TimerService:OnPlayerReady(player: Player)
-	runs[player] = { Stage = 1, Ranked = not lowGravity(), StageClean = not lowGravity() }
+	runs[player] = { Stage = 1, Ranked = not lowGravity(), StageClean = not lowGravity(), Splits = {} }
 	setStage(player, 1)
 end
 

@@ -10,9 +10,12 @@ local PetService = { Services = nil :: any }
 local RED = Color3.fromRGB(255, 80, 80)
 local GREEN = Color3.fromRGB(90, 220, 120)
 local GOLD = Color3.fromRGB(255, 200, 40)
+local RAINBOW = Color3.fromRGB(255, 120, 220)
 
 local lastHatch = {} -- [Player] = os.clock()
 local autoHatch = {} -- [Player] = true
+local lastRemote = {} -- [Player] = os.clock() (Schutz gegen Spam der Inventar-Remotes)
+local lastTeleport = {} -- [Player] = os.clock()
 local rng = Random.new()
 
 function PetService:Init(services)
@@ -25,6 +28,20 @@ end
 
 local function today(): number
 	return os.time() // 86400
+end
+
+-- Inventar-Remotes hoechstens ~10x pro Sekunde (jeder Aufruf schickt das ganze Inventar zurueck)
+local function throttled(player: Player): boolean
+	local now = os.clock()
+	if now - (lastRemote[player] or 0) < 0.1 then
+		return true
+	end
+	lastRemote[player] = now
+	return false
+end
+
+local function progress()
+	return PetService.Services.ProgressService
 end
 
 ---------------------------------------------------------------- Inventar
@@ -71,8 +88,8 @@ function PetService:Sync(player: Player)
 	local visible = {}
 	for _, uid in data.Equipped do
 		local pet = data.Pets[uid]
-		power += Config.PetPower(pet.T, pet.G)
-		table.insert(visible, pet.T .. (if pet.G then ":g" else ""))
+		power += Config.PetPower(pet.T, pet.G, pet.R)
+		table.insert(visible, pet.T .. (if pet.R then ":r" elseif pet.G then ":g" else ""))
 	end
 	player:SetAttribute("Power", power)
 	player:SetAttribute("EquippedPets", table.concat(visible, ","))
@@ -81,14 +98,15 @@ function PetService:Sync(player: Player)
 	self.Services.Net.Inventory:FireClient(player, data.Pets, data.Equipped)
 end
 
-function PetService:AddPet(player: Player, typeId: string, golden: boolean?): string?
+function PetService:AddPet(player: Player, typeId: string, golden: boolean?, rainbow: boolean?): string?
 	local data = self.Services.DataService:Get(player)
 	if not data or not Config.PetsById[typeId] then
 		return nil
 	end
 	local uid = tostring(data.NextPetId)
 	data.NextPetId += 1
-	data.Pets[uid] = { T = typeId, G = golden == true }
+	data.Pets[uid] = { T = typeId, G = golden == true, R = if rainbow then true else nil }
+	progress():Discover(player, typeId)
 	-- Freier Platz? Dann gleich ausruesten (macht Neue sofort staerker)
 	if #data.Equipped < self:GetMaxEquip(player) then
 		table.insert(data.Equipped, uid)
@@ -99,7 +117,7 @@ end
 local function equipBest(player: Player, data)
 	local list = {}
 	for uid, pet in data.Pets do
-		table.insert(list, { Uid = uid, Power = Config.PetPower(pet.T, pet.G) })
+		table.insert(list, { Uid = uid, Power = Config.PetPower(pet.T, pet.G, pet.R) })
 	end
 	table.sort(list, function(a, b)
 		return a.Power > b.Power
@@ -132,8 +150,18 @@ local function roll(egg, luck: number): string
 	return odds[1].Pet
 end
 
+-- Auto Hatch ausschalten (z. B. wenn Muenzen oder Platz fehlen), statt alle 2,5 s dieselbe Meldung zu schicken
+local function stopAutoHatch(player: Player, reason: string)
+	if autoHatch[player] then
+		autoHatch[player] = nil
+		player:SetAttribute("AutoHatch", false)
+		notify(player, reason .. " Auto Hatch is now OFF.", RED)
+	end
+end
+
 -- Bezahlt wird nur mit Muenzen. Gibt true zurueck, wenn geschluepft wurde.
-function PetService:Hatch(player: Player, eggId: string, amount: number): boolean
+-- auto = vom Auto Hatch ausgeloest (dann bei Fehlern Auto Hatch beenden)
+function PetService:Hatch(player: Player, eggId: string, amount: number, auto: boolean?): boolean
 	local services = self.Services
 	local egg = Config.EggsById[eggId]
 	local data = services.DataService:Get(player)
@@ -154,13 +182,26 @@ function PetService:Hatch(player: Player, eggId: string, amount: number): boolea
 	end
 	local free = self:GetStorage(player) - countPets(data)
 	if free <= 0 then
-		notify(player, "Your pet storage is full! Delete or craft pets.", RED)
+		if auto then
+			stopAutoHatch(player, "Your pet storage is full!")
+		else
+			notify(player, "Your pet storage is full! Delete or craft pets.", RED)
+		end
 		return false
 	end
 	amount = math.min(amount, free)
 	local cost = egg.Price * amount
 	if data.Coins < cost then
-		notify(player, `You need {Format.Coins(cost)}!`, RED)
+		-- Mit Triple Hatch notfalls nur so viele Eier, wie bezahlbar sind
+		amount = math.min(amount, data.Coins // egg.Price)
+		cost = egg.Price * amount
+	end
+	if amount <= 0 then
+		if auto then
+			stopAutoHatch(player, `You need {Format.Coins(egg.Price)}!`)
+		else
+			notify(player, `You need {Format.Coins(egg.Price)}!`, RED)
+		end
 		return false
 	end
 	lastHatch[player] = os.clock()
@@ -181,6 +222,7 @@ function PetService:Hatch(player: Player, eggId: string, amount: number): boolea
 	services.DataService:UpdateAttributes(player)
 	services.Net.Hatched:FireClient(player, egg.Id, results)
 	self:Sync(player)
+	progress():Track(player, "Hatch", amount)
 	return true
 end
 
@@ -206,7 +248,9 @@ function PetService:UnlockZone(player: Player, index: number)
 	end
 	services.DataService:AddCoins(player, -zone.GateCost)
 	data.Zone = index
+	data.BestZone = math.max(data.BestZone, index)
 	services.DataService:UpdateAttributes(player)
+	progress():Track(player, "Zone", index)
 	notify(player, `{zone.Name} unlocked!`, GREEN)
 	if index == #Config.Zones then
 		services.Net.SendAnnounce(`{player.DisplayName} reached {zone.Name}!`, GOLD)
@@ -233,6 +277,7 @@ function PetService:Rebirth(player: Player)
 		player.Character:PivotTo(services.WorldService.SpawnCFrame(1))
 	end
 	services.Net.SendAnnounce(`{player.DisplayName} rebirthed! (x{1 + data.Rebirths * Config.RebirthMultiplierPer} coins)`, Color3.fromRGB(180, 100, 255))
+	progress():Track(player, "Rebirth", 1)
 end
 
 -- Muenzen fuer N Eier der besten freigeschalteten Zone (fuer Geschenke und Muenz-Pakete)
@@ -290,15 +335,23 @@ function PetService:Start()
 			notify(player, "Come back tomorrow for a new gift!", RED)
 			return
 		end
+		-- Serie: gestern abgeholt = weiter zaehlen, sonst neu bei Tag 1
+		data.Streak = if data.LastDaily == today() - 1 then data.Streak + 1 else 1
 		data.LastDaily = today()
-		local amount = self:EggValue(player, Config.DailyEggs)
+		local amount = math.floor(self:EggValue(player, Config.DailyGiftEggs(data.Streak)))
 		services.DataService:AddCoins(player, amount)
-		notify(player, `Daily gift: +{Format.Coins(amount)}!`, GOLD)
+		notify(player, `Daily gift (day {data.Streak} streak): +{Format.Coins(amount)}!`, GOLD)
+		if data.Streak % Config.StreakMax == 0 then
+			data.BoostUntil = math.max(os.time(), data.BoostUntil) + Config.StreakDay7BoostSeconds
+			services.DataService:UpdateAttributes(player)
+			notify(player, `{Config.StreakMax} day streak! Free 2x Coins for {Config.StreakDay7BoostSeconds // 60} minutes!`, GOLD)
+		end
+		progress():Track(player, "Streak", data.Streak)
 	end)
 
 	net.ToggleEquip.OnServerEvent:Connect(function(player, uid)
 		local data = services.DataService:Get(player)
-		if not data or typeof(uid) ~= "string" or not data.Pets[uid] then
+		if not data or typeof(uid) ~= "string" or not data.Pets[uid] or throttled(player) then
 			return
 		end
 		local index = table.find(data.Equipped, uid)
@@ -318,7 +371,7 @@ function PetService:Start()
 
 	net.EquipBest.OnServerEvent:Connect(function(player)
 		local data = services.DataService:Get(player)
-		if data then
+		if data and not throttled(player) then
 			equipBest(player, data)
 			self:Sync(player)
 		end
@@ -326,13 +379,15 @@ function PetService:Start()
 
 	net.DeletePets.OnServerEvent:Connect(function(player, uids)
 		local data = services.DataService:Get(player)
-		if not data or typeof(uids) ~= "table" then
+		if not data or typeof(uids) ~= "table" or throttled(player) then
 			return
 		end
 		local removed = 0
+		local remaining = countPets(data)
 		for _, uid in uids do
-			-- Das letzte Haustier bleibt immer
-			if typeof(uid) == "string" and data.Pets[uid] and countPets(data) > 1 then
+			-- Das letzte Haustier bleibt immer, gesperrte Haustiere werden nie geloescht
+			if typeof(uid) == "string" and data.Pets[uid] and not data.Pets[uid].L and remaining > 1 then
+				remaining -= 1
 				data.Pets[uid] = nil
 				removed += 1
 			end
@@ -344,17 +399,17 @@ function PetService:Start()
 
 	net.CraftGolden.OnServerEvent:Connect(function(player, typeId)
 		local data = services.DataService:Get(player)
-		if not data or typeof(typeId) ~= "string" or not Config.PetsById[typeId] then
+		if not data or typeof(typeId) ~= "string" or not Config.PetsById[typeId] or throttled(player) then
 			return
 		end
 		local matching = {}
 		for uid, pet in data.Pets do
-			if pet.T == typeId and not pet.G then
+			if pet.T == typeId and not pet.G and not pet.R and not pet.L then
 				table.insert(matching, uid)
 			end
 		end
 		if #matching < Config.GoldenCraftAmount then
-			notify(player, `You need {Config.GoldenCraftAmount} of the same pet!`, RED)
+			notify(player, `You need {Config.GoldenCraftAmount} unlocked pets of the same kind!`, RED)
 			return
 		end
 		-- Ausgeruestete zuletzt verbrauchen
@@ -377,6 +432,78 @@ function PetService:Start()
 			net.SendAnnounce(`{player.DisplayName} crafted a GOLDEN {def.Name}!`, GOLD)
 		end
 		self:Sync(player)
+		progress():Track(player, "Golden", 1)
+	end)
+
+	-- Regenbogen: 5 gleiche goldene -> 1 Regenbogen-Haustier (gleicher Ablauf wie golden)
+	net.CraftRainbow.OnServerEvent:Connect(function(player, typeId)
+		local data = services.DataService:Get(player)
+		if not data or typeof(typeId) ~= "string" or not Config.PetsById[typeId] or throttled(player) then
+			return
+		end
+		local matching = {}
+		for uid, pet in data.Pets do
+			if pet.T == typeId and pet.G and not pet.R and not pet.L then
+				table.insert(matching, uid)
+			end
+		end
+		if #matching < Config.RainbowCraftAmount then
+			notify(player, `You need {Config.RainbowCraftAmount} unlocked GOLDEN pets of the same kind!`, RED)
+			return
+		end
+		table.sort(matching, function(a, b)
+			return (table.find(data.Equipped, a) and 1 or 0) < (table.find(data.Equipped, b) and 1 or 0)
+		end)
+		local wasEquipped = false
+		for i = 1, Config.RainbowCraftAmount do
+			wasEquipped = wasEquipped or table.find(data.Equipped, matching[i]) ~= nil
+			data.Pets[matching[i]] = nil
+		end
+		cleanEquipped(player, data)
+		local uid = self:AddPet(player, typeId, false, true)
+		if wasEquipped and uid and not table.find(data.Equipped, uid) and #data.Equipped < self:GetMaxEquip(player) then
+			table.insert(data.Equipped, uid)
+		end
+		local def = Config.PetsById[typeId]
+		notify(player, `You crafted a RAINBOW {def.Name}!`, RAINBOW)
+		net.SendAnnounce(`{player.DisplayName} crafted a RAINBOW {def.Name}!`, RAINBOW)
+		self:Sync(player)
+		progress():Track(player, "Rainbow", 1)
+	end)
+
+	-- Sperren: gesperrte Haustiere koennen nicht geloescht oder verbraucht werden
+	net.ToggleLock.OnServerEvent:Connect(function(player, uid)
+		local data = services.DataService:Get(player)
+		if not data or typeof(uid) ~= "string" or not data.Pets[uid] or throttled(player) then
+			return
+		end
+		local pet = data.Pets[uid]
+		pet.L = if pet.L then nil else true
+		self:Sync(player)
+	end)
+
+	-- Schnellreise in eine freigeschaltete Zone
+	net.Teleport.OnServerEvent:Connect(function(player, index)
+		local data = services.DataService:Get(player)
+		if not data or typeof(index) ~= "number" or index ~= index or index % 1 ~= 0 then
+			return
+		end
+		if index < 1 or index > data.Zone or not Config.Zones[index] then
+			notify(player, "Unlock that zone first!", RED)
+			return
+		end
+		if os.clock() - (lastTeleport[player] or 0) < Config.TeleportCooldown then
+			notify(player, "Wait a moment before travelling again.", RED)
+			return
+		end
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if not character or not humanoid or humanoid.Health <= 0 then
+			return
+		end
+		lastTeleport[player] = os.clock()
+		character:PivotTo(services.WorldService.SpawnCFrame(index))
+		notify(player, `Welcome to {Config.Zones[index].Name}!`, GREEN)
 	end)
 
 	net.SetAutoHatch.OnServerEvent:Connect(function(player, enabled)
@@ -404,7 +531,7 @@ function PetService:Start()
 				for _, zone in services.WorldService.Zones do
 					if zone.EggPart and (root.Position - zone.EggPart.Position).Magnitude <= Config.EggRange then
 						local amount = if services.MonetizationService:HasPass(player, "TripleHatch") then 3 else 1
-						task.spawn(self.Hatch, self, player, zone.Egg.Id, amount)
+						task.spawn(self.Hatch, self, player, zone.Egg.Id, amount, true)
 						break
 					end
 				end
@@ -430,6 +557,8 @@ end
 function PetService:OnPlayerRemoving(player: Player)
 	lastHatch[player] = nil
 	autoHatch[player] = nil
+	lastRemote[player] = nil
+	lastTeleport[player] = nil
 end
 
 -- Wird von der Monetarisierung genutzt, falls ein Vorteil das Inventar betrifft

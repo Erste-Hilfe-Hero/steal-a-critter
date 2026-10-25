@@ -379,6 +379,15 @@ refreshNameplate = function(player: Player)
 	local vip = player:GetAttribute("Pass_VIP") == true
 	local rankLabel = gui:FindFirstChild("RankLine") :: TextLabel
 	local nameLabel = gui:FindFirstChild("NameLine") :: TextLabel
+	local titleLabel = gui:FindFirstChild("TitleLine") :: TextLabel?
+	if not rankLabel or not nameLabel then
+		return
+	end
+	-- Titel aus Erfolgen und Karriere-Stufe (Update 2)
+	if titleLabel then
+		local title = player:GetAttribute("Title")
+		titleLabel.Text = (if title then `« {title} »  ` else "") .. `LV {player:GetAttribute("Level") or 1}`
+	end
 	rankLabel.Text = (RANK_ICONS[rank] or "") .. rank:upper() .. (if vip then "  ·  VIP" else "")
 	rankLabel.Visible = rank ~= "Newbie" or vip
 	nameLabel.Text = player.DisplayName
@@ -398,6 +407,10 @@ refreshNameplate = function(player: Player)
 	end
 end
 
+function CommunityService:RefreshNameplate(player: Player)
+	refreshNameplate(player)
+end
+
 function CommunityService:AttachNameplate(player: Player, character: Model)
 	local head = character:WaitForChild("Head", 10)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -409,16 +422,19 @@ function CommunityService:AttachNameplate(player: Player, character: Model)
 	end
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Nameplate"
-	gui.Size = UDim2.fromScale(7, 1.8)
-	gui.StudsOffset = Vector3.new(0, 2.6, 0)
+	gui.Size = UDim2.fromScale(7, 2.3)
+	gui.StudsOffset = Vector3.new(0, 2.9, 0)
 	gui.MaxDistance = 100
 	gui.LightInfluence = 0
 	local layout = Instance.new("UIListLayout")
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	layout.Parent = gui
-	makeLine(gui, 0.4, 1).Name = "RankLine"
-	makeLine(gui, 0.6, 2).Name = "NameLine"
+	local titleLine = makeLine(gui, 0.24, 0)
+	titleLine.Name = "TitleLine"
+	titleLine.TextColor3 = Color3.fromRGB(255, 225, 77)
+	makeLine(gui, 0.3, 1).Name = "RankLine"
+	makeLine(gui, 0.46, 2).Name = "NameLine"
 	gui.Parent = head
 	refreshNameplate(player)
 end
@@ -445,9 +461,11 @@ function CommunityService:OnPlayerReady(player: Player)
 		lastActive[player] = os.clock()
 	end)
 	updateRankAttributes(player)
-	player:GetAttributeChangedSignal("Pass_VIP"):Connect(function()
-		refreshNameplate(player)
-	end)
+	for _, name in { "Pass_VIP", "Title", "Level" } do
+		player:GetAttributeChangedSignal(name):Connect(function()
+			refreshNameplate(player)
+		end)
+	end
 	refreshNameplate(player)
 end
 

@@ -42,6 +42,29 @@ local function defaultData()
 		StarterOffered = false,
 		AutoSalvage = 0, -- Seltenheiten bis einschliesslich dieser Stufe automatisch zerlegen
 		Blessing = 0, -- offene Boss Blessings
+		-- Update: Quests, Erfolge, Kosmetik, Einstellungen, Statistik
+		QuestDay = 0,
+		Quests = {}, -- { { Key, Progress, Claimed } }
+		QuestBonus = false, -- Bonus fuer alle 3 Quests abgeholt
+		Achievements = {}, -- [Key] = true
+		Title = "",
+		Auras = {}, -- [Key] = true
+		Aura = "",
+		Codes = {}, -- [CODE] = true
+		Settings = {}, -- [Key] = boolean (fehlt = Standard)
+		PotionLevel = 0,
+		Tutorial = 1, -- naechster Schritt (groesser als die Liste = fertig)
+		Records = {}, -- ["dungeonId_schwierigkeit"] = Sekunden
+		EliteKills = 0,
+		ImpKills = 0,
+		LegendaryFound = 0,
+		MythicFound = 0,
+		NightmareClears = 0,
+		BestPlus = 0,
+		BestCombo = 0,
+		ChestsOpened = 0,
+		ShrinesUsed = 0,
+		Salvaged = 0,
 	}
 end
 
@@ -50,6 +73,10 @@ local function reconcile(data)
 		if data[key] == nil then
 			data[key] = value
 		end
+	end
+	-- Bestehende Helden (vor dem Update) brauchen keine Einsteiger-Anleitung mehr
+	if data.Tutorial == 1 and (data.Runs or 0) > 0 then
+		data.Tutorial = #Config.Tutorial + 1
 	end
 	return data
 end
@@ -130,6 +157,9 @@ function DataService:UpdateAttributes(player: Player)
 	player:SetAttribute("XPBoostUntil", data.XPBoostUntil)
 	player:SetAttribute("AutoSalvage", data.AutoSalvage)
 	player:SetAttribute("Blessing", data.Blessing)
+	player:SetAttribute("PotionLevel", data.PotionLevel)
+	player:SetAttribute("TutorialStep", data.Tutorial)
+	player:SetAttribute("Title", data.Title)
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
 		(leaderstats :: any).Level.Value = data.Level;

@@ -168,11 +168,32 @@ end
 function LeaderboardService:Refresh()
 	local map = readTop(mapStore, 10)
 	if map then
+		-- OrderedDataStores liefern frische Zeiten oft erst nach einer Weile: lokal bekannte
+		-- bessere Zeiten behalten, statt sie beim Neuladen wieder von der Tafel zu werfen
+		for _, old in current.Map do
+			local found = false
+			for _, row in map do
+				if row.UserId == old.UserId then
+					row.Time = math.min(row.Time, old.Time)
+					found = true
+				end
+			end
+			if not found then
+				table.insert(map, old)
+			end
+		end
+		table.sort(map, function(a, b)
+			return a.Time < b.Time
+		end)
+		while #map > 10 do
+			table.remove(map)
+		end
 		current.Map = map
 	end
 	for stage, store in stageStores do
 		local top = readTop(store, 1)
-		if top and top[1] then
+		local known = current.Stages[tostring(stage)]
+		if top and top[1] and (not known or top[1].Time <= known.Time) then
 			current.Stages[tostring(stage)] = top[1]
 		end
 		task.wait(0.5)

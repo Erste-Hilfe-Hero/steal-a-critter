@@ -20,6 +20,8 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Tracks = require(ReplicatedStorage.Shared.Tracks)
 local KartFactory = require(ReplicatedStorage.Shared.KartFactory)
 local KartPhysics = require(ReplicatedStorage.Shared.KartPhysics)
+local Progression = require(ReplicatedStorage.Shared.Progression)
+local Format = require(ReplicatedStorage.Shared.Format)
 
 -- Produkte
 for key, product in Config.DevProducts do
@@ -38,10 +40,38 @@ for _, kart in Config.Karts do
 	end
 end
 
+-- Lackierungen
+for _, paint in Config.Paints do
+	local ok, model = pcall(KartFactory.Build, "Phoenix", "Orange", { Paint = paint.Id })
+	check("build paint " .. paint.Id, ok and model.PrimaryPart ~= nil, if ok then nil else model)
+	if ok then
+		model:Destroy()
+	end
+end
+
+-- Fortschritt: Level, Aufgaben, Erfolge, Serie, Zeitformat
+do
+	local level, into, need = Progression.LevelFromXp(100)
+	check("level math", level == 2 and into == 0 and need == Progression.XpForLevel(2), `{level} {into} {need}`)
+	local quests = Progression.QuestsForDay(20_000, 123)
+	check("3 different daily quests", #quests == 3 and quests[1] ~= quests[2] and quests[2] ~= quests[3] and quests[1] ~= quests[3], table.concat(quests, ","))
+	local fresh = { Races = 0, Wins = 0, Stats = { Hits = 0, TrackCoins = 0 }, BestStreak = 0, XP = 0, Best = {} }
+	local errors = {}
+	for _, achievement in Progression.Achievements do
+		local okCheck, reached = pcall(achievement.Check, fresh)
+		if not okCheck or reached then
+			table.insert(errors, achievement.Id)
+		end
+	end
+	check("achievements locked for new player", #errors == 0, table.concat(errors, ","))
+	check("streak bonus", Progression.StreakBonus(1) == 0 and Progression.StreakBonus(3) == 100)
+	check("race time format", Format.RaceTime(83.456) == "1:23.45", Format.RaceTime(83.456))
+end
+
 -- Services laden wie init.server.luau
 local folder = ServerScriptService:WaitForChild("Server")
 local services = {}
-local ORDER = { "DataService", "TrackService", "LobbyService", "RaceService", "MonetizationService", "ShopService" }
+local ORDER = { "DataService", "TrackService", "LobbyService", "RaceService", "MonetizationService", "ShopService", "ProgressService" }
 local ok, err = pcall(function()
 	services.Net = require(folder.Services.Net)
 	for _, name in ORDER do
@@ -54,6 +84,17 @@ local ok, err = pcall(function()
 end)
 check("init services + lobby", ok, err)
 check("lobby spawn", workspace:FindFirstChild("Lobby") ~= nil and workspace.Lobby:FindFirstChildOfClass("SpawnLocation") ~= nil)
+check("lobby records board", workspace:FindFirstChild("Lobby") ~= nil and workspace.Lobby:FindFirstChild("RecordsBoard") ~= nil)
+do
+	local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+	local missing = {}
+	for _, name in { "SetTitle", "Setting", "RedeemCode", "GetProfile", "Claim" } do
+		if not remotes or not remotes:FindFirstChild(name) then
+			table.insert(missing, name)
+		end
+	end
+	check("new remotes exist", #missing == 0, table.concat(missing, ","))
+end
 
 -- Jede Strecke bauen und vermessen: Fahrbahn ohne Loecher, keine Wand mitten auf der Fahrlinie
 for _, def in Tracks.List do
@@ -189,6 +230,14 @@ if ok then
 		check("projectiles spawned", #race.Debug.Projectiles >= 2, #race.Debug.Projectiles)
 		local hitOk, hitErr = pcall(race.Debug.Hit, race.Racers[2], bot)
 		check("hit works", hitOk, hitErr)
+		-- Waehrend man sich dreht, zaehlt kein weiterer Treffer (Inferno-Rammen)
+		local victim = race.Racers[3]
+		if victim then
+			victim.RaceCoins, victim.SpinUntil, victim.ShieldUntil, victim.InfernoUntil = 6, 0, 0, 0
+			race.Debug.Hit(victim, bot)
+			race.Debug.Hit(victim, bot)
+			check("no double hit while spinning", victim.RaceCoins == 4, victim.RaceCoins)
+		end
 	end
 	-- Die Test-Items (Donner, Feuerbaelle) bremsen die Bots aus, daher Fortschritt ab jetzt messen
 	local before = {}

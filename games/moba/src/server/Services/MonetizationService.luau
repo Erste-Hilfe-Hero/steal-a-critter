@@ -74,11 +74,12 @@ local function grant(player: Player, key: string): boolean
 		net.SendNotify(player, "Starter Pack: Volt, Inferno skin and 500 crystals!", GOLD)
 	elseif kind == "Respawn" then
 		local hero = services.HeroService:GetByPlayer(player)
-		if hero and hero.Dead then
+		-- Nur waehrend der Runde: sonst wuerde der Kauf verfallen (Respawn passiert nur beim Spielen)
+		if hero and hero.Dead and not hero.Removed and services.MatchService:IsPlaying() then
 			services.HeroService:RespawnNow(hero)
 		else
 			data.Crystals += 50
-			net.SendNotify(player, "You were already alive - here are 50 crystals instead!", GOLD)
+			net.SendNotify(player, "No respawn needed right now - here are 50 crystals instead!", GOLD)
 		end
 	else
 		warn("[Monetization] Unbekannter Produkttyp", kind)

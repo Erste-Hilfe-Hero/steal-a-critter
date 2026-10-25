@@ -35,6 +35,10 @@ TextChatService.OnIncomingMessage = function(message: TextChatMessage)
 		elseif team == 2 then
 			prefix = `<font color="#966EFF">[Dusk]</font> {prefix}`
 		end
+		local title = sender:GetAttribute("Title")
+		if typeof(title) == "string" and title ~= "" then
+			prefix = `<font color="#FFCD5A">«{title}»</font> {prefix}`
+		end
 		if sender:GetAttribute("VIP") then
 			prefix = `<font color="#FFC94A">[VIP]</font> {prefix}`
 		end

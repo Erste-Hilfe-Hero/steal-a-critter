@@ -64,6 +64,9 @@ function CombatService:DealDamage(player: Player, state, base: number, procs: bo
 	if stats.Powers.Giantslayer and (state.Boss or state.Elite) then
 		amount *= 1.4
 	end
+	if self.Services.HeroService:HasBuff(player, "Power") then
+		amount *= 1.3
+	end
 	local crit = rng:NextNumber() * 100 < stats.Crit
 	if crit then
 		amount *= 1 + stats.CritDamage / 100
@@ -279,6 +282,10 @@ function CombatService:Skill(player: Player, index: number, model: any)
 		if skill.Kind == "Meteor" then
 			Net.SendEffect(run.Players, "Meteor", { Position = position, Radius = skill.Radius, Delay = skill.Delay })
 			task.delay(skill.Delay, function()
+				-- Wer den Dungeon inzwischen verlassen hat, trifft nichts mehr
+				if self.Services.DungeonService:GetRun(player) ~= run then
+					return
+				end
 				for _, state in monstersNear(run, position, skill.Radius) do
 					self:DealDamage(player, state, damage)
 				end
@@ -287,6 +294,9 @@ function CombatService:Skill(player: Player, index: number, model: any)
 			Net.SendEffect(run.Players, "Rain", { Position = position, Radius = skill.Radius, Duration = skill.Ticks * skill.Interval })
 			task.spawn(function()
 				for _ = 1, skill.Ticks do
+					if self.Services.DungeonService:GetRun(player) ~= run then
+						break
+					end
 					for _, state in monstersNear(run, position, skill.Radius) do
 						self:DealDamage(player, state, damage)
 					end
@@ -307,7 +317,7 @@ function CombatService:Start()
 		end
 	end)
 	Net.Skill.OnServerEvent:Connect(function(player, index, model)
-		if typeof(index) ~= "number" then
+		if typeof(index) ~= "number" or index ~= index then
 			return
 		end
 		local ok, err = pcall(self.Skill, self, player, math.floor(index), model)

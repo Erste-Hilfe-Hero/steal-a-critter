@@ -16,6 +16,9 @@ local Format = require(ReplicatedStorage.Shared.Format)
 local Bars = require(script.Parent.Bars)
 local Kit = require(script.Parent.Kit)
 local Controls = require(script.Parent.Controls)
+local Fx = require(script.Parent.Fx)
+local Menus = require(script.Parent.Menus)
+local Sounds = require(script.Parent.Sounds)
 local Vision = require(script.Parent.Vision)
 
 local player = Players.LocalPlayer
@@ -83,11 +86,27 @@ end
 ---------------------------------------------------------------- Meldungen
 
 local toasts = create("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -150), Size = UDim2.fromOffset(460, 200), BackgroundTransparency = 1, Parent = root }, {
-	create("UIListLayout", { VerticalAlignment = Enum.VerticalAlignment.Bottom, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 6) }),
+	create("UIListLayout", { VerticalAlignment = Enum.VerticalAlignment.Bottom, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
 })
 
+local toastOrder = 0
+local MAX_TOASTS = 4
 local function toast(message: string, color: Color3?)
-	local item = panel({ Size = UDim2.fromOffset(440, 34), Parent = toasts, BackgroundTransparency = 0.15, Radius = 17 })
+	-- Hoechstens vier Meldungen gleichzeitig, sonst laufen sie bei Spam aus dem Bild (die aelteste geht)
+	local list = {}
+	for _, child in toasts:GetChildren() do
+		if child:IsA("Frame") then
+			table.insert(list, child)
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.LayoutOrder < b.LayoutOrder
+	end)
+	for i = 1, #list - MAX_TOASTS + 1 do
+		list[i]:Destroy()
+	end
+	toastOrder += 1
+	local item = panel({ Size = UDim2.fromOffset(440, 34), LayoutOrder = toastOrder, Parent = toasts, BackgroundTransparency = 0.15, Radius = 17 })
 	text({ Size = UDim2.new(1, -24, 1, -8), Position = UDim2.fromOffset(12, 4), Text = message, TextColor3 = color or TEXT, Parent = item, Font = BODY })
 	task.delay(3.2, function()
 		TweenService:Create(item, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
@@ -366,7 +385,7 @@ local function updateMinimap()
 	end
 end
 
-local menu = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, MINI + 22), Size = UDim2.fromOffset(MINI + 8, 40), BackgroundTransparency = 1, Parent = root }, {
+local menu = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, MINI + 22), Size = UDim2.fromOffset(252, 40), BackgroundTransparency = 1, Parent = root }, {
 	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
 }) :: Frame
 
@@ -383,6 +402,75 @@ local skinsButton = menuButton("🎨", "SKINS", Color3.fromRGB(255, 140, 200), 3
 local dailyButton, dailyBadge = menuButton("🎁", "DAILY", GREEN, 4)
 local adButton = menuButton("🎬", "FREE 💎", Color3.fromRGB(255, 170, 80), 5)
 adButton.Visible = false
+local questsButton, questsBadge = menuButton("📜", "QUESTS", GREEN, 6)
+local moreButton = menuButton("☰", "MORE", TEXT, 7)
+
+-- Fortschritts-Fenster (Quests, Erfolge, Profil, Bestenliste, Codes, Einstellungen, Anleitung)
+Menus.Build({
+	window = window,
+	openWindow = openWindow,
+	closeWindows = closeWindows,
+	isOpen = function(name: string): boolean
+		return openName == name
+	end,
+	refreshers = refreshers,
+	lift = lift,
+	toast = toast,
+})
+questsButton.Activated:Connect(function()
+	openWindow("Quests")
+end)
+moreButton.Activated:Connect(function()
+	openWindow("More")
+end)
+
+-- Pings und Emotes (links unter den Buffs, auch am Handy erreichbar)
+local function popupRow(y: number): Frame
+	return create("Frame", { Position = UDim2.fromOffset(102, y), Size = UDim2.fromOffset(260, 40), BackgroundTransparency = 1, Visible = false, Parent = root }, {
+		create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
+	}) :: Frame
+end
+local pingButton = button({ Position = UDim2.fromOffset(10, 256), Size = UDim2.fromOffset(42, 40), Text = "📍", Parent = root, MaxText = 22 }, "Dark")
+local emoteButton = button({ Position = UDim2.fromOffset(56, 256), Size = UDim2.fromOffset(42, 40), Text = "😄", Parent = root, MaxText = 22 }, "Dark")
+local pingRow = popupRow(256)
+local emoteRow = popupRow(256)
+for index, ping in Config.Pings do
+	local b = button({ LayoutOrder = index, Size = UDim2.fromOffset(46, 40), Text = ping.Icon, Parent = pingRow, MaxText = 22 }, "Dark")
+	b.Activated:Connect(function()
+		pingRow.Visible = false
+		remotes.Ping:FireServer(ping.Id)
+	end)
+end
+for index, emote in Config.Emotes do
+	local b = button({ LayoutOrder = index, Size = UDim2.fromOffset(40, 40), Text = emote.Icon, Parent = emoteRow, MaxText = 22 }, "Dark")
+	b.Activated:Connect(function()
+		emoteRow.Visible = false
+		remotes.Emote:FireServer(emote.Id)
+	end)
+end
+pingButton.Activated:Connect(function()
+	emoteRow.Visible = false
+	pingRow.Visible = not pingRow.Visible
+end)
+emoteButton.Activated:Connect(function()
+	pingRow.Visible = false
+	emoteRow.Visible = not emoteRow.Visible
+end)
+
+-- Ping eines Mitspielers: Markierung in der Welt und auf der Minimap
+local function showPing(info)
+	local ping = typeof(info) == "table" and Config.PingsById[info.Id]
+	if not ping or typeof(info.At) ~= "Vector3" then
+		return
+	end
+	Fx.Ping(info.At, ping.Icon, ping.Color)
+	local marker = text({ AnchorPoint = Vector2.new(0.5, 0.5), Position = toMini(info.At), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 0.1, BackgroundColor3 = ping.Color, Text = ping.Icon, ZIndex = 7, Parent = miniField, Children = { round(), line(0.1, Color3.new(1, 1, 1), 1.5) } })
+	task.delay(4, function()
+		marker:Destroy()
+	end)
+	toast(`{info.Name}: {ping.Icon} {ping.Text}`, ping.Color)
+	Sounds.Play("Ping")
+end
 
 local killFeed = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -196, 0, 8), Size = UDim2.fromOffset(250, 170), BackgroundTransparency = 1, Parent = root }, {
 	create("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 4) }),
@@ -842,7 +930,11 @@ local function buildScoreboard()
 			if dead then
 				name ..= `  💀{math.max(0, math.ceil((entry:GetAttribute("RespawnAt") or 0) - now()))}`
 			end
-			text({ Position = UDim2.fromOffset(56, 4), Size = UDim2.fromOffset(170, 20), Text = name, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = if dead then MUTED else TEXT, Font = BODY, Parent = row })
+			local title = entry:GetAttribute("Title")
+			if typeof(title) == "string" and title ~= "" then
+				name ..= `  <font color="#FFCD5A">«{title}»</font>`
+			end
+			text({ Position = UDim2.fromOffset(56, 4), Size = UDim2.fromOffset(170, 20), Text = name, RichText = true, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = if dead then MUTED else TEXT, Font = BODY, Parent = row })
 			-- Zauber nur fuer das eigene Team sichtbar (wie im Original sieht man sie aber auch beim Gegner)
 			local spellD = Config.SpellsById[entry:GetAttribute("SpellD") or ""]
 			local spellF = Config.SpellsById[entry:GetAttribute("SpellF") or ""]
@@ -891,7 +983,7 @@ local roleRow = create("Frame", { Position = UDim2.fromOffset(0, 68), Size = UDi
 	create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
 }) :: Frame
 local pickGrid = create("Frame", { Position = UDim2.fromOffset(0, 112), Size = UDim2.fromOffset(580, 264), BackgroundTransparency = 1, Parent = pickBox }, {
-	create("UIGridLayout", { CellSize = UDim2.fromOffset(108, 128), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
+	create("UIGridLayout", { CellSize = UDim2.fromOffset(90, 128), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
 }) :: Frame
 local spellPicker = panel({ Position = UDim2.fromOffset(0, 112), Size = UDim2.fromOffset(580, 264), Visible = false, Parent = pickBox, ZIndex = 12 })
 local detail = panel({ Position = UDim2.fromOffset(596, 68), Size = UDim2.fromOffset(354, 446), Parent = pickBox, Radius = 16 })
@@ -957,7 +1049,8 @@ function renderDetail()
 		local role = Config.RolesById[id]
 		table.insert(roles, if role then role.Icon .. " " .. role.Name else id)
 	end
-	text({ Position = UDim2.fromOffset(86, 44), Size = UDim2.fromOffset(250, 16), Text = `{hero.Title}  ·  {hero.Class or ""}`, TextColor3 = MUTED, Font = SMALL, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
+	local masteryLevel = Config.MasteryLevel(Menus.MasteryPoints(Menus.Profile(), hero.Id))
+	text({ Position = UDim2.fromOffset(86, 44), Size = UDim2.fromOffset(250, 16), Text = `{hero.Title}  ·  {hero.Class or ""}  ·  ⭐ Mastery {masteryLevel}`, TextColor3 = MUTED, Font = SMALL, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
 	text({ Position = UDim2.fromOffset(86, 60), Size = UDim2.fromOffset(250, 16), Text = table.concat(roles, "   "), TextColor3 = GOLD, Font = SMALL, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
 	local stats = hero.Stats
 	local bars = { { "Health", stats.HP / 680 }, { "Attack", stats.AD / 68 }, { "Range", stats.Range / 26 }, { "Speed", (stats.Speed - 300) / 60 } }
@@ -1028,9 +1121,14 @@ local function renderPickCards()
 			taken[other:GetAttribute("PickedHero") or ""] = true
 		end
 	end
+	local profile = Menus.Profile()
 	for id, card in pickCards do
 		local hero = Config.HeroesById[id]
 		local has = owned(heroes, id)
+		local masteryLabel = card:FindFirstChild("Mastery") :: TextLabel
+		local level = Config.MasteryLevel(Menus.MasteryPoints(profile, id))
+		masteryLabel.Text = `M{level}`
+		masteryLabel.Visible = level > 1
 		local picked = player:GetAttribute("PickedHero") == id
 		local stroke = card:FindFirstChild("Stroke") :: UIStroke
 		stroke.Color = if picked then GOLD elseif selectedHero == id then TEXT else Color3.new(1, 1, 1)
@@ -1060,7 +1158,8 @@ for _, hero in Config.Heroes do
 		table.insert(icons, if role then role.Icon else id)
 	end
 	text({ Position = UDim2.fromOffset(4, 102), Size = UDim2.new(1, -8, 0, 18), Text = table.concat(icons, " "), Font = SMALL, Parent = card })
-	text({ Name = "Lock", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 6), Size = UDim2.fromOffset(92, 20), BackgroundTransparency = 0.2, BackgroundColor3 = INK, Text = "", Font = BODY, TextColor3 = CRYSTAL, Parent = card, Children = { round() } })
+	text({ Name = "Mastery", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 54), Size = UDim2.fromOffset(34, 16), BackgroundTransparency = 0.2, BackgroundColor3 = INK, Text = "", Font = SMALL, TextColor3 = GOLD, Visible = false, Parent = card, Children = { round() } })
+	text({ Name = "Lock", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 6), Size = UDim2.fromOffset(84, 20), BackgroundTransparency = 0.2, BackgroundColor3 = INK, Text = "", Font = BODY, TextColor3 = CRYSTAL, Parent = card, Children = { round() } })
 	card.Activated:Connect(function()
 		selectedHero = hero.Id
 		spellPicker.Visible = false
@@ -1128,12 +1227,18 @@ local grey = create("ColorCorrectionEffect", { Name = "DeathGrey", Saturation = 
 
 ---------------------------------------------------------------- Ergebnis
 
-local result = panel({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(520, 330), Visible = false, ZIndex = 15, Parent = root, Radius = 20 })
+local result = panel({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(540, 400), Visible = false, ZIndex = 15, Parent = root, Radius = 20 })
 local resultTitle = text({ Position = UDim2.fromOffset(0, 12), Size = UDim2.new(1, 0, 0, 64), Text = "VICTORY", Font = TITLE, Parent = result, Outline = 4 })
 local resultStats = text({ Position = UDim2.fromOffset(20, 86), Size = UDim2.new(1, -40, 0, 26), Text = "", Parent = result })
 local resultCrystals = text({ Position = UDim2.fromOffset(20, 124), Size = UDim2.new(1, -40, 0, 44), Text = "", Font = TITLE, TextColor3 = CRYSTAL, Parent = result, Outline = 2 })
 local resultBreakdown = text({ Position = UDim2.fromOffset(20, 172), Size = UDim2.new(1, -40, 0, 40), Text = "", TextColor3 = MUTED, Font = SMALL, TextScaled = false, TextSize = 15, TextWrapped = true, Parent = result })
-local resultNext = text({ Position = UDim2.fromOffset(20, 214), Size = UDim2.new(1, -40, 0, 20), Text = "", TextColor3 = MUTED, Font = SMALL, Parent = result })
+local resultProgress = text({ Position = UDim2.fromOffset(20, 214), Size = UDim2.new(1, -40, 0, 54), Text = "", TextColor3 = TEXT, Font = SMALL, TextScaled = false, TextSize = 15, TextWrapped = true, RichText = true, Parent = result })
+local resultNext = text({ Position = UDim2.fromOffset(20, 276), Size = UDim2.new(1, -40, 0, 20), Text = "", TextColor3 = MUTED, Font = SMALL, Parent = result })
+-- Schliessen-Knopf: vorher blieb das Ergebnis bis zur naechsten Heldenwahl ueber dem Bildschirm
+local resultClose = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(36, 36), Text = "✕", Parent = result, Radius = 18 }, "Dark")
+resultClose.Activated:Connect(function()
+	result.Visible = false
+end)
 local resultStore = button({ Position = UDim2.new(0, 20, 1, -64), Size = UDim2.new(0.5, -26, 0, 44), Text = "🦸 HEROES", Parent = result }, "Gold")
 local resultBoost = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -20, 1, -64), Size = UDim2.new(0.5, -26, 0, 44), Text = "💎 2x CRYSTALS", Parent = result }, "Crystal")
 resultStore.Activated:Connect(function()
@@ -1155,10 +1260,37 @@ local function showResult(info)
 	if info.FirstWin then
 		table.insert(parts, `First win today +{Config.Rewards.FirstWinBonus}`)
 	end
+	if (info.StreakBonus or 0) > 0 then
+		table.insert(parts, `🔥 Win streak {info.Streak} +{info.StreakBonus}`)
+	end
+	if info.MVP then
+		table.insert(parts, `⭐ MVP +{info.MVPBonus}`)
+	end
 	if info.Multiplier > 1 then
 		table.insert(parts, `Pass bonus x{info.Multiplier}`)
 	end
 	resultBreakdown.Text = table.concat(parts, "   ·   ")
+	-- Fortschritt: Meisterschaft, Kontostufe, Quests, Erfolge
+	local progress = if typeof(info.Progress) == "table" then info.Progress else {}
+	local lines = {}
+	local masteryHero = Config.HeroesById[progress.MasteryHero or ""]
+	if masteryHero and progress.MasteryGained then
+		table.insert(lines, `{masteryHero.Icon} Mastery +{progress.MasteryGained} · M{progress.MasteryLevel}` .. (if progress.MasteryUp then ` <font color="#FFCD5A">LEVEL UP!</font>` else ""))
+	end
+	if progress.AccountXP then
+		table.insert(lines, `⭐ +{progress.AccountXP} XP · Level {progress.AccountLevel}` .. (if progress.AccountUp then ` <font color="#FFCD5A">LEVEL UP!</font>` else ""))
+	end
+	if (progress.QuestsDone or 0) > 0 then
+		table.insert(lines, `📜 {progress.QuestsDone} quest{if progress.QuestsDone > 1 then "s" else ""} done`)
+	end
+	if typeof(progress.Achievements) == "table" and #progress.Achievements > 0 then
+		table.insert(lines, `🏆 {table.concat(progress.Achievements, ", ")}`)
+	end
+	if not info.MVP and typeof(info.MVPName) == "string" and info.MVPName ~= "" then
+		table.insert(lines, `⭐ Team MVP: {info.MVPName}`)
+	end
+	resultProgress.Text = table.concat(lines, "   ·   ")
+	Sounds.Play(if info.Won then "Victory" else "Defeat")
 	resultBoost.Visible = not player:GetAttribute("DoubleCrystals")
 	result.Visible = true
 	local scale = result:FindFirstChildOfClass("UIScale") or create("UIScale", { Parent = result })
@@ -1222,6 +1354,7 @@ local function drakeIcons(team: number): string
 end
 
 local lastPhase = nil
+local guideShown = false
 local function updateHUD()
 	local phase = match:GetAttribute("Phase") or "Waiting"
 	local playing = phase == "Playing"
@@ -1274,6 +1407,19 @@ local function updateHUD()
 	minimap.Visible = inMatch
 	killFeed.Visible = inMatch
 	menu.Visible = not pick.Visible
+	pingButton.Visible = playing and heroId ~= nil
+	emoteButton.Visible = pingButton.Visible
+	if not pingButton.Visible then
+		pingRow.Visible = false
+		emoteRow.Visible = false
+	end
+	questsBadge.Visible = (player:GetAttribute("QuestsReady") or 0) > 0
+
+	-- Anleitung einmal pro Sitzung fuer neue Spieler
+	if not guideShown and player:GetAttribute("TutorialDone") == false and phase ~= "Pick" and openName == nil and not result.Visible then
+		guideShown = true
+		openWindow("Guide")
+	end
 
 	-- Punktestand und Ziele
 	dawnKills.Text = tostring(match:GetAttribute("Kills1") or 0)
@@ -1424,13 +1570,17 @@ function UI.Start()
 	end)
 	remotes.KillFeed.OnClientEvent:Connect(function(info)
 		addKill(info)
-		if info.VictimTeam == player:GetAttribute("Team") and info.Victim == player.DisplayName then
+		-- Ueber die UserId vergleichen: gleiche Anzeigenamen (oder ein Bot mit meinem Namen) loesten sonst falsche Ansagen aus
+		if info.VictimUserId == player.UserId and info.VictimHero then
 			bigAnnounce("YOU HAVE BEEN SLAIN", RED)
-		elseif info.Killer == player.DisplayName and info.VictimHero then
+			Sounds.Play("Slain")
+		elseif info.KillerUserId == player.UserId and info.VictimHero then
 			bigAnnounce("YOU HAVE SLAIN AN ENEMY", GOLD)
+			Sounds.Play("Kill")
 		end
 	end)
 	remotes.MatchResult.OnClientEvent:Connect(showResult)
+	remotes.Ping.OnClientEvent:Connect(showPing)
 	remotes.Offer.OnClientEvent:Connect(function(key, message)
 		offerKey = key
 		offerText.Text = message
@@ -1451,7 +1601,7 @@ function UI.Start()
 			end
 		end)
 	end
-	for _, attribute in { "PickedHero", "Locked", "Role", "SpellD", "SpellF" } do
+	for _, attribute in { "PickedHero", "Locked", "Role", "SpellD", "SpellF", "Profile" } do
 		player:GetAttributeChangedSignal(attribute):Connect(function()
 			if pick.Visible then
 				renderDetail()

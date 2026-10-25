@@ -33,7 +33,7 @@ for _, def in Config.Units do
 end
 
 local combos = {} -- [Player] = { Count, Until }
-local buddies = {} -- [Player] = { Code, Model }
+local buddies = {} -- [Player] = { Code, Model, Root }
 local speedUntil = {} -- [Player] = os.clock()
 local alarmSlowed = {} -- [Player] = true (Dieb ist durch Alarm langsamer)
 local nightUntil = 0
@@ -111,6 +111,7 @@ function FeatureService:Refresh(player: Player)
 				TrainCost = if level < Config.TrainMaxLevel then math.floor(info.Value * Config.TrainCostShare * (level + 1)) else 0,
 				VaultCost = math.floor(info.Value * Config.VaultCostShare),
 				Vault = data.Vault == slotKey,
+				Favorite = data.Favorites[slotKey] == true,
 			})
 		end
 	end
@@ -185,6 +186,7 @@ function FeatureService:OnSlotCleared(player: Player, slotKey: string)
 		return
 	end
 	data.Levels[slotKey] = nil
+	data.Favorites[slotKey] = nil
 	if data.Vault == slotKey then
 		data.Vault = ""
 		self:UpdateVault(player)
@@ -277,6 +279,7 @@ function FeatureService:OnRebirth(player: Player)
 	data.Tokens = (data.Tokens or 0) + 1
 	data.Levels = {}
 	data.Vault = ""
+	data.Favorites = {}
 	notify(player, "+1 Rebirth Token! Spend it in MORE > PERKS.", GOLD)
 	self:UpdateBuddy(player)
 	self:Refresh(player)
@@ -354,7 +357,23 @@ local function hatch(player: Player, egg, free: boolean): (boolean, string?, any
 	if rarity.Announce then
 		services.Net.SendAnnounce(`{player.DisplayName} hatched a {def.Rarity} {def.Name}!`, rarity.Color)
 	end
+	services.Net.PlaySfx(player, if rarity.Index >= 4 then "Steal" else "Hatch")
 	return true, `You hatched {def.Name} ({def.Rarity})!`, { Name = def.Name, Rarity = def.Rarity }
+end
+
+-- Fuer das Gratis-Ei (ExtraService)
+function FeatureService:Hatch(player: Player, eggId: string, free: boolean): (boolean, string?, any)
+	local egg = eggsById[eggId]
+	if not egg then
+		return false, "Unknown egg"
+	end
+	return hatch(player, egg, free)
+end
+
+-- Waehrend ein Dieb die Kreatur traegt, waeren Training und Tresor verschwendetes Geld
+local function beingStolen(player: Player, slotKey: string): boolean
+	local model = FeatureService.Services.UnitService:GetBaseModels(player)[slotKey]
+	return model ~= nil and model:GetAttribute("BeingStolen") == true
 end
 
 ---------------------------------------------------------------- Anfragen
@@ -378,6 +397,9 @@ local function train(player: Player, slotKey: any)
 	local level = data.Levels[slotKey] or 0
 	if level >= Config.TrainMaxLevel then
 		return false, "Already max level!"
+	end
+	if beingStolen(player, slotKey) then
+		return false, "Someone is stealing it right now - slap them first!"
 	end
 	local cost = math.floor(info.Value * Config.TrainCostShare * (level + 1))
 	if data.Cash < cost then
@@ -429,6 +451,9 @@ local function vault(player: Player, slotKey: any)
 	end
 	if data.Vault == slotKey then
 		return false, "Already in your vault"
+	end
+	if beingStolen(player, slotKey) then
+		return false, "Someone is stealing it right now - slap them first!"
 	end
 	local cost = math.floor(info.Value * Config.VaultCostShare)
 	if data.Cash < cost then
@@ -630,6 +655,10 @@ function FeatureService:ApplyBaseColor(player: Player)
 			self.Services.PlotService:RefreshPads(player)
 		end
 	end
+	-- Die Flagge der Basis-Deko traegt die Basis-Farbe
+	if self.Services.ExtraService then
+		self.Services.ExtraService:BuildDecor(player)
+	end
 end
 
 local SETTING_VALUES = {
@@ -637,6 +666,7 @@ local SETTING_VALUES = {
 	Hints = { On = true, Off = true },
 	Detail = { High = true, Low = true },
 	Buddy = { On = true, Off = true },
+	Sounds = { On = true, Off = true },
 }
 
 local function saveSettings(player: Player, settings: any)
@@ -671,7 +701,8 @@ function FeatureService:UpdateBuddy(player: Player)
 			end
 		end
 	end
-	if current and (current.Code ~= bestCode or not root or not current.Model.Parent) then
+	-- Nach dem Respawn gehoert der Kumpel zum alten (geloeschten) Koerper und wuerde herunterfallen: neu bauen
+	if current and (current.Code ~= bestCode or not root or current.Root ~= root or not current.Model.Parent or not current.Model.PrimaryPart) then
 		current.Model:Destroy()
 		buddies[player] = nil
 		current = nil
@@ -722,7 +753,7 @@ function FeatureService:UpdateBuddy(player: Player)
 	model:PivotTo(root.CFrame * CFrame.new(2.6, 0.2, 2.4))
 	model.Parent = workspace:FindFirstChild("Buddies") or workspace
 	pcall(body.SetNetworkOwner, body, player)
-	buddies[player] = { Code = bestCode, Model = model }
+	buddies[player] = { Code = bestCode, Model = model, Root = root }
 	self.Services.UnitService:UpdateIncome(player)
 end
 
@@ -996,6 +1027,11 @@ function FeatureService:OnPlayerReady(player: Player)
 	end
 	if data.Vault ~= "" and data.Units[data.Vault] == nil then
 		data.Vault = ""
+	end
+	for slotKey in data.Favorites do
+		if data.Units[slotKey] == nil then
+			data.Favorites[slotKey] = nil
+		end
 	end
 	player:SetAttribute("StealHoldBonus", self:StealHoldBonus(player))
 	self:ApplyBaseColor(player)

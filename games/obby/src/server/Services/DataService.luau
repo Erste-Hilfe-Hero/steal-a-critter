@@ -27,6 +27,20 @@ local function defaultData()
 		LastActiveDay = 0,
 		RankRevoked = false, -- vom Owner entzogen: maximal Regular
 		RobuxSpent = 0,
+		-- Update: Coins, Belohnungen, Quests, Erfolge, Speedrun, Gems, Einstellungen
+		Coins = 0,
+		CoinsEarned = 0, -- insgesamt verdient (fuer Erfolg)
+		OwnedTrails = {}, -- [TrailId] = true (mit Coins gekauft)
+		DailyStreak = 0,
+		LastDailyDay = 0,
+		Quests = { Day = 0, List = {} }, -- List = { { Type, Target, Reward, Progress, Claimed } }
+		Achievements = {}, -- [Id] = true
+		Title = "", -- ausgeruestete Erfolg-Id
+		BestTime = 0, -- schnellster Sieg ohne Skips in Sekunden (0 = noch keiner)
+		SpeedRun = 0, -- 1 = Speedster-Zeit geschafft
+		GemMask = 0, -- Bitmaske der gefundenen Regenbogen-Edelsteine
+		Codes = {}, -- [Code] = true
+		Settings = {}, -- [Key] = boolean (fehlend = Standard)
 	}
 end
 
@@ -109,6 +123,10 @@ function DataService:UpdateAttributes(player: Player)
 	player:SetAttribute("BestStage", data.BestStage)
 	player:SetAttribute("Wins", data.Wins)
 	player:SetAttribute("Trail", data.Trail)
+	player:SetAttribute("Coins", data.Coins)
+	player:SetAttribute("Title", data.Title)
+	player:SetAttribute("GemMask", data.GemMask)
+	player:SetAttribute("BestTime", data.BestTime)
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
 		leaderstats.Stage.Value = data.Stage

@@ -9,9 +9,22 @@ local Services = {
 	GardenService = require(script.Services.GardenService),
 	MonetizationService = require(script.Services.MonetizationService),
 	CommunityService = require(script.Services.CommunityService),
+	ProgressService = require(script.Services.ProgressService),
+	CosmeticService = require(script.Services.CosmeticService),
+	LeaderboardService = require(script.Services.LeaderboardService),
 }
 
-local ORDER = { "DataService", "WorldService", "EventService", "GardenService", "MonetizationService", "CommunityService" }
+local ORDER = {
+	"DataService",
+	"WorldService",
+	"EventService",
+	"GardenService",
+	"MonetizationService",
+	"CommunityService",
+	"ProgressService",
+	"CosmeticService",
+	"LeaderboardService",
+}
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
@@ -27,11 +40,17 @@ local function onCharacterAdded(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	humanoid.WalkSpeed = player:GetAttribute("BaseWalkSpeed") or 18
 	task.spawn(Services.CommunityService.AttachNameplate, Services.CommunityService, player, character)
+	task.spawn(Services.CosmeticService.OnCharacterAdded, Services.CosmeticService, player, character)
 	Services.GardenService:OnCharacterAdded(player, character)
 end
 
 local function onPlayerAdded(player: Player)
-	if Services.CommunityService:IsBanned(player) then
+	local banned = Services.CommunityService:IsBanned(player)
+	-- Waehrend der Ban-Abfrage verlassen: keinen Garten mehr zuweisen (sonst bliebe er belegt)
+	if not player.Parent then
+		return
+	end
+	if banned then
 		player:Kick("You are banned from this game or server.")
 		return
 	end
@@ -49,6 +68,8 @@ local function onPlayerAdded(player: Player)
 	Services.EventService:OnPlayerReady(player)
 	Services.GardenService:OnPlayerReady(player)
 	Services.CommunityService:OnPlayerReady(player)
+	Services.ProgressService:OnPlayerReady(player)
+	Services.CosmeticService:OnPlayerReady(player)
 
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
@@ -68,6 +89,9 @@ Players.PlayerRemoving:Connect(function(player)
 	Services.EventService:OnPlayerRemoving(player)
 	Services.GardenService:OnPlayerRemoving(player)
 	Services.MonetizationService:OnPlayerRemoving(player)
+	Services.ProgressService:OnPlayerRemoving(player)
+	Services.CosmeticService:OnPlayerRemoving(player)
+	Services.LeaderboardService:OnPlayerRemoving(player)
 	Services.GardenService:Release(player)
 	Services.DataService:Release(player)
 end)

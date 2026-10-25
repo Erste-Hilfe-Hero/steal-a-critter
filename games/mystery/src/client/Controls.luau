@@ -22,6 +22,7 @@ Controls.Stamina = Config.SprintStamina
 Controls.Sprinting = false
 Controls.Spectating = nil :: Model?
 Controls.OnChanged = nil :: (() -> ())?
+Controls.AimAssist = true -- Einstellung: Zielhilfe auf Touch-Geraeten
 
 local function changed()
 	if Controls.OnChanged then
@@ -38,13 +39,43 @@ local function root(): BasePart?
 	return c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
--- Zielpunkt: Maus/Fingertipp, sonst Bildschirmmitte
+-- Zielhilfe (Handy): die naechste sichtbare Figur nahe der Bildschirmmitte. Unsichtbare (Shadow) und
+-- Versteckte werden nie anvisiert, sonst wuerde die Zielhilfe sie verraten.
+local ASSIST_PIXELS = 110
+local function assistTarget(center: Vector2): Vector3?
+	local camera = workspace.CurrentCamera
+	local best, bestDist = nil, ASSIST_PIXELS
+	for _, model in CollectionService:GetTagged("Actor") do
+		if model ~= character() and model:GetAttribute("Cloaked") ~= true and model:GetAttribute("Hidden") ~= true then
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			local r = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if humanoid and humanoid.Health > 0 and r then
+				local screen, onScreen = camera:WorldToViewportPoint(r.Position)
+				if onScreen then
+					local d = (Vector2.new(screen.X, screen.Y) - center).Magnitude
+					if d < bestDist then
+						best, bestDist = r.Position, d
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
+-- Zielpunkt: Maus/Fingertipp, sonst Bildschirmmitte (mit Zielhilfe)
 local function aimPoint(): Vector3
 	if UserInputService.MouseEnabled then
 		return mouse.Hit.Position
 	end
 	local camera = workspace.CurrentCamera
 	local size = camera.ViewportSize
+	if Controls.AimAssist then
+		local assisted = assistTarget(Vector2.new(size.X / 2, size.Y * 0.45))
+		if assisted then
+			return assisted
+		end
+	end
 	local ray = camera:ViewportPointToRay(size.X / 2, size.Y * 0.45)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -191,7 +222,9 @@ local function hookCharacter(c: Model)
 	-- Tempo vom Server (Basis) plus Sprint
 	local function applySpeed()
 		local base = c:GetAttribute("BaseSpeed") or Config.WalkSpeed
-		local sprint = Controls.Sprinting and Controls.Stamina > 0 and c:GetAttribute("Slowed") ~= true and humanoid.MoveDirection.Magnitude > 0
+		-- Sprint nur mit Rolle (nicht Murderer): sonst bliebe ein eingeschalteter Handy-Sprint in der Lobby ohne Ausdauerverbrauch an
+		local role = Controls.Role
+		local sprint = Controls.Sprinting and role ~= nil and role ~= "Murderer" and Controls.Stamina > 0 and c:GetAttribute("Slowed") ~= true and humanoid.MoveDirection.Magnitude > 0
 		humanoid.WalkSpeed = base + (if sprint then Config.SprintSpeed - Config.WalkSpeed else 0)
 	end
 	c:GetAttributeChangedSignal("BaseSpeed"):Connect(applySpeed)

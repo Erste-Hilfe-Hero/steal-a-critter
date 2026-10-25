@@ -112,19 +112,6 @@ function MonetizationService:ApplyPassEffects(player: Player)
 	if humanoid then
 		humanoid.WalkSpeed = speed
 	end
-	-- Big Team: freie Plaetze sofort mit Bestien aus dem Lager fuellen
-	local data = self.Services.DataService:Get(player)
-	if data then
-		local size = self.Services.BeastService:TeamSize(player)
-		for uid in data.Beasts do
-			if #data.Team >= size then
-				break
-			end
-			if not table.find(data.Team, uid) then
-				table.insert(data.Team, uid)
-			end
-		end
-	end
 	self.Services.BeastService:Sync(player)
 end
 
@@ -262,6 +249,8 @@ local function grantProduct(player: Player, key: string): boolean
 		shinyUntil = math.max(now, shinyUntil) + product.Seconds
 		workspace:SetAttribute("ShinyUntil", shinyUntil)
 		services.Net.SendAnnounce(`{player.DisplayName} started a PRISMATIC STORM! Prismatic beasts x2 for everyone!`, PRISM)
+	elseif kind == "Quests" then
+		return services.ProgressService:FinishQuests(player)
 	elseif kind == "Storage" then
 		data.ExtraStorage += product.Amount
 		beasts:Sync(player)

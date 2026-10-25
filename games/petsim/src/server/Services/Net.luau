@@ -19,6 +19,8 @@ Net.Announce = remote("Announce") -- alle
 Net.Inventory = remote("Inventory") -- komplettes Inventar (Pets, Equipped, Storage)
 Net.Hatched = remote("Hatched") -- Ergebnis beim Schluepfen (fuer die Animation)
 Net.CoinPop = remote("CoinPop") -- "+123" ueber zerstoerten Sachen
+Net.Progress = remote("Progress") -- Aufgaben, Erfolge, Titel, Index, Serie, Spielzeit-Geschenke
+Net.TapHit = remote("TapHit") -- (Schaden, Position) Rueckmeldung beim Antippen
 
 -- Client -> Server
 Net.RequestRebirth = remote("RequestRebirth")
@@ -29,6 +31,14 @@ Net.CraftGolden = remote("CraftGolden") -- (typeId)
 Net.SetAutoHatch = remote("SetAutoHatch") -- (boolean)
 Net.ClaimDaily = remote("ClaimDaily")
 Net.FakePurchase = remote("FakePurchase") -- nur Studio
+Net.CraftRainbow = remote("CraftRainbow") -- (typeId)
+Net.ToggleLock = remote("ToggleLock") -- (uid)
+Net.ClaimQuest = remote("ClaimQuest") -- (questId)
+Net.SetTitle = remote("SetTitle") -- (achievementId oder "")
+Net.ClaimPlaytime = remote("ClaimPlaytime") -- (index)
+Net.RedeemCode = remote("RedeemCode") -- (text)
+Net.SetSetting = remote("SetSetting") -- (key, boolean)
+Net.Teleport = remote("Teleport") -- (zoneIndex)
 
 folder.Parent = ReplicatedStorage
 

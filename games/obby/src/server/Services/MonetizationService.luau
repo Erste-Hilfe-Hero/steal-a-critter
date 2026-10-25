@@ -111,6 +111,10 @@ local function grantProduct(player: Player, key: string): boolean
 		end
 		services.Net.SendAnnounce(`💀 {player.DisplayName} used KILL EVERYONE! 💀`, RED)
 		return true
+	elseif product.Kind == "Coins" then
+		local amount = services.RewardService:AddCoins(player, product.Amount, false, true)
+		services.Net.SendNotify(player, `Thanks! +{amount} coins 🪙`, GOLD)
+		return amount > 0
 	end
 	warn("[Monetization] Unbekannter Produkttyp", product.Kind)
 	return false

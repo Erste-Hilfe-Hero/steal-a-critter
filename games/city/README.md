@@ -37,6 +37,7 @@ Eine offene Comic-Stadt im Stil von *GTA*, aber kindgerecht (Ziel: Altersfreigab
 | Produkt | Money Rain | 99 R$ | Geldregen über der ganzen Stadt |
 | Produkt | Mission Skip | 29 R$ | nächste Tagesmission sofort fertig |
 | Produkt | Starter Pack | 79 R$ | einmalig 50.000 $ + Zoomer GT (Angebot nach 4 Minuten) |
+| Produkt | Max Tune | 49 R$ | ausgewähltes Auto sofort auf Tuning-Stufe 3 |
 | Werbung | Free Cash | – | Belohnungs-Video über AdService |
 | Passiv | Premium-Bonus | – | Premium-Spieler bekommen x1,2 |
 
@@ -80,8 +81,51 @@ src/server/Services/
   MonetizationService.luau      ← Vorteile, Developer Products, Angebote, Werbung
   RewardService.luau            ← Missionen, Tagesbelohnung, Geschenke, Codes, Bestenliste
   CommunityService.luau         ← Ränge und Moderation
+  ProgressService.luau          ← Stufen/XP, Trophäen, Titel, Glücksrad, Turbo-Token, Einstellungen, Tutorial
+  EventService.luau             ← Stadt-Events, Geldtransporter, Blitzer, Spray-Werkstatt
 src/client/Drive.luau           ← Arcade-Fahrsteuerung mit Nitro
 src/client/Effects.luau         ← GPS-Marker, Sterne, Blaulicht, Laternen
 src/client/UI.luau              ← HUD, Shop, Garage, Haus, Team, Missionen
 tests/smoke.luau                ← Test vor jedem Veröffentlichen
 ```
+
+## Update 2: Fehler behoben und 15 neue Features
+
+### Behobene Fehler
+
+1. **Beute-Exploit:** Überfälle prüfen jetzt auf dem Server Entfernung und Haltezeit (vorher reichte ein ausgelöster Prompt ohne Wartezeit).
+2. **GO HOME mit Beute:** Räuber konnten sich mit vollem Beutesack vor der Polizei nach Hause teleportieren. Jetzt gesperrt.
+3. **Stun-Blaster:** Ein zweiter Treffer speicherte Laufgeschwindigkeit 0 und setzte danach auf 18 statt auf den echten Wert. Sprunghöhe (JumpHeight) wurde nicht gesperrt. Beides behoben, ein neuer Treffer verlängert die Betäubung.
+4. **CAR-Knopf nach Polizeidienst:** Das Polizeiauto wurde als Lieblingsauto gespeichert, danach meldete CAR "Only for the Police team!". Team-Autos werden nicht mehr gespeichert, Polizisten bekommen automatisch ihr Team-Auto.
+5. **"Driving" blieb hängen**, wenn das Auto mit Fahrer gelöscht wurde (Festnahme, Teamwechsel).
+6. **Missionen-Fenster:** "Best city race" überlappte die dritte Mission.
+7. **Code-Feld:** Getippter Code wurde gelöscht, sobald sich irgendein Attribut änderte (Fenster wurde ständig neu gebaut). Jetzt bauen Fenster nur bei passenden Änderungen neu auf, der Text bleibt erhalten.
+8. **Angebots-Fenster** lag über den Knöpfen CAR und NITRO. Es erscheint jetzt unten in der Mitte.
+9. **Tageswechsel:** Tagesbelohnung und Missionen wurden erst nach einem Neubeitritt erneuert. Jetzt auch während des Spielens.
+10. **Gehaltsscheck-Meldung** kam auch, wenn die Spielerdaten noch nicht geladen waren (es gab dann kein Geld).
+11. **Stille Käufe:** Jail Break außerhalb des Gefängnisses, Mission Skip ohne offene Mission und ein zweites Starter Pack gaben Geld ohne jede Meldung.
+12. **Autohaus-Drehteller** (Tag "SlowSpin") drehten sich nie, weil der Client den Tag nicht kannte.
+13. **Rangliste:** Namen wurden alle 2 Minuten neu aus dem Web geladen (jetzt mit Cache), Werte werden nur noch bei Änderungen gespeichert.
+14. **Keine Sounds:** Knöpfe, Geld, Stun und Belohnungen hatten keinerlei Ton. Jetzt mit eingebauten Roblox-Sounds (abschaltbar).
+15. **Lange Meldungen** liefen auf Handys über den Bildschirmrand. Sie werden jetzt umgebrochen.
+16. **Menü-Beschriftungen** wie "MISSIONS" passten nicht in die Knöpfe (jetzt automatisch skaliert). Das Menü hat zwei Spalten, damit es auf kleinen Handys nicht bis zum Daumen-Stick reicht.
+
+### 15 neue Features
+
+1. **Karriere-Stufen (XP):** Jede Aktion gibt XP, Stufen-Anzeige mit Balken im HUD, Geld-Bonus bei jedem Aufstieg, Stufe auf dem Namensschild.
+2. **Trophäen:** 16 Erfolge (Lieferungen, Festnahmen, Beute, Rennen, Token, Stufe, Haus, Autos, 1 Mio. verdient …) mit Geld-Belohnung, Fenster TROPHIES (dort auch alle eigenen Statistiken im Reiter STATS).
+3. **Titel:** Jede Trophäe schaltet einen Titel frei (z. B. "Sheriff", "Master Thief"). Ausrüstbar, sichtbar über dem Kopf und im Chat.
+4. **Einstellungen:** Gespeichert pro Spieler: Minikarte, GPS-Lichtsäule, Zoom-Effekt, km/h oder MPH, Ankündigungen, Sounds.
+5. **Glücksrad:** Einmal am Tag gratis drehen, nur Spielgeld oder XP (kein Robux, kein Kauf).
+6. **Auto-Tuning:** 3 Motor-Stufen pro Auto (+6 % Tempo je Stufe) für Spielgeld, Reiter TUNING in der Garage. Robux-Abkürzung "Max Tune".
+7. **Spray-Werkstatt "Turbo Spray":** Räuber fahren hinein und verlieren ihre Sterne gegen Spielgeld (nicht, wenn ein Polizist zusieht). Das Auto bekommt eine neue Farbe.
+8. **Geldtransporter:** Alle 5 Minuten parkt ein gepanzerter Transporter in der Stadt. Räuber knacken ihn, die Polizei wird alarmiert.
+9. **Stadt-Events:** Abwechselnd CRIME WAVE (doppelte Beute), DOUBLE BOUNTY (doppeltes Kopfgeld) und RUSH HOUR (doppelter Lieferlohn) mit Anzeige und Countdown.
+10. **Blitzer:** 4 Speed-Cams messen das Tempo, mit Bestwert, Blitz-Effekt und Belohnungen ab 100/150/200 km/h.
+11. **Versteckte Turbo-Token:** 15 goldene Münzen in der Stadt (eine nur per Sprungschanze erreichbar), Belohnung pro Fund, Trophäe für alle.
+12. **Minikarte:** Kleine Stadtkarte oben rechts mit Orten, Ziel-Marker, Geldtransporter und für Polizisten mit gesuchten Räubern.
+13. **Ranglisten für Polizei und Räuber:** Zwei neue Bretter am Platz: TOP COPS (Festnahmen) und MOST WANTED (Beute).
+14. **Putzdienst im Gefängnis:** Mit SWEEP die Strafe verkürzen (bis zur Hälfte), eigene Trophäe.
+15. **Tutorial:** Neue Spieler werden in 4 belohnten Schritten durchs Spiel geführt (Auto holen, fahren, einen Job machen, Glücksrad).
+
+Neues Produkt: **Max Tune** (49 R$).

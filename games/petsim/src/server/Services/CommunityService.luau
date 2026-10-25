@@ -113,11 +113,11 @@ local function updateRankAttributes(player: Player)
 	end
 end
 
-local function findPlayer(query: string?): Player?
-	if not query or query == "" then
+local function findPlayer(rawQuery: string?): Player?
+	if not rawQuery or rawQuery == "" then
 		return nil
 	end
-	query = query:lower()
+	local query = (rawQuery :: string):lower()
 	for _, player in Players:GetPlayers() do
 		if player.Name:lower() == query or player.DisplayName:lower() == query then
 			return player
@@ -133,10 +133,14 @@ end
 
 ---------------------------------------------------------------- Abstimmung
 
-local function finishVote()
-	local vote = activeVote
+-- vote = die Abstimmung, fuer die der Timer gestartet wurde. Ist sie schon beendet (Ziel hat den Server
+-- verlassen) und laeuft inzwischen eine neue, darf der alte Timer die neue nicht vorzeitig beenden.
+local function finishVote(vote)
+	if not vote or activeVote ~= vote then
+		return
+	end
 	activeVote = nil
-	if not vote or not vote.Target.Parent then
+	if not vote.Target.Parent then
 		return
 	end
 	local voters = 0
@@ -201,9 +205,10 @@ commands.votekick = function(player: Player, args: string)
 		notify(player, "You can only vote out players with a lower rank.", RED)
 		return
 	end
-	activeVote = { Target = target, StartedBy = player, Voters = { [player.UserId] = true }, EndsAt = os.clock() + Config.VoteKickDuration }
+	local vote = { Target = target, StartedBy = player, Voters = { [player.UserId] = true }, EndsAt = os.clock() + Config.VoteKickDuration }
+	activeVote = vote
 	CommunityService.Services.Net.SendAnnounce(`{player.DisplayName} started a vote to remove {target.DisplayName}. Type /yes to agree ({Config.VoteKickDuration}s).`, GOLD)
-	task.delay(Config.VoteKickDuration, finishVote)
+	task.delay(Config.VoteKickDuration, finishVote, vote)
 end
 
 commands.announce = function(player: Player, args: string)
@@ -377,10 +382,22 @@ refreshNameplate = function(player: Player)
 	end
 	local rank = player:GetAttribute("Rank") or "Newbie"
 	local vip = player:GetAttribute("Pass_VIP") == true
+	local title = player:GetAttribute("Title")
 	local rankLabel = gui:FindFirstChild("RankLine") :: TextLabel
 	local nameLabel = gui:FindFirstChild("NameLine") :: TextLabel
-	rankLabel.Text = (RANK_ICONS[rank] or "") .. rank:upper() .. (if vip then "  ·  VIP" else "")
-	rankLabel.Visible = rank ~= "Newbie" or vip
+	-- Rang (ausser Newbie), VIP und der gewaehlte Erfolgs-Titel in einer Zeile
+	local parts = {}
+	if rank ~= "Newbie" then
+		table.insert(parts, (RANK_ICONS[rank] or "") .. rank:upper())
+	end
+	if vip then
+		table.insert(parts, "VIP")
+	end
+	if typeof(title) == "string" and title ~= "" then
+		table.insert(parts, title)
+	end
+	rankLabel.Text = table.concat(parts, "  ·  ")
+	rankLabel.Visible = #parts > 0
 	nameLabel.Text = player.DisplayName
 	for _, child in rankLabel:GetChildren() do
 		if child:IsA("UIGradient") then
@@ -448,7 +465,16 @@ function CommunityService:OnPlayerReady(player: Player)
 	player:GetAttributeChangedSignal("Pass_VIP"):Connect(function()
 		refreshNameplate(player)
 	end)
+	player:GetAttributeChangedSignal("Title"):Connect(function()
+		refreshNameplate(player)
+	end)
 	refreshNameplate(player)
+end
+
+-- Hat sich der Spieler in den letzten AfkTimeout Sekunden bewegt oder geschrieben?
+function CommunityService:IsActive(player: Player): boolean
+	local last = lastActive[player]
+	return last ~= nil and os.clock() - last < Config.AfkTimeout
 end
 
 function CommunityService:OnPlayerRemoving(player: Player)

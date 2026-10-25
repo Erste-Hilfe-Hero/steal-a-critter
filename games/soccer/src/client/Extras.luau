@@ -657,6 +657,15 @@ function Extras.Start(newHooks)
 		updateArrow()
 		updateVignette()
 	end)
+	-- Neue Features (eigenes Modul); ein Fehler dort darf die Extras nicht stoppen
+	task.spawn(function()
+		local ok, err = pcall(function()
+			require(script.Parent.Features).Start()
+		end)
+		if not ok then
+			warn("[Features] start failed:", err)
+		end
+	end)
 	task.spawn(function()
 		while true do
 			pcall(updateMinimap)

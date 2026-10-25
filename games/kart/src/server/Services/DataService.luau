@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Progression = require(ReplicatedStorage.Shared.Progression)
 
 local DataService = { Services = nil :: any }
 
@@ -31,13 +32,30 @@ local function defaultData()
 		DailyDay = 0,
 		DailyStreak = 0,
 		PlayTime = 0,
+		-- Fortschritt (Update 2)
+		XP = 0,
+		Stats = { Hits = 0, ItemsUsed = 0, Boxes = 0, TrackCoins = 0 },
+		Quests = { Day = 0, List = {} }, -- List = { { Id, Progress, Claimed } }
+		Achievements = {}, -- [Id] = true
+		Title = "",
+		Best = {}, -- [TrackId] = beste Rennzeit in Sekunden
+		Codes = {}, -- [CODE] = true
+		Settings = {}, -- [Key] = boolean
+		Paints = { Factory = true },
+		Paint = "Factory",
+		WinStreak = 0,
+		BestStreak = 0,
+		TutorialDone = false,
 	}
 end
 
-local function reconcile(data)
-	for key, value in defaultData() do
+-- Fehlende Felder ergaenzen, auch in verschachtelten Tabellen (z. B. neue Statistik-Zaehler)
+local function reconcile(data, defaults)
+	for key, value in defaults do
 		if data[key] == nil then
 			data[key] = value
+		elseif type(value) == "table" and type(data[key]) == "table" then
+			reconcile(data[key], value)
 		end
 	end
 	return data
@@ -76,7 +94,7 @@ function DataService:Load(player: Player)
 	end
 	local profile
 	if ok then
-		profile = { Data = reconcile(stored or defaultData()), CanSave = true }
+		profile = { Data = reconcile(if type(stored) == "table" then stored else defaultData(), defaultData()), CanSave = true }
 	else
 		profile = { Data = defaultData(), CanSave = false }
 		self.Services.Net.SendNotify(player, "Could not load your data. Progress this session will NOT be saved.", Color3.fromRGB(255, 80, 80))
@@ -114,6 +132,19 @@ function DataService:UpdateAttributes(player: Player)
 	player:SetAttribute("Kart", data.Kart)
 	player:SetAttribute("Flame", data.Flame)
 	player:SetAttribute("StarterPack", data.StarterPack)
+	player:SetAttribute("Paint", data.Paint)
+	player:SetAttribute("XP", data.XP)
+	player:SetAttribute("Level", (Progression.LevelFromXp(data.XP)))
+	player:SetAttribute("Title", data.Title)
+	player:SetAttribute("WinStreak", data.WinStreak)
+	player:SetAttribute("TutorialDone", data.TutorialDone)
+	for _, paint in Config.Paints do
+		player:SetAttribute("Paint_" .. paint.Id, data.Paints[paint.Id] == true or nil)
+	end
+	for _, setting in Progression.Settings do
+		local value = data.Settings[setting.Key]
+		player:SetAttribute("Set_" .. setting.Key, if value == nil then setting.Default else value)
+	end
 	for _, kart in Config.Karts do
 		local owned = data.Karts[kart.Id] == true or (kart.Pass ~= nil and data.Passes[kart.Pass] == true)
 		player:SetAttribute("Kart_" .. kart.Id, owned or nil)

@@ -159,6 +159,125 @@ Config.Missions = {
 	{ Id = "Earn", Text = "Earn $%d", Goal = 25_000, Reward = 6_000 },
 }
 
+---------------------------------------------------------------- Fortschritt (Update 2)
+
+-- Karriere-Stufen: XP fuer jede Aktion, Belohnung bei jedem Aufstieg
+Config.MaxLevel = 100
+function Config.XpForLevel(level: number): number
+	return math.floor(40 + 60 * level ^ 1.25)
+end
+function Config.LevelReward(level: number): number
+	return 750 * level
+end
+Config.Xp = {
+	Delivery = 25,
+	Arrest = 60,
+	Rob = 15,
+	CashIn = 40,
+	Race = 50,
+	Truck = 60,
+	Token = 30,
+	Mission = 80,
+	SpeedCam = 10,
+	Spray = 10,
+}
+
+-- Erfolge: Stat = Wert, der gezaehlt wird. Title = Titel, der damit frei wird.
+Config.Achievements = {
+	{ Id = "Deliver10", Name = "Paper Route", Text = "Deliver 10 packages", Stat = "Deliveries", Goal = 10, Reward = 5_000, Title = "Courier" },
+	{ Id = "Deliver100", Name = "Turbo Courier", Text = "Deliver 100 packages", Stat = "Deliveries", Goal = 100, Reward = 60_000, Title = "Express King" },
+	{ Id = "Arrest5", Name = "Rookie Cop", Text = "Arrest 5 robbers", Stat = "Arrests", Goal = 5, Reward = 8_000, Title = "Rookie Cop" },
+	{ Id = "Arrest50", Name = "Top Cop", Text = "Arrest 50 robbers", Stat = "Arrests", Goal = 50, Reward = 90_000, Title = "Sheriff" },
+	{ Id = "Rob20", Name = "Sticky Fingers", Text = "Grab loot 20 times", Stat = "Robberies", Goal = 20, Reward = 8_000, Title = "Sneaky" },
+	{ Id = "Rob200", Name = "Master Thief", Text = "Grab loot 200 times", Stat = "Robberies", Goal = 200, Reward = 90_000, Title = "Master Thief" },
+	{ Id = "Race5", Name = "Street Racer", Text = "Finish 5 city races", Stat = "Races", Goal = 5, Reward = 10_000, Title = "Racer" },
+	{ Id = "Truck3", Name = "Truck Cracker", Text = "Crack the armored truck 3 times", Stat = "Trucks", Goal = 3, Reward = 15_000, Title = "Safecracker" },
+	{ Id = "Speed150", Name = "Speed Demon", Text = "Hit 150 km/h at a speed cam", Stat = "TopSpeed", Goal = 150, Reward = 12_000, Title = "Speed Demon" },
+	{ Id = "Tokens", Name = "Treasure Hunter", Text = "Find all hidden Turbo Tokens", Stat = "Tokens", Goal = 15, Reward = 50_000, Title = "Treasure Hunter" },
+	{ Id = "Chores50", Name = "Model Prisoner", Text = "Sweep the jail 50 times", Stat = "Chores", Goal = 50, Reward = 6_000, Title = "Jailbird" },
+	{ Id = "Level10", Name = "Going Places", Text = "Reach level 10", Stat = "Level", Goal = 10, Reward = 20_000, Title = "Hotshot" },
+	{ Id = "Level25", Name = "City Legend", Text = "Reach level 25", Stat = "Level", Goal = 25, Reward = 100_000, Title = "Legend" },
+	{ Id = "House4", Name = "Big Shot", Text = "Move into a Modern Villa", Stat = "House", Goal = 4, Reward = 40_000, Title = "Big Shot" },
+	{ Id = "Cars5", Name = "Collector", Text = "Own 5 cars", Stat = "Cars", Goal = 5, Reward = 25_000, Title = "Car Collector" },
+	{ Id = "Million", Name = "Millionaire", Text = "Earn $1M in total", Stat = "TotalEarned", Goal = 1_000_000, Reward = 50_000, Title = "Millionaire" },
+}
+
+-- Gluecksrad: einmal am Tag gratis, nur Spielgeld (wird mit der Hausstufe groesser)
+Config.SpinPrizes = {
+	{ Label = "$1K", Cash = 1_000, Weight = 30, Color = Color3.fromRGB(25, 211, 197) },
+	{ Label = "$2K", Cash = 2_000, Weight = 25, Color = Color3.fromRGB(255, 225, 77) },
+	{ Label = "$3K", Cash = 3_000, Weight = 18, Color = Color3.fromRGB(255, 122, 26) },
+	{ Label = "$5K", Cash = 5_000, Weight = 12, Color = Color3.fromRGB(255, 61, 127) },
+	{ Label = "250 XP", Xp = 250, Weight = 8, Color = Color3.fromRGB(150, 90, 255) },
+	{ Label = "$10K", Cash = 10_000, Weight = 5, Color = Color3.fromRGB(80, 220, 120) },
+	{ Label = "$25K", Cash = 25_000, Weight = 2, Color = Color3.fromRGB(255, 200, 40) },
+}
+
+-- Tuning: 3 Motor-Stufen pro Auto
+Config.TuneMax = 3
+Config.TuneSpeed = 0.06 -- +6 % Hoechstgeschwindigkeit pro Stufe
+Config.TuneTurn = 0.03
+function Config.TuneCost(car, level: number): number
+	local base = if car.Price and car.Price > 0 then car.Price else 60_000
+	return math.max(4_000, math.floor(base * 0.12 * level / 1000) * 1000)
+end
+
+-- Spray-Werkstatt: Fahndungssterne weg (gegen Spielgeld)
+Config.SprayCostPerStar = 1_200
+Config.SprayCooldown = 90
+Config.SprayCopRange = 60
+
+-- Stadt-Events (wechseln automatisch)
+Config.EventInterval = 420
+Config.EventDuration = 180
+Config.CityEvents = {
+	{ Id = "CrimeWave", Name = "CRIME WAVE", Text = "Robbers grab 2x loot!", Color = Color3.fromRGB(255, 70, 70) },
+	{ Id = "DoubleBounty", Name = "DOUBLE BOUNTY", Text = "Cops earn 2x per arrest!", Color = Color3.fromRGB(60, 130, 255) },
+	{ Id = "RushHour", Name = "RUSH HOUR", Text = "Deliveries pay 2x!", Color = Color3.fromRGB(255, 200, 40) },
+}
+
+-- Geldtransporter (Event fuer Raeuber)
+Config.Truck = { Interval = 300, Duration = 150, Loot = 2_000, Grabs = 3, Hold = 4, Stars = 2 }
+
+-- Versteckte Turbo-Token
+Config.TokenReward = 2_500
+
+-- Blitzer: Belohnung beim ersten Erreichen einer Geschwindigkeit (km/h)
+Config.KmhPerStud = 1.25
+Config.SpeedCamRadius = 22
+Config.SpeedRewards = { { Kmh = 100, Cash = 3_000 }, { Kmh = 150, Cash = 8_000 }, { Kmh = 200, Cash = 20_000 } }
+
+-- Gefaengnis-Putzdienst: jeder Wisch verkuerzt die Strafe
+Config.ChoreSeconds = 0.5
+Config.ChoreMaxShare = 0.5
+Config.ChoreInterval = 0.3
+
+-- Tutorial fuer neue Spieler
+Config.Tutorial = {
+	{ Id = "Spawn", Text = "Tap CAR to spawn your car", Reward = 1_000 },
+	{ Id = "Drive", Text = "Drive around the city", Reward = 1_000 },
+	{ Id = "Job", Text = "Do a job: deliver, race, rob or arrest", Reward = 2_000 },
+	{ Id = "Spin", Text = "Spin the free LUCKY WHEEL", Reward = 2_000 },
+}
+
+-- Orte fuer die Minikarte (Block-Koordinaten bx, bz, passend zu MAP in WorldService)
+Config.Landmarks = {
+	{ Name = "Bank", Icon = "$", Block = { 2, 1 }, Color = Color3.fromRGB(255, 225, 77) },
+	{ Name = "Gem Store", Icon = "G", Block = { 4, 1 }, Color = Color3.fromRGB(255, 61, 127) },
+	{ Name = "Gas 'n' Go", Icon = "F", Block = { 5, 2 }, Color = Color3.fromRGB(255, 122, 26) },
+	{ Name = "Donut Palace", Icon = "O", Block = { 5, 3 }, Color = Color3.fromRGB(255, 140, 200) },
+	{ Name = "Police", Icon = "P", Block = { 1, 0 }, Color = Color3.fromRGB(60, 130, 255) },
+	{ Name = "Jail", Icon = "J", Block = { 0, 0 }, Color = Color3.fromRGB(170, 170, 185) },
+	{ Name = "Hideout", Icon = "H", Block = { 5, 0 }, Color = Color3.fromRGB(255, 70, 70) },
+	{ Name = "Turbo Spray", Icon = "S", Block = { 4, 0 }, Color = Color3.fromRGB(25, 211, 197) },
+	{ Name = "Turbo Motors", Icon = "C", Block = { 1, 3 }, Color = Color3.fromRGB(25, 211, 197) },
+	{ Name = "Delivery", Icon = "D", Block = { 3, 3 }, Color = Color3.fromRGB(255, 200, 40) },
+	{ Name = "Plaza", Icon = "★", Block = { 2, 2 }, Color = Color3.fromRGB(255, 248, 231) },
+}
+
+-- Einstellungen (pro Spieler gespeichert)
+Config.DefaultSettings = { Minimap = true, Gps = true, Fov = true, Mph = false, Feed = true, Sounds = true }
+
 Config.OfferCooldown = 180
 Config.AdCooldown = 240
 
@@ -187,6 +306,7 @@ Config.DevProducts = {
 	MoneyRain = { Kind = "Rain", Name = "Money Rain", Description = "Rain cash over the whole city", PriceHint = 99, Order = 7 },
 	MissionSkip = { Kind = "MissionSkip", Name = "Mission Skip", Description = "Finish your next daily mission", PriceHint = 29, Order = 8 },
 	StarterPack = { Kind = "Starter", Cash = 50_000, Car = "zoomer", Name = "Starter Pack", Description = "One time: $50K + Zoomer GT", PriceHint = 79, Order = 0, OneTime = true },
+	MaxTune = { Kind = "MaxTune", Name = "Max Tune", Description = "Max engine tune for your selected car", PriceHint = 49, Order = 9 },
 	AdCash = { Kind = "AdCash", Base = 2_000, Name = "Free Cash (Video Ad)", Description = "Reward for watching a video ad", PriceHint = 5, Hidden = true },
 }
 
@@ -226,6 +346,14 @@ end
 Config.PaintsById = {}
 for _, paint in Config.Paints do
 	Config.PaintsById[paint.Id] = paint
+end
+Config.AchievementsById = {}
+for _, achievement in Config.Achievements do
+	Config.AchievementsById[achievement.Id] = achievement
+end
+Config.EventsById = {}
+for _, event in Config.CityEvents do
+	Config.EventsById[event.Id] = event
 end
 Config.MissionsById = {}
 for _, mission in Config.Missions do

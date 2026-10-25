@@ -301,6 +301,133 @@ Config.PlaytimeCoins = 100
 Config.NightChance = 0.3
 Config.RainChance = 0.2
 
+---------------------------------------------------------------- Features (Erfolge, Codes, Gluecksrad, Rang, Pickups, Modi ...)
+
+-- Erfolge: einmalige Coin-Belohnung, sobald der Karriere-Wert erreicht ist
+Config.Achievements = {
+	{ Id = "goal1", Name = "First Goal", Stat = "Goals", Need = 1, Coins = 100 },
+	{ Id = "goal25", Name = "Sharpshooter", Stat = "Goals", Need = 25, Coins = 500 },
+	{ Id = "goal100", Name = "Goal Machine", Stat = "Goals", Need = 100, Coins = 1500 },
+	{ Id = "assist25", Name = "Playmaker", Stat = "Assists", Need = 25, Coins = 500 },
+	{ Id = "ko50", Name = "Swordsman", Stat = "KOs", Need = 50, Coins = 500 },
+	{ Id = "ko250", Name = "Shogun", Stat = "KOs", Need = 250, Coins = 1500 },
+	{ Id = "steal50", Name = "Pickpocket", Stat = "Steals", Need = 50, Coins = 400 },
+	{ Id = "save50", Name = "The Wall", Stat = "Saves", Need = 50, Coins = 400 },
+	{ Id = "win10", Name = "Winner", Stat = "Wins", Need = 10, Coins = 500 },
+	{ Id = "win100", Name = "Champion", Stat = "Wins", Need = 100, Coins = 2000 },
+	{ Id = "match50", Name = "Veteran", Stat = "Matches", Need = 50, Coins = 800 },
+	{ Id = "level10", Name = "Rising Star", Stat = "Level", Need = 10, Coins = 500 },
+	{ Id = "level25", Name = "Superstar", Stat = "Level", Need = 25, Coins = 1500 },
+	{ Id = "mvp10", Name = "Most Valuable", Stat = "MVPs", Need = 10, Coins = 1000 },
+}
+
+-- Codes (Gross-/Kleinschreibung egal), jeder Code einmal pro Spieler
+Config.Codes = {
+	SOCCERJAM = { Coins = 500 },
+	WELCOME = { Coins = 300 },
+	GOAL = { Coins = 250 },
+	ROCKET = { RocketShots = 2 },
+	SAMURAI = { Coins = 400 },
+}
+
+-- Gluecksrad: einmal am Tag gratis, weitere Drehungen kosten Coins (nur Spielwaehrung)
+Config.SpinPrice = 300
+Config.SpinPrizes = {
+	{ Text = "100 COINS", Coins = 100, Weight = 30 },
+	{ Text = "150 COINS", Coins = 150, Weight = 25 },
+	{ Text = "250 COINS", Coins = 250, Weight = 18 },
+	{ Text = "400 COINS", Coins = 400, Weight = 12 },
+	{ Text = "600 COINS", Coins = 600, Weight = 6 },
+	{ Text = "1000 COINS", Coins = 1000, Weight = 3 },
+	{ Text = "ROCKET SHOT", RocketShots = 1, Weight = 4 },
+	{ Text = "15 MIN 2x XP", BoostMinutes = 15, Weight = 2 },
+}
+
+-- Rang-Punkte: Sieg/Unentschieden/Niederlage, Stufen ab diesen Punkten
+Config.RatingStart = 1000
+Config.RatingChange = { Win = 25, Draw = 5, Loss = -15 }
+Config.Ranks = {
+	{ Name = "Bronze", Min = 0, Color = Color3.fromRGB(205, 127, 50) },
+	{ Name = "Silver", Min = 1100, Color = Color3.fromRGB(200, 205, 215) },
+	{ Name = "Gold", Min = 1250, Color = Color3.fromRGB(255, 205, 50) },
+	{ Name = "Platinum", Min = 1450, Color = Color3.fromRGB(120, 230, 220) },
+	{ Name = "Diamond", Min = 1700, Color = Color3.fromRGB(110, 170, 255) },
+	{ Name = "Champion", Min = 2000, Color = Color3.fromRGB(255, 90, 90) },
+}
+function Config.RankFor(rating: number)
+	local best = Config.Ranks[1]
+	for _, rank in Config.Ranks do
+		if rating >= rank.Min then
+			best = rank
+		end
+	end
+	return best
+end
+
+-- Wochen-Herausforderung: eine grosse Aufgabe pro Woche (fuer alle gleich)
+Config.WeeklyChallenges = {
+	{ Id = "wgoals", Text = "Score %d goals this week", Goal = 10, Event = "Goal", Coins = 1500 },
+	{ Id = "whits", Text = "Land %d sword hits this week", Goal = 120, Event = "Hit", Coins = 1200 },
+	{ Id = "wwins", Text = "Win %d matches this week", Goal = 8, Event = "Win", Coins = 1500 },
+	{ Id = "wkos", Text = "Knock out %d players this week", Goal = 40, Event = "KO", Coins = 1500 },
+	{ Id = "wpasses", Text = "Complete %d passes this week", Goal = 60, Event = "Pass", Coins = 1200 },
+	{ Id = "wsaves", Text = "Make %d saves this week", Goal = 20, Event = "Save", Coins = 1200 },
+}
+
+-- MVP: Punkte pro Aktion im Match, Belohnung fuer den besten Spieler
+Config.MVPPoints = { Goal = 3, Assist = 2, Save = 1.5, Steal = 1, KO = 1 }
+Config.MVPCoins = 150
+
+-- Pickups auf dem Feld (nur echte Spieler sammeln sie ein)
+Config.CoinDropEvery = 20
+Config.CoinDropMax = 3
+Config.CoinDropValue = { 20, 50 }
+Config.CoinDropLife = 30
+Config.OrbEvery = 35
+Config.OrbLife = 25
+Config.Orbs = {
+	{ Id = "Speed", Name = "SPEED ORB", Text = "+20% speed for 8 seconds", Color = Color3.fromRGB(40, 200, 255) },
+	{ Id = "Power", Name = "POWER ORB", Text = "Your next kick is 40% harder", Color = Color3.fromRGB(255, 110, 30) },
+	{ Id = "Heal", Name = "HEAL ORB", Text = "Full health", Color = Color3.fromRGB(90, 230, 90) },
+}
+Config.SpeedOrbSeconds = 8
+Config.SpeedOrbFactor = 1.2
+Config.PowerOrbFactor = 1.4
+
+-- Abstimmung ueber den Modus des naechsten Matches (im Ergebnis-Fenster)
+Config.Modes = {
+	{ Id = "Classic", Name = "CLASSIC", Text = "The normal game" },
+	{ Id = "LowGravity", Name = "LOW GRAVITY", Text = "Floaty jumps and long high balls", Gravity = 110 },
+	{ Id = "Turbo", Name = "TURBO", Text = "Everyone runs 20% faster", Speed = 1.2 },
+	{ Id = "MegaKicks", Name = "MEGA KICKS", Text = "All kicks are 25% harder", Kick = 1.25 },
+}
+Config.ModesById = {}
+for _, mode in Config.Modes do
+	Config.ModesById[mode.Id] = mode
+end
+
+-- Schnell-Chat: feste Sprueche ueber dem Kopf (keine freie Eingabe)
+Config.QuickChat = { "PASS!", "NICE SHOT!", "DEFEND!", "GG", "SORRY!", "GO GO GO!", "WELL PLAYED!", "SHOOT!" }
+Config.QuickChatCooldown = 2
+
+-- Freunde-Bonus: mehr Coins, solange ein Freund auf dem Server ist
+Config.FriendBonus = 1.2
+
+-- Torjubel-Effekte (Partikel rund um den Torschuetzen), mit Coins kaufen
+Config.Celebrations = {
+	{ Id = "none", Name = "None", Price = 0, Colors = { Color3.fromRGB(255, 255, 255) } },
+	{ Id = "confetti", Name = "Confetti", Price = 800, Colors = { Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 220, 60), Color3.fromRGB(60, 200, 255), Color3.fromRGB(120, 255, 120) } },
+	{ Id = "stars", Name = "Stars", Price = 1200, Colors = { Color3.fromRGB(255, 240, 120), Color3.fromRGB(255, 255, 255) } },
+	{ Id = "flames", Name = "Flames", Price = 1800, Colors = { Color3.fromRGB(255, 230, 80), Color3.fromRGB(255, 80, 0) } },
+	{ Id = "lightning", Name = "Lightning", Price = 2500, Colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(60, 180, 255) } },
+	{ Id = "galaxy", Name = "Galaxy", Price = 3500, Colors = { Color3.fromRGB(170, 80, 255), Color3.fromRGB(40, 20, 120), Color3.fromRGB(255, 255, 255) } },
+}
+Config.CelebrationsById = {}
+for index, celebration in Config.Celebrations do
+	celebration.Order = index
+	Config.CelebrationsById[celebration.Id] = celebration
+end
+
 ---------------------------------------------------------------- Monetarisierung
 
 -- "Gamepasses" werden als Developer Products verkauft und dauerhaft gespeichert

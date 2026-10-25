@@ -88,6 +88,11 @@ local function countTeam(actor, key: string)
 end
 
 local function statsFor(player: Player)
+	-- Spieler hat den Server schon verlassen (z. B. Tor nach seinem letzten Schuss): nichts mehr eintragen,
+	-- sonst bleibt er als Leiche in matchStats haengen und taucht in den Auszeichnungen auf
+	if not player.Parent then
+		return { Goals = 0, Assists = 0, Steals = 0, Saves = 0, Smacks = 0, KOs = 0, XP = 0, Coins = 0, EXP = 0, Name = player.DisplayName }
+	end
 	local stats = matchStats[player]
 	if not stats then
 		stats = { Goals = 0, Assists = 0, Steals = 0, Saves = 0, Smacks = 0, KOs = 0, XP = 0, Coins = 0, EXP = 0, Name = player.DisplayName }
@@ -97,7 +102,7 @@ local function statsFor(player: Player)
 end
 
 local function reward(actor, kind: string, bonusEXP: number?)
-	if not actor or not actor.Player then
+	if not actor or not actor.Player or not actor.Player.Parent then
 		return
 	end
 	local xp, coins, exp = MatchService.Services.ProgressService:Reward(actor.Player, kind, bonusEXP)
@@ -281,6 +286,7 @@ function MatchService:OnGoal(scoringTeam: string, scorer, assist, distance: numb
 	score[scoringTeam] += self.Services.ExtrasService:GoalValue()
 	updateScore()
 	self.Services.ExtrasService:OnGoal(scoringTeam, scorer, assist, distance)
+	self.Services.FeaturesService:OnGoal(scorer, assist, distance)
 	local team = Config.Teams[scoringTeam]
 	local scorerName = if scorer then scorer.Name else nil
 	local assistName = if assist then assist.Name else nil
@@ -333,6 +339,7 @@ function MatchService:OnTackle(actor, victim)
 		self.Services.Net.SendNotify(actor.Player, "Ball stolen!", Config.Colors.Lime)
 	end
 	self.Services.ExtrasService:OnSteal(actor)
+	self.Services.FeaturesService:Track(actor, "Steal")
 	if victim.Player then
 		self.Services.Net.SendNotify(victim.Player, `{actor.Name} took the ball!`, Config.Colors.Orange)
 	end
@@ -385,6 +392,7 @@ function MatchService:OnKO(attacker, victim, kind: string)
 	end
 	self.Services.Net.PlaySound("Ooh", victim.Root.Position)
 	self.Services.ExtrasService:OnKO(attacker, victim, kind)
+	self.Services.FeaturesService:Track(attacker, "KO")
 	if victim.Player then
 		self.Services.MonetizationService:AfterKnockout(victim.Player)
 	end
@@ -408,6 +416,7 @@ function MatchService:OnSave(actor)
 		self.Services.Net.SendNotify(actor.Player, "SAVE!", Config.Colors.Cyan)
 	end
 	self.Services.ExtrasService:OnSave(actor)
+	self.Services.FeaturesService:Track(actor, "Save")
 end
 
 ---------------------------------------------------------------- Ablauf
@@ -441,8 +450,12 @@ local function finishMatch()
 	ball.GoalsEnabled = false
 	local winner = if score.Blue > score.Red then "Blue" elseif score.Red > score.Blue then "Red" else nil
 	setState("Ended", Config.ResultsSeconds)
-	-- Auszeichnungen wie die Endstatistik im Original
+	-- Auszeichnungen wie die Endstatistik im Original (MVP zuerst)
 	local awards = {}
+	local mvp = MatchService.Services.FeaturesService:OnMatchEnd(winner, score.Blue, score.Red)
+	if mvp then
+		table.insert(awards, mvp)
+	end
 	for _, award in { { "Goals", "TOP SCORER" }, { "Assists", "PLAYMAKER" }, { "Steals", "THIEF" }, { "Saves", "WALL" }, { "Smacks", "SMACKER" }, { "KOs", "KNOCKOUT KING" } } do
 		local bestName, best = nil, 0
 		for _, stats in matchStats do
@@ -502,6 +515,7 @@ local function runMatch()
 	end
 	updateScore()
 	MatchService.Services.ExtrasService:OnMatchStart()
+	MatchService.Services.FeaturesService:OnMatchStart()
 	kickoff()
 	local lastTick = os.clock()
 	while true do

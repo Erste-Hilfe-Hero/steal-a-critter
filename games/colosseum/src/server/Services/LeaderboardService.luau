@@ -7,7 +7,20 @@ local LeaderboardService = { Services = nil :: any }
 local BOARDS = {
 	BestWave = { Store = "BestWave_v1", Suffix = " waves" },
 	Trophies = { Store = "Trophies_v1", Suffix = " trophies" },
+	DexCount = { Store = "DexCount_v1", Suffix = " beasts" }, -- verschiedene gefangene Bestien
 }
+
+-- Wert fuer eine Bestenliste (DexCount wird aus dem Bestiarium gezaehlt)
+local function valueOf(data, key: string): number
+	if key == "DexCount" then
+		local n = 0
+		for _ in data.Dex do
+			n += 1
+		end
+		return n
+	end
+	return data[key] or 0
+end
 local names = {} -- [UserId] = Name
 
 function LeaderboardService:Init(services)
@@ -92,8 +105,9 @@ function LeaderboardService:Start()
 				if ok then
 					for _, player in Players:GetPlayers() do
 						local data = self.Services.DataService:Get(player)
-						if data and data[key] > 0 then
-							pcall(store.SetAsync, store, tostring(player.UserId), data[key])
+						local value = if data then valueOf(data, key) else 0
+						if value > 0 then
+							pcall(store.SetAsync, store, tostring(player.UserId), value)
 						end
 					end
 					local rows = {}
