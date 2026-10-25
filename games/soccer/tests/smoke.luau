@@ -207,6 +207,15 @@ if blue and red then
 	try("pads built", function()
 		local pads = workspace:FindFirstChild("Pads")
 		assert(pads and #pads:GetChildren() == #Config.SpeedPads + #Config.JumpPads, "pads missing")
+		-- kein Pad am Beitritts-Spawn (sonst startet man im Himmel)
+		for _, spawn in workspace:GetDescendants() do
+			if spawn:IsA("SpawnLocation") then
+				for _, pad in pads:GetChildren() do
+					local offset = pad.Position - spawn.Position
+					assert(Vector3.new(offset.X, 0, offset.Z).Magnitude > 15, "pad too close to spawn: " .. pad.Name)
+				end
+			end
+		end
 	end)
 	try("new modes", function()
 		features:ApplyMode("QuickMatch")
