@@ -87,7 +87,7 @@ Config.Knife = {
 	Stab = { Damage = 60, Backstab = 180, Range = 15, Arc = 0.5, Windup = 0.2, Window = 0.35, Cooldown = 1.2 },
 }
 Config.BackstabDot = 0.45 -- so weit muss das Opfer vom Angreifer wegschauen
-Config.HuntDistance = 45 -- wie im Original: Schaden nur, wenn der Angreifer nah am Ball ist (kein "Hunting")
+Config.HuntDistance = 45 -- Bots schlagen nur in dieser Naehe zum Ball zu (Spieler duerfen ueberall)
 -- Messer-Treffer am Ballfuehrer: Chance, dass er den Ball verliert (Original: 5 % + 6 % je Disarm-Stufe)
 function Config.DisarmChance(level: number): number
 	return 0.12 + level * 0.08

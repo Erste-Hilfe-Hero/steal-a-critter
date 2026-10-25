@@ -233,16 +233,8 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 	if attacker and attacker.Team == victim.Team then
 		return
 	end
-	-- Wie im Original: mit dem Messer nur in Ballnaehe Schaden machen, kein Jagen quer uebers Feld
+	-- Das Schwert trifft ueberall (Ali: die Ballnaehe-Regel liess Spieler scheinbar gar nicht angreifen)
 	if attacker and (kind == "Slash" or kind == "Stab") then
-		local ball = self.Services.BallService.Ball :: BasePart
-		if (attacker.Root.Position - ball.Position).Magnitude > Config.HuntDistance and (victim.Root.Position - ball.Position).Magnitude > Config.HuntDistance then
-			if attacker.Player and (attacker.HuntWarnedAt or 0) < now() - 2 then
-				attacker.HuntWarnedAt = now()
-				self.Services.Net.SendNotify(attacker.Player, "No hunting! The sword only works near the ball.", Config.Colors.Orange)
-			end
-			return
-		end
 		-- Treffer am Ballfuehrer: Chance, dass er den Ball verliert
 		local disarm = Config.DisarmChance(self.Services.MatchService:Skill(attacker, "Disarm")) * (if hasPass(victim, "IronGrip") then Config.IronGripFactor else 1)
 		if self.Services.BallService.Carrier == victim and math.random() < disarm then

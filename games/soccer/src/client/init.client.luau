@@ -431,13 +431,13 @@ end
 
 remotes.MatchEvent.OnClientEvent:Connect(function(kind, info)
 	if kind == "Goal" then
-		UI.ShowGoal(info)
-		shake(1.2, 0.6)
-		-- wie im Original: Sirene, Jubel und ein zufaelliger Sprecher-Spruch
+		-- wie im Original: Sirene, Jubel und ein zufaelliger Sprecher-Spruch (zuerst, damit sie immer kommen)
 		Sounds.Play("Siren")
 		Sounds.Play("Cheer")
 		local lines = { "Amazing", "Perfect", "Boom", "Laugh", "Goal" }
 		task.delay(0.8, Sounds.Say, lines[math.random(#lines)])
+		UI.ShowGoal(info)
+		shake(1.2, 0.6)
 	elseif kind == "Ended" then
 		local text = if info.Winner then `{string.upper(info.Winner)} WIN {math.max(info.Blue, info.Red)}-{math.min(info.Blue, info.Red)}!` else `DRAW {info.Blue}-{info.Red}`
 		UI.Announce(text, if info.Winner then Config.Teams[info.Winner].Color else Config.Colors.White, 5)
