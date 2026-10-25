@@ -36,7 +36,7 @@ workspace:SetAttribute("SmokeTest", true)
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local Services = {}
-local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService", "ExtrasService" }
+local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService", "ExtrasService", "DiagService" }
 local ok, err = pcall(function()
 	Services.Net = require(folder.Services.Net)
 	for _, name in ORDER do
@@ -106,6 +106,21 @@ if blue and red then
 		task.wait(1.5)
 		Services.CombatService:Revive(red)
 		assert(not Services.CombatService:IsKO(red), "still KO after revive")
+	end)
+	try("bot swing hits", function()
+		Services.CombatService:Revive(red)
+		red.SpawnProtectUntil = 0
+		blue.KnifeReadyAt = 0
+		blue.StunnedUntil = 0
+		if Services.BallService.Carrier == blue then
+			Services.BallService:Forget(blue)
+		end
+		red.Root.CFrame = blue.Root.CFrame * CFrame.new(0, 0, -5)
+		local before = red.HP
+		local started = Services.CombatService:Swing(blue, "Slash", blue.Root.CFrame.LookVector)
+		task.wait(0.6)
+		assert(started, "swing refused")
+		assert(red.HP < before or Services.CombatService:IsKO(red), `no damage (hp {before} -> {red.HP})`)
 	end)
 	try("kick multiplier", function()
 		local m = Services.ExtrasService:KickMultiplier(blue)

@@ -19,6 +19,32 @@ local ball = workspace:WaitForChild("Ball") :: Part
 local carrierValue = ball:WaitForChild("Carrier") :: ObjectValue
 local camera = workspace.CurrentCamera
 
+-- Fehlersuche: Client-Fehler und Schwert-Statistik an den Server melden (landet im Diag-DataStore)
+local clientLog = remotes:WaitForChild("ClientLog", 10) :: RemoteEvent?
+local knifeStats = {}
+local function countKnife(what: string)
+	knifeStats[what] = (knifeStats[what] or 0) + 1
+end
+if clientLog then
+	game:GetService("ScriptContext").Error:Connect(function(message, trace)
+		clientLog:FireServer("error: " .. message .. " | " .. string.sub(trace or "", 1, 200))
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(60)
+			if next(knifeStats) then
+				local parts = {}
+				for key, value in knifeStats do
+					table.insert(parts, key .. "=" .. value)
+				end
+				table.sort(parts)
+				clientLog:FireServer("knife: " .. table.concat(parts, " ") .. (if UI.IsTouch then " touch" else " pc"))
+				table.clear(knifeStats)
+			end
+		end
+	end)
+end
+
 UI.Start()
 
 local function serverNow(): number
@@ -99,12 +125,16 @@ end
 
 -- KNIFE: schneller Slash; trifft er den Ballfuehrer, kann er den Ball verlieren (Disarm-Upgrade)
 local function knife()
+	countKnife("pressed")
 	if carrying() or stunned() or workspace:GetAttribute("MatchState") ~= "Playing" then
+		countKnife(if carrying() then "carrying" elseif stunned() then "stunned" else "state_" .. tostring(workspace:GetAttribute("MatchState")))
 		return
 	end
 	if (player:GetAttribute("KnifeReadyAt") or 0) > serverNow() then
+		countKnife("cooldown")
 		return
 	end
+	countKnife("sent")
 	player:SetAttribute("KnifeReadyAt", serverNow() + Config.Knife.Slash.Cooldown)
 	remotes.Tackle:FireServer(camera.CFrame.LookVector)
 	Viewmodel.Swing("Slash")
