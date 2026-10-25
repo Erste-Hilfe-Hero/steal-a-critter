@@ -166,6 +166,21 @@ if ok then
 			check("battle ends round " .. round, false, turns)
 		end
 	end
+	-- Eigene Kampf-Szene: Podeste weit weg von der Welt, Platz wird wieder frei
+	local BattleStage = require(folder.Services.BattleStage)
+	for _, style in { "Nature", "Arena", "League", "Shrine", "Colosseum" } do
+		local holder = Instance.new("Folder")
+		holder.Parent = workspace
+		local okStage, slot, ally, enemy = pcall(BattleStage.Build, holder, { Style = style, Theme = Story.Areas[2].Theme, Color = Color3.new(1, 0, 0) })
+		check("stage " .. style, okStage and typeof(ally) == "CFrame" and typeof(enemy) == "CFrame", if okStage then nil else slot)
+		if okStage then
+			check("stage pads apart " .. style, (ally.Position - enemy.Position).Magnitude > 10)
+			check("stage far from world " .. style, ally.Position.Magnitude > 3000)
+			check("stage built " .. style, #holder.Stage:GetChildren() > 20, #holder.Stage:GetChildren())
+			BattleStage.Release(slot)
+		end
+		holder:Destroy()
+	end
 	local wave = internal.GauntletTeam(5)
 	check("gauntlet team", #wave >= 1, #wave)
 	local damage = internal.ComputeDamage(internal.MakeFighter("cindercub", 10), internal.MakeFighter("sproutling", 10), "Ember")

@@ -10,6 +10,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Beasts = require(ReplicatedStorage.Shared.Beasts)
 local BeastModel = require(ReplicatedStorage.Shared.BeastModel)
 local Format = require(ReplicatedStorage.Shared.Format)
+local BattleStage = require(script.Parent.BattleStage)
 
 local BattleService = { Services = nil :: any }
 
@@ -416,6 +417,25 @@ local function begin(kind: string, sideA, sideB, extra)
 	end
 	battle.Folder.Name = "B" .. battle.Id
 	battle.Folder.Parent = folder
+	-- Eigener Kampfplatz weit weg von der Welt (wie der Kampfbildschirm im Klassiker)
+	local host = sideA.Player or sideB.Player
+	local stage = battle.Stage or {}
+	local style = stage.Style or (if kind == "Gauntlet" or kind == "Duel" then "Colosseum" elseif kind == "Legend" then "Shrine" else "Nature")
+	local ok, result = pcall(function()
+		local slot, allyCf, enemyCf = BattleStage.Build(battle.Folder, { Style = style, Color = stage.Color, Theme = if host then BattleStage.ThemeAt(host) else nil })
+		return { Slot = slot, Ally = allyCf, Enemy = enemyCf }
+	end)
+	if ok then
+		local slot = result.Slot
+		battle.StageSlot = slot
+		sideA.Anchor = result.Ally
+		sideB.Anchor = result.Enemy
+		battle.Folder.Destroying:Connect(function()
+			BattleStage.Release(slot)
+		end)
+	else
+		warn("[Battle] stage failed:", result)
+	end
 	battles[battle.Id] = battle
 	for index, side in battle.Sides do
 		side.Participants = {}
@@ -426,6 +446,7 @@ local function begin(kind: string, sideA, sideB, extra)
 		end
 		spawnModel(battle, side, index)
 	end
+	pcall(BattleStage.PlaceTrainers, battle, BattleService.Services.WorldService)
 	markParticipants(battle)
 	for index, side in battle.Sides do
 		local enemy = battle.Sides[3 - index]
@@ -507,6 +528,7 @@ function BattleService:StartTrainer(player: Player, spec)
 		Wave = spec.Wave,
 		WavesWon = 0,
 		NoWhiteout = spec.NoWhiteout,
+		Stage = spec.Stage,
 	})
 end
 

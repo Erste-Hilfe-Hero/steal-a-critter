@@ -135,6 +135,19 @@ local function towardOf(model: Model?): Vector3?
 end
 
 -- Normaler Trainer (Route, Arena, Team Eclipse) oder Rivale. Gibt nach dem Kampf das Ergebnis zurueck.
+-- Arena-Trainer kaempfen auf dem Feld ihres Arenaleiters
+local function arenaStage(trainer)
+	if not trainer.ArenaSlot then
+		return nil
+	end
+	for _, leader in Story.Leaders do
+		if leader.Town == trainer.Area then
+			return { Style = "Arena", Color = Config.Types[leader.Type].Color }
+		end
+	end
+	return nil
+end
+
 local function trainerBattle(player: Player, trainer, model: Model?): string?
 	local services = StoryService.Services
 	local data = dataOf(player)
@@ -163,6 +176,7 @@ local function trainerBattle(player: Player, trainer, model: Model?): string?
 		Toward = towardOf(model),
 		Music = if trainer.Rival then "Rival" elseif trainer.Class:find("Eclipse") then "Eclipse" else "Trainer",
 		NoWhiteout = trainer.Rival == 1,
+		Stage = arenaStage(trainer),
 		OnEnd = function(_, result)
 			outcome = result
 			done:Fire()
@@ -260,6 +274,7 @@ local function leaderBattle(player: Player, index: number, model: Model?)
 		Coins = 0, -- Muenzen kommen mit dem Orden
 		Toward = towardOf(model),
 		Music = "Leader",
+		Stage = { Style = "Arena", Color = Config.Types[leader.Type].Color },
 		OnEnd = function(_, result)
 			outcome = result
 			done:Fire()
@@ -303,6 +318,7 @@ function StoryService:StartRematch(player: Player, index: number)
 		Potions = 2,
 		Coins = math.floor(leader.Coins * Config.RematchShare),
 		Music = "Leader",
+		Stage = { Style = "Arena", Color = Config.Types[leader.Type].Color },
 	})
 end
 
@@ -346,6 +362,7 @@ local function eliteBattle(player: Player, index: number, model: Model?)
 		Coins = if rematch then math.floor(elite.Coins * Config.RematchShare * 2) else elite.Coins,
 		Toward = towardOf(model),
 		Music = if elite.Id == "champion" then "Champion" else "Leader",
+		Stage = { Style = "League", Color = if elite.Id == "champion" then Color3.fromRGB(255, 200, 60) else Color3.fromRGB(170, 110, 240) },
 		OnEnd = function(_, result)
 			outcome = result
 			done:Fire()
