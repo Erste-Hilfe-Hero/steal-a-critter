@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local KartFactory = require(ReplicatedStorage.Shared.KartFactory)
+local Tracks = require(ReplicatedStorage.Shared.Tracks)
 
 local LobbyService = { Services = nil :: any }
 
@@ -21,6 +22,11 @@ local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWei
 LobbyService.Origin = ORIGIN
 
 local boardStore = DataStoreService:GetOrderedDataStore(Config.WinsBoardName)
+-- Streckenrekorde: ein geordneter Speicher pro Strecke (Scope = Strecken-Id), Wert = Zeit in Hundertstel
+local timeStores = {}
+for _, track in Tracks.List do
+	timeStores[track.Id] = DataStoreService:GetOrderedDataStore(Config.TimesBoardName, track.Id)
+end
 
 local function make(parent: Instance, props: { [string]: any }): BasePart
 	local p: BasePart = Instance.new(props.ClassName or "Part") :: BasePart
@@ -158,6 +164,21 @@ function LobbyService:Build()
 		})
 	end
 
+	-- Streckenrekorde (Westen, naeher am Spawn)
+	local records = make(folder, { Name = "RecordsBoard", Size = Vector3.new(2, 30, 30), CFrame = CFrame.new(o + Vector3.new(-SIZE / 2 + 6, 17, 18)), Color = DARK, Material = Enum.Material.Metal })
+	local recordsGui = surface(records, Enum.NormalId.Right, 16)
+	text(recordsGui, { Size = UDim2.fromScale(0.9, 0.1), Position = UDim2.fromScale(0.05, 0.03), Text = "TRACK RECORDS", FontFace = TITLE, TextColor3 = GOLD })
+	self.RecordRows = {}
+	for i, track in Tracks.List do
+		self.RecordRows[track.Id] = text(recordsGui, {
+			Size = UDim2.fromScale(0.9, 0.075),
+			Position = UDim2.fromScale(0.05, 0.15 + (i - 1) * 0.083),
+			Text = `{track.Name}  -  no record yet`,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = Color3.fromRGB(230, 225, 240),
+		})
+	end
+
 	-- Kart-Showroom (Sueden) auf Drehtellern
 	local count = #Config.Karts
 	for index, kart in Config.Karts do
@@ -207,6 +228,23 @@ function LobbyService:SubmitWins(player: Player, wins: number)
 	end)
 end
 
+-- Neue Bestzeit eintragen (nur wenn sie schneller ist als der gespeicherte Wert)
+function LobbyService:SubmitTime(player: Player, trackId: string, seconds: number)
+	local store = timeStores[trackId]
+	if not store then
+		return
+	end
+	local value = math.floor(seconds * 100 + 0.5)
+	task.spawn(function()
+		pcall(store.UpdateAsync, store, tostring(player.UserId), function(old)
+			if type(old) == "number" and old <= value then
+				return nil
+			end
+			return value
+		end)
+	end)
+end
+
 local nameCache = {}
 local function nameFor(userId: number): string
 	if nameCache[userId] then
@@ -229,6 +267,22 @@ function LobbyService:Start()
 				end
 			end
 			task.wait(60)
+		end
+	end)
+	-- Streckenrekorde nacheinander auffrischen (schont das DataStore-Budget)
+	task.spawn(function()
+		while true do
+			for _, track in Tracks.List do
+				local store = timeStores[track.Id]
+				local ok, pages = pcall(store.GetSortedAsync, store, true, 1)
+				if ok and pages then
+					local entry = pages:GetCurrentPage()[1]
+					if entry then
+						self.RecordRows[track.Id].Text = `{track.Name}  -  {Format.RaceTime(entry.value / 100)}  {nameFor(tonumber(entry.key) or 0)}`
+					end
+				end
+				task.wait(12)
+			end
 		end
 	end)
 end

@@ -242,6 +242,11 @@ function MonetizationService:Start()
 		if kind == "Pass" then
 			self:PromptPass(player, key)
 		elseif kind == "Product" and Config.DevProducts[key] and key ~= "AdCoins" then
+			-- "Start Race Now" nur waehrend der Abstimmung, sonst wuerde die naechste Abstimmung komplett uebersprungen
+			if key == "StartNow" and services.RaceService.Phase ~= "Intermission" then
+				services.Net.SendNotify(player, "You can start the race during the vote.", RED)
+				return
+			end
 			self:PromptProduct(player, key)
 		end
 	end)

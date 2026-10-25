@@ -7,6 +7,7 @@ local Config = {}
 
 Config.DataStoreName = "FireBlasterData_v1"
 Config.WinsBoardName = "FireBlasterWins_v1"
+Config.TimesBoardName = "FireBlasterTimes_v1"
 Config.OwnerUserId = 2979321382
 Config.StudioFakePurchases = true
 
@@ -79,6 +80,22 @@ Config.FlamesById = {}
 for index, flame in Config.Flames do
 	flame.Order = index
 	Config.FlamesById[flame.Id] = flame
+end
+
+-- Lackierungen (rein optisch, ueberschreiben Grund- und Akzentfarbe des Karts)
+Config.Paints = {
+	{ Id = "Factory", Name = "Factory Paint", Price = 0 },
+	{ Id = "Pearl", Name = "Pearl White", Price = 3_000, Color = Color3.fromRGB(240, 240, 248), Accent = Color3.fromRGB(255, 120, 40) },
+	{ Id = "Midnight", Name = "Midnight", Price = 6_000, Color = Color3.fromRGB(30, 32, 60), Accent = Color3.fromRGB(0, 230, 255) },
+	{ Id = "Lime", Name = "Acid Lime", Price = 10_000, Color = Color3.fromRGB(170, 255, 40), Accent = Color3.fromRGB(40, 30, 60) },
+	{ Id = "Ocean", Name = "Deep Ocean", Price = 15_000, Color = Color3.fromRGB(20, 110, 200), Accent = Color3.fromRGB(120, 240, 255) },
+	{ Id = "Bubblegum", Name = "Bubblegum", Price = 22_000, Color = Color3.fromRGB(255, 130, 200), Accent = Color3.fromRGB(255, 255, 255) },
+	{ Id = "GoldRush", Name = "Gold Rush", Price = 45_000, Color = Color3.fromRGB(255, 200, 50), Accent = Color3.fromRGB(30, 26, 34), Metal = true },
+}
+Config.PaintsById = {}
+for index, paint in Config.Paints do
+	paint.Order = index
+	Config.PaintsById[paint.Id] = paint
 end
 
 -- Items aus den Item-Boxen

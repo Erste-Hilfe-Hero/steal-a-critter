@@ -4,13 +4,17 @@ local AdService = game:GetService("AdService")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
+local SocialService = game:GetService("SocialService")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local KartFactory = require(ReplicatedStorage.Shared.KartFactory)
+local Progression = require(ReplicatedStorage.Shared.Progression)
 local Tracks = require(ReplicatedStorage.Shared.Tracks)
 
 local player = Players.LocalPlayer
@@ -39,6 +43,41 @@ local THEME = {
 local TITLE = Font.new("rbxasset://fonts/families/Sarpanch.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 local BODY = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 local BODYX = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold)
+
+-- Soundeffekte (eingebaute Roblox-Sounds), abschaltbar in den Einstellungen
+local SOUNDS = {
+	Click = { "rbxasset://sounds/button.wav", 0.35, 1 },
+	Beep = { "rbxasset://sounds/electronicpingshort.wav", 0.6, 1 },
+	Go = { "rbxasset://sounds/electronicpingshort.wav", 0.8, 1.6 },
+	Boost = { "rbxasset://sounds/swordlunge.wav", 0.5, 1.2 },
+	Hit = { "rbxasset://sounds/collide.wav", 0.7, 1 },
+	Coin = { "rbxasset://sounds/clickfast.wav", 0.45, 1.5 },
+	Item = { "rbxasset://sounds/electronicpingshort.wav", 0.5, 2 },
+	Win = { "rbxasset://sounds/victory.wav", 0.7, 1 },
+	Quest = { "rbxasset://sounds/electronicpingshort.wav", 0.6, 1.25 },
+}
+local soundCache: { [string]: Sound } = {}
+local function sfx(name: string)
+	if player:GetAttribute("Set_Sfx") == false then
+		return
+	end
+	local def = SOUNDS[name]
+	if not def then
+		return
+	end
+	local sound = soundCache[name]
+	if not sound then
+		sound = Instance.new("Sound")
+		sound.Name = "Sfx_" .. name
+		sound.SoundId = def[1]
+		sound.Volume = def[2]
+		sound.PlaybackSpeed = def[3]
+		sound.Parent = SoundService
+		soundCache[name] = sound
+	end
+	SoundService:PlayLocalSound(sound)
+end
+UI.Sfx = sfx
 
 local function create(className: string, props: { [string]: any }, children: { Instance }?): any
 	local inst = Instance.new(className)
@@ -122,6 +161,9 @@ local function button(props: { [string]: any }, style: string?): TextButton
 		defaults[key] = value
 	end
 	local b = create("TextButton", defaults)
+	b.Activated:Connect(function()
+		sfx("Click")
+	end)
 	corner(8).Parent = b
 	if s == "Flame" then
 		flameGradient(0).Parent = b
@@ -251,13 +293,18 @@ function UI.Init(controller)
 	local winsText = text({
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -18, 0, 58),
-		Size = UDim2.fromOffset(170, 18),
+		Size = UDim2.fromOffset(300, 18),
 		Text = "",
 		TextSize = 14,
 		TextColor3 = THEME.Muted,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Parent = root,
 	})
+
+	-- XP-Balken bis zum naechsten Level
+	local xpBack = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 80), Size = UDim2.fromOffset(170, 6), BackgroundColor3 = THEME.Panel2, BorderSizePixel = 0, Parent = root }, { corner(3) })
+	local xpFill = create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Parent = xpBack }, { corner(3) })
+	flameGradient(0).Parent = xpFill
 
 	------------------------------------------------ Status-Banner (oben Mitte)
 
@@ -276,18 +323,25 @@ function UI.Init(controller)
 
 	------------------------------------------------ Linkes Menue (Lobby)
 
+	-- Zwei Spalten, damit alle Knoepfe auch auf kleinen Handys in die Hoehe passen
 	local menu = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 14, 0.5, 0),
-		Size = UDim2.fromOffset(78, 440),
+		Size = UDim2.fromOffset(148, 400),
 		BackgroundTransparency = 1,
 		Parent = root,
 	}, {
-		create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center }),
+		create("UIGridLayout", {
+			CellSize = UDim2.fromOffset(70, 60),
+			CellPadding = UDim2.fromOffset(8, 8),
+			FillDirectionMaxCells = 2,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+		}),
 	})
 	local function menuButton(order: number, icon: string, label: string): (TextButton, TextLabel, TextLabel)
 		local b = create("TextButton", {
-			Size = UDim2.fromOffset(78, 64),
+			Size = UDim2.fromOffset(70, 60),
 			BackgroundColor3 = THEME.Ink,
 			BackgroundTransparency = 0.1,
 			AutoButtonColor = true,
@@ -298,8 +352,12 @@ function UI.Init(controller)
 		}, { corner(12), stroke(Color3.new(1, 1, 1), 1, 0.85) })
 		local accent = create("Frame", { Size = UDim2.new(1, -20, 0, 3), Position = UDim2.fromOffset(10, 0), BorderSizePixel = 0, BackgroundColor3 = Color3.new(1, 1, 1), Parent = b })
 		flameGradient(0).Parent = accent
-		text({ Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 32), Text = icon, TextSize = 26, Parent = b })
-		local l = text({ Position = UDim2.fromOffset(0, 40), Size = UDim2.new(1, 0, 0, 18), Text = label, FontFace = BODYX, TextSize = 13, Parent = b })
+		text({ Position = UDim2.fromOffset(0, 5), Size = UDim2.new(1, 0, 0, 30), Text = icon, TextSize = 24, Parent = b })
+		local l = text({ Position = UDim2.fromOffset(3, 37), Size = UDim2.new(1, -6, 0, 17), Text = label, FontFace = BODYX, TextScaled = true, Parent = b })
+		create("UITextSizeConstraint", { MaxTextSize = 13, Parent = l })
+		b.Activated:Connect(function()
+			sfx("Click")
+		end)
 		local badge = text({
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(1, -4, 0, 4),
@@ -317,10 +375,14 @@ function UI.Init(controller)
 	end
 	local garageButton = menuButton(1, "🏎️", "GARAGE")
 	local shopButton, _, shopBadge = menuButton(2, "🛒", "SHOP")
-	local dailyButton, dailyLabel, dailyBadge = menuButton(3, "🎁", "DAILY")
-	local giftButton, giftLabel, giftBadge = menuButton(4, "⏱️", "GIFT")
-	local adButton, _, adBadge = menuButton(5, "📺", "FREE")
-	local spectateButton, spectateLabel = menuButton(6, "👁️", "WATCH")
+	local questButton, _, questBadge = menuButton(3, "📜", "QUESTS")
+	local profileButton = menuButton(4, "🏆", "PROFILE")
+	local dailyButton, dailyLabel, dailyBadge = menuButton(5, "🎁", "DAILY")
+	local giftButton, giftLabel, giftBadge = menuButton(6, "⏱️", "GIFT")
+	local adButton, _, adBadge = menuButton(7, "📺", "FREE")
+	local inviteButton = menuButton(8, "👋", "INVITE")
+	local settingsButton = menuButton(9, "⚙️", "SETTINGS")
+	local spectateButton, spectateLabel = menuButton(10, "👁️", "WATCH")
 	shopBadge.Text = "%"
 	shopBadge.BackgroundColor3 = THEME.FlameB
 	shopBadge.Visible = true
@@ -435,11 +497,14 @@ function UI.Init(controller)
 	local _, garageBody = window("Garage", "GARAGE", 820, 470)
 	local garageKarts = scroller(garageBody, 4, 250)
 	local garageFlames = scroller(garageBody, 4, 160)
-	local garageTabs = tabs(garageBody, { "Karts", "Flames" }, function(name)
+	local garagePaints = scroller(garageBody, 4, 160)
+	local garageTabs = tabs(garageBody, { "Karts", "Flames", "Paint" }, function(name)
 		garageKarts.Visible = name == "Karts"
 		garageFlames.Visible = name == "Flames"
+		garagePaints.Visible = name == "Paint"
 	end)
 	garageFlames.Visible = false
+	garagePaints.Visible = false
 	local kartCards = {}
 	local function statBar(parent: Instance, y: number, label: string, value: number)
 		text({ Position = UDim2.fromOffset(10, y), Size = UDim2.fromOffset(36, 14), Text = label, TextSize = 12, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = parent })
@@ -496,6 +561,22 @@ function UI.Init(controller)
 		end)
 		flameCards[flame.Id] = { Card = card, Button = action }
 	end
+	local paintCards = {}
+	for _, paint in Config.Paints do
+		local card = panel({ LayoutOrder = paint.Order, BackgroundColor3 = THEME.Panel, ZIndex = 22, Parent = garagePaints })
+		local swatch = create("Frame", { Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 56), BackgroundColor3 = paint.Color or THEME.FlameB, BorderSizePixel = 0, ZIndex = 22, Parent = card }, { corner(8) })
+		if paint.Accent then
+			create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromScale(0.35, 1), BackgroundColor3 = paint.Accent, BorderSizePixel = 0, ZIndex = 22, Parent = swatch }, { corner(8) })
+		else
+			text({ Size = UDim2.fromScale(1, 1), Text = "KART COLORS", FontFace = BODYX, TextSize = 14, TextColor3 = THEME.Ink, ZIndex = 23, Parent = swatch })
+		end
+		text({ Position = UDim2.fromOffset(10, 70), Size = UDim2.new(1, -20, 0, 24), Text = paint.Name:upper(), FontFace = TITLE, TextSize = 17, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = card })
+		local action = button({ Position = UDim2.new(0, 10, 1, -44), Size = UDim2.new(1, -20, 0, 34), Text = "", ZIndex = 23, Parent = card }, "Flame")
+		action.Activated:Connect(function()
+			remotes.Shop:FireServer("BuyPaint", paint.Id)
+		end)
+		paintCards[paint.Id] = { Card = card, Button = action }
+	end
 	local function refreshGarage()
 		local coins = player:GetAttribute("Coins") or 0
 		for id, entry in kartCards do
@@ -516,10 +597,19 @@ function UI.Init(controller)
 			entry.Card.UIStroke.Color = if equipped then THEME.FlameB else Color3.new(1, 1, 1)
 			entry.Card.UIStroke.Transparency = if equipped then 0.1 else 0.88
 		end
+		for id, entry in paintCards do
+			local paint = Config.PaintsById[id]
+			local owned = player:GetAttribute("Paint_" .. id)
+			local equipped = (player:GetAttribute("Paint") or "Factory") == id
+			entry.Button.Text = if equipped then "EQUIPPED" elseif owned then "EQUIP" else Format.Number(paint.Price) .. " COINS"
+			entry.Button.TextColor3 = THEME.Ink
+			entry.Card.UIStroke.Color = if equipped then THEME.FlameB else Color3.new(1, 1, 1)
+			entry.Card.UIStroke.Transparency = if equipped then 0.1 else 0.88
+		end
 	end
 	garageTabs.Karts.Activated:Connect(refreshGarage)
 	player.AttributeChanged:Connect(function(name)
-		if name == "Coins" or name == "Kart" or name == "Flame" or name:sub(1, 5) == "Kart_" or name:sub(1, 6) == "Flame_" then
+		if name == "Coins" or name == "Kart" or name == "Flame" or name == "Paint" or name:sub(1, 5) == "Kart_" or name:sub(1, 6) == "Flame_" or name:sub(1, 6) == "Paint_" then
 			refreshGarage()
 		end
 	end)
@@ -802,9 +892,7 @@ function UI.Init(controller)
 			driftButton.BackgroundTransparency = 0.2
 		end
 	end)
-	if not touch then
-		text({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.fromOffset(600, 20), Text = "W/S drive  -  A/D steer  -  SPACE drift  -  E item  -  R respawn", TextSize = 14, TextColor3 = THEME.Muted, Parent = hud })
-	end
+	local hintsLabel = text({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.fromOffset(600, 20), Text = "W/S drive  -  A/D steer  -  SPACE drift  -  E item  -  R respawn", TextSize = 14, TextColor3 = THEME.Muted, Visible = not touch, Parent = hud })
 
 	-- Tempo und Drift-Ladung unten links
 	local speedPanel = panel({ AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 18, 1, -18), Size = UDim2.fromOffset(200, 84), BackgroundColor3 = THEME.Ink, BackgroundTransparency = 0.2, Parent = hud })
@@ -840,12 +928,14 @@ function UI.Init(controller)
 
 	------------------------------------------------ Ergebnis
 
-	local _, resultsBody = window("Results", "RACE RESULTS", 520, 470)
+	local _, resultsBody = window("Results", "RACE RESULTS", 520, 492)
 	local resultsList = create("Frame", { Position = UDim2.fromOffset(16, 10), Size = UDim2.new(1, -32, 0, 300), BackgroundTransparency = 1, ZIndex = 22, Parent = resultsBody }, {
 		create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
-	local rewardText = text({ Position = UDim2.fromOffset(16, 318), Size = UDim2.new(1, -32, 0, 34), Text = "", FontFace = TITLE, TextSize = 28, TextColor3 = THEME.Gold, ZIndex = 23, Parent = resultsBody })
-	local doubleButton = button({ Position = UDim2.new(0.5, -150, 0, 360), Size = UDim2.fromOffset(300, 40), Text = "", FontFace = TITLE, TextSize = 18, ZIndex = 23, Parent = resultsBody }, "Robux")
+	local rewardText = text({ Position = UDim2.fromOffset(16, 312), Size = UDim2.new(1, -32, 0, 34), Text = "", FontFace = TITLE, TextSize = 28, TextColor3 = THEME.Gold, ZIndex = 23, Parent = resultsBody })
+	local resultInfo = text({ Position = UDim2.fromOffset(16, 346), Size = UDim2.new(1, -32, 0, 22), Text = "", FontFace = BODYX, TextScaled = true, TextColor3 = THEME.Text, ZIndex = 23, Parent = resultsBody })
+	create("UITextSizeConstraint", { MaxTextSize = 16, Parent = resultInfo })
+	local doubleButton = button({ Position = UDim2.new(0.5, -150, 0, 378), Size = UDim2.fromOffset(300, 40), Text = "", FontFace = TITLE, TextSize = 18, ZIndex = 23, Parent = resultsBody }, "Robux")
 	doubleButton.Activated:Connect(function()
 		remotes.Purchase:FireServer("Pass", "DoubleCoins")
 	end)
@@ -875,8 +965,24 @@ function UI.Init(controller)
 		end
 		if mine then
 			rewardText.Text = `+{Format.Number(mine.Coins)} COINS` .. (if mine.Multiplier > 1 then `   (x{mine.Multiplier})` else "")
+			-- XP, Bestzeit und Siegesserie
+			local parts = {}
+			if mine.Xp then
+				table.insert(parts, `+{mine.Xp} XP`)
+			end
+			if mine.NewBest and mine.Best then
+				table.insert(parts, `NEW PERSONAL BEST {Format.RaceTime(mine.Best)}!`)
+			elseif mine.Best then
+				table.insert(parts, `BEST {Format.RaceTime(mine.Best)}`)
+			end
+			if mine.Streak and mine.Streak >= 2 then
+				table.insert(parts, `WIN STREAK {mine.Streak}` .. (if mine.StreakBonus then ` (+{mine.StreakBonus})` else ""))
+			end
+			resultInfo.Text = table.concat(parts, "   -   ")
+			resultInfo.TextColor3 = if mine.NewBest then THEME.Green else THEME.Text
 		else
 			rewardText.Text = "Join the next race!"
+			resultInfo.Text = ""
 		end
 		local hasDouble = player:GetAttribute("Pass_DoubleCoins")
 		doubleButton.Visible = mine ~= nil and not hasDouble
@@ -919,7 +1025,8 @@ function UI.Init(controller)
 			local need = 0
 			local kart = Config.KartsById[key]
 			local flame = Config.FlamesById[key]
-			need = (if kart then kart.Price elseif flame then flame.Price else 0) - coins
+			local paint = Config.PaintsById[key]
+			need = (if kart then kart.Price elseif flame then flame.Price elseif paint then paint.Price else 0) - coins
 			local best = "CoinsHuge"
 			for _, k in { "CoinsSmall", "CoinsMedium", "CoinsLarge", "CoinsHuge" } do
 				if Config.DevProducts[k].Coins >= need then
@@ -950,6 +1057,319 @@ function UI.Init(controller)
 		end)
 	end)
 
+	------------------------------------------------ Taegliche Aufgaben
+
+	local _, questBody = window("Quests", "DAILY QUESTS", 560, 400)
+	local questRows = {}
+	for i = 1, Progression.QuestsPerDay do
+		local row = panel({ Position = UDim2.fromOffset(16, 12 + (i - 1) * 100), Size = UDim2.new(1, -32, 0, 90), BackgroundColor3 = THEME.Panel, ZIndex = 22, Parent = questBody })
+		local label = text({ Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -190, 0, 26), Text = "", FontFace = TITLE, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = row })
+		create("UITextSizeConstraint", { MaxTextSize = 19, Parent = label })
+		local back = create("Frame", { Position = UDim2.fromOffset(14, 42), Size = UDim2.new(1, -250, 0, 12), BackgroundColor3 = THEME.Panel2, BorderSizePixel = 0, ZIndex = 23, Parent = row }, { corner(6) })
+		local fill = create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 23, Parent = back }, { corner(6) })
+		flameGradient(0).Parent = fill
+		local count = text({ Position = UDim2.new(1, -230, 0, 38), Size = UDim2.fromOffset(50, 20), Text = "", FontFace = BODYX, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = row })
+		local reward = text({ Position = UDim2.fromOffset(14, 62), Size = UDim2.new(1, -190, 0, 20), Text = "", TextSize = 14, TextColor3 = THEME.Gold, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = row })
+		local claim = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(160, 44), Text = "", FontFace = TITLE, TextSize = 18, ZIndex = 23, Parent = row }, "Flame")
+		claim.Activated:Connect(function()
+			remotes.Claim:FireServer("Quest", i)
+		end)
+		questRows[i] = { Row = row, Label = label, Fill = fill, Count = count, Reward = reward, Claim = claim }
+	end
+	local questFooter = text({ Position = UDim2.fromOffset(16, 316), Size = UDim2.new(1, -32, 0, 20), Text = "", TextSize = 14, TextColor3 = THEME.Muted, ZIndex = 23, Parent = questBody })
+	local function refreshQuests()
+		local ok, list = pcall(HttpService.JSONDecode, HttpService, player:GetAttribute("Quests") or "[]")
+		if not ok or type(list) ~= "table" then
+			list = {}
+		end
+		for i, row in questRows do
+			local entry = list[i]
+			local quest = entry and Progression.QuestsById[entry.Id]
+			row.Row.Visible = quest ~= nil
+			if quest then
+				local progress = math.min(entry.Progress or 0, quest.Goal)
+				local ready = not entry.Claimed and progress >= quest.Goal
+				row.Label.Text = quest.Text:upper()
+				row.Fill.Size = UDim2.fromScale(math.max(0.02, progress / quest.Goal), 1)
+				row.Count.Text = `{progress}/{quest.Goal}`
+				row.Reward.Text = `+{Format.Number(quest.Coins)} coins   +{Progression.QuestXp} XP`
+				row.Claim.Text = if entry.Claimed then "DONE" elseif ready then "CLAIM!" else "IN PROGRESS"
+				row.Claim.AutoButtonColor = ready
+				row.Claim.TextColor3 = if ready then THEME.Ink else Color3.fromRGB(110, 60, 40)
+			end
+		end
+	end
+	player:GetAttributeChangedSignal("Quests"):Connect(refreshQuests)
+	refreshQuests()
+
+	------------------------------------------------ Profil (Statistik, Titel, Bestzeiten)
+
+	local _, profileBody = window("Profile", "PROFILE", 660, 450)
+	local profileStats = scroller(profileBody, 3, 64)
+	local profileTitles = scroller(profileBody, 1, 58)
+	local profileRecords = scroller(profileBody, 2, 44)
+	local profileLists = { Stats = profileStats, Titles = profileTitles, Records = profileRecords }
+	local function showProfileTab(name: string)
+		for key, list in profileLists do
+			list.Visible = key == name
+		end
+	end
+	tabs(profileBody, { "Stats", "Titles", "Records" }, showProfileTab)
+	showProfileTab("Stats")
+	local profileData = nil
+	local function clearList(list: Instance)
+		for _, child in list:GetChildren() do
+			if child:IsA("GuiObject") then
+				child:Destroy()
+			end
+		end
+	end
+	local function statCard(order: number, label: string, value: string)
+		local card = panel({ LayoutOrder = order, BackgroundColor3 = THEME.Panel, ZIndex = 22, Parent = profileStats })
+		text({ Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -24, 0, 18), Text = label, TextSize = 13, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = card })
+		local v = text({ Position = UDim2.fromOffset(12, 26), Size = UDim2.new(1, -24, 0, 30), Text = value, FontFace = TITLE, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = card })
+		create("UITextSizeConstraint", { MaxTextSize = 24, Parent = v })
+	end
+	local function renderProfile()
+		local data = profileData
+		if not data then
+			return
+		end
+		clearList(profileStats)
+		local hours = math.floor(data.PlayTime / 3600)
+		local minutes = math.floor(data.PlayTime % 3600 / 60)
+		local stats = {
+			{ "LEVEL", `{data.Level}  ({data.XpInto}/{data.XpNeed} XP)` },
+			{ "WINS", Format.Number(data.Wins) },
+			{ "RACES", Format.Number(data.Races) },
+			{ "PODIUMS", Format.Number(data.Podiums) },
+			{ "BEST WIN STREAK", tostring(data.BestStreak) },
+			{ "RIVALS BLASTED", Format.Number(data.Hits) },
+			{ "TRACK COINS", Format.Number(data.TrackCoins) },
+			{ "COINS EARNED", Format.Number(data.TotalCoins) },
+			{ "PLAY TIME", `{hours}h {minutes}m` },
+		}
+		for order, stat in stats do
+			statCard(order, stat[1], stat[2])
+		end
+		clearList(profileTitles)
+		local currentTitle = player:GetAttribute("Title") or ""
+		for _, achievement in Progression.Achievements do
+			local unlocked = data.Achievements[achievement.Id] == true
+			local row = panel({ LayoutOrder = achievement.Order, BackgroundColor3 = THEME.Panel, ZIndex = 22, Parent = profileTitles })
+			text({ Position = UDim2.fromOffset(12, 4), Size = UDim2.new(1, -170, 0, 26), Text = achievement.Title:upper(), FontFace = TITLE, TextSize = 20, TextColor3 = if unlocked then THEME.Gold else THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = row })
+			local desc = text({ Position = UDim2.fromOffset(12, 30), Size = UDim2.new(1, -170, 0, 20), Text = `{achievement.Text}  (+{Format.Number(achievement.Coins)} coins)`, TextScaled = true, TextColor3 = THEME.Muted, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = row })
+			create("UITextSizeConstraint", { MaxTextSize = 15, Parent = desc })
+			local equipped = unlocked and currentTitle == achievement.Title
+			local b = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(140, 38), Text = if equipped then "UNEQUIP" elseif unlocked then "EQUIP" else "LOCKED", FontFace = TITLE, TextSize = 17, ZIndex = 23, Parent = row }, if unlocked then "Flame" else "Dark")
+			b.Activated:Connect(function()
+				if equipped then
+					remotes.SetTitle:FireServer("")
+				elseif unlocked then
+					remotes.SetTitle:FireServer(achievement.Id)
+				end
+			end)
+		end
+		clearList(profileRecords)
+		for _, track in Tracks.List do
+			local best = data.Best[track.Id]
+			local row = panel({ LayoutOrder = track.Order, BackgroundColor3 = THEME.Panel, ZIndex = 22, Parent = profileRecords })
+			create("Frame", { Size = UDim2.new(0, 6, 1, 0), BackgroundColor3 = Tracks.Themes[track.Theme].Accent, BorderSizePixel = 0, ZIndex = 23, Parent = row }, { corner(3) })
+			local name = text({ Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -110, 1, 0), Text = track.Name:upper(), FontFace = TITLE, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = row })
+			create("UITextSizeConstraint", { MaxTextSize = 17, Parent = name })
+			text({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 0), Size = UDim2.fromOffset(90, 44), Text = if best then Format.RaceTime(best) else "--", FontFace = BODYX, TextSize = 16, TextColor3 = if best then THEME.Green else THEME.Muted, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 23, Parent = row })
+		end
+	end
+	local function loadProfile()
+		task.spawn(function()
+			local ok, data = pcall(function()
+				return remotes:WaitForChild("GetProfile"):InvokeServer()
+			end)
+			if ok and type(data) == "table" then
+				profileData = data
+				renderProfile()
+			end
+		end)
+	end
+	player:GetAttributeChangedSignal("Title"):Connect(function()
+		if openName == "Profile" then
+			loadProfile()
+		end
+	end)
+
+	------------------------------------------------ Einstellungen, Codes, Freunde einladen
+
+	local _, settingsBody = window("Settings", "SETTINGS", 520, 430)
+	local toggles = {}
+	for i, setting in Progression.Settings do
+		local row = panel({ Position = UDim2.fromOffset(16, 12 + (i - 1) * 44), Size = UDim2.new(1, -32, 0, 38), BackgroundColor3 = THEME.Panel, ZIndex = 22, Parent = settingsBody })
+		text({ Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -130, 1, 0), Text = setting.Name, FontFace = BODYX, TextSize = 17, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = row })
+		local b = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -6, 0.5, 0), Size = UDim2.fromOffset(100, 30), Text = "", FontFace = TITLE, TextSize = 16, ZIndex = 23, Parent = row })
+		b.Activated:Connect(function()
+			remotes.Setting:FireServer(setting.Key, player:GetAttribute("Set_" .. setting.Key) == false)
+		end)
+		toggles[setting.Key] = b
+	end
+	local codeBox = create("TextBox", {
+		Position = UDim2.fromOffset(16, 240),
+		Size = UDim2.new(1, -168, 0, 42),
+		BackgroundColor3 = THEME.Panel2,
+		BorderSizePixel = 0,
+		ClearTextOnFocus = false,
+		PlaceholderText = "Enter a code",
+		PlaceholderColor3 = THEME.Muted,
+		Text = "",
+		FontFace = BODYX,
+		TextSize = 18,
+		TextColor3 = THEME.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 23,
+		Parent = settingsBody,
+	}, { corner(8), create("UIPadding", { PaddingLeft = UDim.new(0, 12) }) })
+	local redeem = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 240), Size = UDim2.fromOffset(140, 42), Text = "REDEEM", FontFace = TITLE, TextSize = 18, ZIndex = 23, Parent = settingsBody }, "Flame")
+	redeem.Activated:Connect(function()
+		local code = codeBox.Text
+		if #code > 0 then
+			remotes.RedeemCode:FireServer(code:sub(1, 24))
+			codeBox.Text = ""
+		end
+	end)
+	local howButton = button({ Position = UDim2.fromOffset(16, 296), Size = UDim2.new(0.5, -22, 0, 44), Text = "HOW TO PLAY", FontFace = TITLE, TextSize = 18, ZIndex = 23, Parent = settingsBody })
+	local inviteButton2 = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 296), Size = UDim2.new(0.5, -22, 0, 44), Text = "INVITE FRIENDS", FontFace = TITLE, TextSize = 18, ZIndex = 23, Parent = settingsBody }, "Flame")
+	local function refreshSettings()
+		for key, b in toggles do
+			local on = player:GetAttribute("Set_" .. key) ~= false
+			b.Text = if on then "ON" else "OFF"
+			b.BackgroundColor3 = if on then THEME.Green else THEME.Panel2
+			b.TextColor3 = if on then THEME.Ink else THEME.Text
+		end
+	end
+	player.AttributeChanged:Connect(function(name)
+		if name:sub(1, 4) == "Set_" then
+			refreshSettings()
+		end
+	end)
+	refreshSettings()
+
+	local function inviteFriends()
+		task.spawn(function()
+			local ok, can = pcall(SocialService.CanSendGameInviteAsync, SocialService, player)
+			if ok and can then
+				pcall(SocialService.PromptGameInvite, SocialService, player)
+			else
+				toast("Invites are not available right now.", THEME.Muted)
+			end
+		end)
+	end
+	inviteButton2.Activated:Connect(inviteFriends)
+
+	------------------------------------------------ Tutorial ("How to play")
+
+	local _, tutorialBody = window("Tutorial", "HOW TO PLAY", 560, 370)
+	local pages = {
+		{ "WELCOME, RACER!", "Vote for the next track in the lobby. Up to 8 racers start every race - CPU racers fill the empty spots, so you can always race right away." },
+		if touch
+			then { "DRIVE", "Steer with the stick on the left - your kart drives by itself. Pull the stick back to brake. Tap the big GAS button when the last red light turns on for a ROCKET START!" }
+			else { "DRIVE", "W/S to drive, A/D to steer. Hold W right when the last red light turns on for a ROCKET START! Press R if you get stuck." },
+		{ "DRIFT FOR TURBO", `Hold {if touch then "the DRIFT button" else "SPACE"} while turning. Sparks turn blue, orange, then PURPLE. Let go for a big turbo boost!` },
+		{ "ITEMS, COINS, QUESTS", `Drive through ? boxes for items and {if touch then "tap the item slot" else "press E"} to use them. Coins on the track make you faster. Finish daily quests and level up for coins and titles!` },
+	}
+	local page = 1
+	local pageTitle = text({ Position = UDim2.fromOffset(24, 14), Size = UDim2.new(1, -48, 0, 34), Text = "", FontFace = TITLE, TextSize = 28, TextColor3 = THEME.FlameB, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = tutorialBody })
+	local pageText = text({ Position = UDim2.fromOffset(24, 56), Size = UDim2.new(1, -48, 0, 150), Text = "", TextSize = 19, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 23, Parent = tutorialBody })
+	local pageDots = text({ Position = UDim2.fromOffset(24, 212), Size = UDim2.new(1, -48, 0, 20), Text = "", TextSize = 16, TextColor3 = THEME.Muted, ZIndex = 23, Parent = tutorialBody })
+	local backButton = button({ Position = UDim2.fromOffset(24, 244), Size = UDim2.fromOffset(150, 46), Text = "BACK", FontFace = TITLE, TextSize = 19, ZIndex = 23, Parent = tutorialBody })
+	local nextButton = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -24, 0, 244), Size = UDim2.fromOffset(260, 46), Text = "NEXT", FontFace = TITLE, TextSize = 19, ZIndex = 23, Parent = tutorialBody }, "Flame")
+	local function showPage(n: number)
+		page = math.clamp(n, 1, #pages)
+		pageTitle.Text = pages[page][1]
+		pageText.Text = pages[page][2]
+		local dots = {}
+		for k = 1, #pages do
+			table.insert(dots, if k == page then "●" else "○")
+		end
+		pageDots.Text = table.concat(dots, "  ")
+		backButton.Visible = page > 1
+		nextButton.Text = if page < #pages then "NEXT" elseif player:GetAttribute("TutorialDone") then "LET'S RACE!" else `LET'S RACE! +{Progression.TutorialCoins}`
+	end
+	backButton.Activated:Connect(function()
+		showPage(page - 1)
+	end)
+	nextButton.Activated:Connect(function()
+		if page < #pages then
+			showPage(page + 1)
+		else
+			if not player:GetAttribute("TutorialDone") then
+				remotes.Claim:FireServer("Tutorial")
+			end
+			UI.Close()
+		end
+	end)
+	local function openTutorial()
+		showPage(1)
+		UI.Open("Tutorial")
+	end
+	howButton.Activated:Connect(openTutorial)
+	-- Beim ersten Besuch automatisch zeigen (nicht mitten im Rennen)
+	task.spawn(function()
+		while not player:GetAttribute("Loaded") do
+			task.wait(0.5)
+		end
+		task.wait(2)
+		if player:GetAttribute("TutorialDone") == false and openName == nil and player:GetAttribute("Racing") ~= true then
+			openTutorial()
+		end
+	end)
+
+	------------------------------------------------ Renn-Extras: GAS-Knopf (Handy), falsche Richtung, Rundenzeiten
+
+	local gasButton = create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -30, 0.58, 0),
+		Size = UDim2.fromOffset(136, 136),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Text = "GAS!",
+		FontFace = TITLE,
+		TextSize = 34,
+		TextColor3 = THEME.Ink,
+		AutoButtonColor = true,
+		Visible = false,
+		Parent = hud,
+	}, { create("UICorner", { CornerRadius = UDim.new(1, 0) }), flameGradient(90) })
+	local gasUsed = false
+	gasButton.Activated:Connect(function()
+		controller.TapGas()
+		gasUsed = true
+	end)
+	local wrongWay = text({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.26), Size = UDim2.fromOffset(500, 64), Text = "WRONG WAY!", FontFace = TITLE, TextSize = 52, TextColor3 = THEME.Red, Visible = false, Parent = hud })
+	create("UIStroke", { Color = THEME.Ink, Thickness = 3, Parent = wrongWay })
+	local lastLap = 1
+	local lapStartAt = 0
+	player:GetAttributeChangedSignal("Lap"):Connect(function()
+		local lap = player:GetAttribute("Lap") or 1
+		local phase = workspace:GetAttribute("Phase")
+		if phase == "Race" and player:GetAttribute("Racing") == true and lap > lastLap then
+			local t = workspace:GetServerTimeNow()
+			local start = math.max(lapStartAt, workspace:GetAttribute("RaceStart") or t)
+			toast(`LAP {lastLap}  -  {Format.RaceTime(t - start)}`, THEME.Blue)
+			lapStartAt = t
+			if lap == Config.Laps then
+				shout("FINAL LAP!", 1.4)
+				sfx("Go")
+			end
+		end
+		lastLap = lap
+	end)
+	workspace:GetAttributeChangedSignal("RaceStart"):Connect(function()
+		lastLap = 1
+		lapStartAt = workspace:GetAttribute("RaceStart") or 0
+	end)
+	workspace:GetAttributeChangedSignal("Phase"):Connect(function()
+		if workspace:GetAttribute("Phase") == "Countdown" then
+			gasUsed = false
+		end
+	end)
+
 	------------------------------------------------ Menue-Aktionen
 
 	garageButton.Activated:Connect(function()
@@ -974,6 +1394,20 @@ function UI.Init(controller)
 	giftButton.Activated:Connect(function()
 		remotes.Claim:FireServer("Gift")
 	end)
+	questButton.Activated:Connect(function()
+		refreshQuests()
+		UI.Open("Quests")
+	end)
+	profileButton.Activated:Connect(function()
+		showProfileTab("Stats")
+		loadProfile()
+		UI.Open("Profile")
+	end)
+	settingsButton.Activated:Connect(function()
+		refreshSettings()
+		UI.Open("Settings")
+	end)
+	inviteButton.Activated:Connect(inviteFriends)
 	adButton.Activated:Connect(function()
 		adButton.Visible = false
 		remotes.WatchAd:FireServer()
@@ -995,18 +1429,34 @@ function UI.Init(controller)
 	controller.OnEvent = function(name, value)
 		if name == "Rocket" then
 			shout("ROCKET START!", 1)
+			sfx("Boost")
+		elseif name == "Boost" or name == "Inferno" then
+			sfx("Boost")
+		elseif name == "Early" then
+			shout("TOO EARLY!", 0.8)
+		elseif name == "LevelUp" then
+			shout(`LEVEL {value}!`, 1.6)
+			sfx("Win")
+		elseif name == "Achievement" then
+			sfx("Win")
+		elseif name == "Quest" then
+			sfx("Quest")
 		elseif name == "Spin" then
+			sfx("Hit")
 			flash.BackgroundColor3 = THEME.Red
 			flash.BackgroundTransparency = 0.6
 			TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
 		elseif name == "Flash" then
+			sfx("Hit")
 			flash.BackgroundColor3 = Color3.fromRGB(255, 250, 200)
 			flash.BackgroundTransparency = 0.2
 			TweenService:Create(flash, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
 		elseif name == "Finish" then
 			shout(`{value}{ordinal(value)} PLACE!`, 3)
+			sfx(if value <= 3 then "Win" else "Go")
 		elseif name == "DriftTier" and value > 0 then
 			driftStroke.Color = Config.DriftColors[value]
+			sfx("Item")
 		elseif name == "Respawn" then
 			flash.BackgroundColor3 = Color3.new(0, 0, 0)
 			flash.BackgroundTransparency = 0.2
@@ -1019,6 +1469,7 @@ function UI.Init(controller)
 	local lastCount = -1
 	local rolling = 0
 	local lastItem: string? = nil
+	local lastRaceCoins = 0
 	local glyphs = {}
 	for key in Config.Items do
 		table.insert(glyphs, key)
@@ -1033,8 +1484,15 @@ function UI.Init(controller)
 			local item = player:GetAttribute("Item")
 			if item and not lastItem then
 				rolling = 1 -- kurze Roulette-Animation beim Einsammeln
+				sfx("Item")
 			end
 			lastItem = item
+		elseif name == "RaceCoins" then
+			local value = player:GetAttribute("RaceCoins") or 0
+			if value > lastRaceCoins and player:GetAttribute("Racing") == true then
+				sfx("Coin")
+			end
+			lastRaceCoins = value
 		end
 	end)
 
@@ -1051,7 +1509,9 @@ function UI.Init(controller)
 			lastCount = coins
 			coinText.Text = Format.Number(coins)
 		end
-		winsText.Text = `{player:GetAttribute("Wins") or 0} WINS`
+		local level, into, need = Progression.LevelFromXp(player:GetAttribute("XP") or 0)
+		winsText.Text = `LV {level}   -   {player:GetAttribute("Wins") or 0} WINS`
+		xpFill.Size = UDim2.fromScale(math.clamp(into / need, 0, 1), 1)
 		local party = (workspace:GetAttribute("CoinPartyUntil") or 0) - t
 		if party > 0 then
 			winsText.Text ..= `   -   COIN PARTY 2x {Format.Time(party)}`
@@ -1066,6 +1526,14 @@ function UI.Init(controller)
 		vote.Visible = phase == "Intermission" and openName == nil
 		hud.Visible = racing
 		dailyBadge.Visible = player:GetAttribute("DailyReady") == true
+		local questsReady = player:GetAttribute("QuestsReady") or 0
+		questBadge.Visible = questsReady > 0
+		questBadge.Text = tostring(questsReady)
+		xpBack.Visible = not racing
+		if openName == "Quests" then
+			local left = 86400 - (os.time() % 86400)
+			questFooter.Text = string.format("New quests in %d:%02d:%02d", left // 3600, left % 3600 // 60, left % 60)
+		end
 		local giftLeft = (player:GetAttribute("GiftAt") or t) - t
 		giftBadge.Visible = giftLeft <= 0
 		giftLabel.Text = if giftLeft > 0 then Format.Time(giftLeft) else "CLAIM!"
@@ -1098,17 +1566,24 @@ function UI.Init(controller)
 			if n ~= UI.LastCount and n >= 1 and n <= 3 then
 				UI.LastCount = n
 				shout(tostring(n), 0.7)
+				sfx("Beep")
 			end
 		elseif phase == "Race" and UI.LastCount ~= 0 and racing then
 			UI.LastCount = 0
 			shout("GO!", 0.8)
+			sfx("Go")
 		elseif phase ~= "Countdown" and phase ~= "Race" then
 			UI.LastCount = nil
 		end
 
+		gasButton.Visible = touch and racing and phase == "Countdown" and not gasUsed
 		if not racing then
 			return
 		end
+		wrongWay.Visible = controller.WrongWay and math.floor(t * 4) % 2 == 0
+		local showHints = player:GetAttribute("Set_Hints") ~= false
+		hintsLabel.Visible = showHints and not touch
+		mapPanel.Visible = player:GetAttribute("Set_Minimap") ~= false
 
 		-- Platz, Runde, Zeit
 		local place = player:GetAttribute("RacePlace") or 1
@@ -1146,7 +1621,7 @@ function UI.Init(controller)
 		end
 		item2Slot.Visible = player:GetAttribute("Pass_DoubleItems") == true
 		showItem(item2Glyph, player:GetAttribute("Item2"))
-		itemHint.Visible = player:GetAttribute("Item") ~= nil
+		itemHint.Visible = showHints and player:GetAttribute("Item") ~= nil
 		local supers = player:GetAttribute("SuperItems") or 0
 		superButton.Text = if supers > 0 then `INFERNO x{supers}` else "INFERNO " .. robux(Config.DevProducts.SuperItem.PriceHint)
 

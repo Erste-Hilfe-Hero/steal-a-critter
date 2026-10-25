@@ -102,6 +102,23 @@ local function handleShop(player: Player, action: string, id: string)
 		end
 		data.Flame = id
 		services.DataService:UpdateAttributes(player)
+	elseif action == "BuyPaint" or action == "SelectPaint" then
+		local paint = Config.PaintsById[id]
+		if not paint then
+			return
+		end
+		if not data.Paints[id] then
+			if data.Coins < paint.Price then
+				services.Net.SendNotify(player, `You need {Format.Number(paint.Price - data.Coins)} more coins.`, RED)
+				services.Net.Offer:FireClient(player, "Coins", id)
+				return
+			end
+			data.Coins -= paint.Price
+			data.Paints[id] = true
+			services.Net.SendNotify(player, `{paint.Name} paint unlocked!`, GOLD)
+		end
+		data.Paint = id
+		services.DataService:UpdateAttributes(player)
 	end
 end
 

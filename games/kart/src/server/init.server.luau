@@ -9,9 +9,10 @@ local Services = {
 	RaceService = require(script.Services.RaceService),
 	MonetizationService = require(script.Services.MonetizationService),
 	ShopService = require(script.Services.ShopService),
+	ProgressService = require(script.Services.ProgressService),
 }
 
-local ORDER = { "DataService", "TrackService", "LobbyService", "RaceService", "MonetizationService", "ShopService" }
+local ORDER = { "DataService", "TrackService", "LobbyService", "RaceService", "MonetizationService", "ShopService", "ProgressService" }
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
@@ -31,11 +32,19 @@ local function onPlayerAdded(player: Player)
 	end
 	Services.MonetizationService:LoadPasses(player)
 	Services.ShopService:OnPlayerReady(player)
+	Services.ProgressService:OnPlayerReady(player)
 	player:SetAttribute("Loaded", true)
-	player.CharacterAdded:Connect(function(character)
-		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
-		humanoid.WalkSpeed = 22
-	end)
+	local function onCharacter(character: Model)
+		local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
+		if humanoid then
+			humanoid.WalkSpeed = 22
+		end
+	end
+	player.CharacterAdded:Connect(onCharacter)
+	-- Die erste Figur kann schon waehrend des Ladens erschienen sein
+	if player.Character then
+		task.spawn(onCharacter, player.Character)
+	end
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
