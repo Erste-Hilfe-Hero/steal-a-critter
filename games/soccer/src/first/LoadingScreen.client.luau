@@ -1,8 +1,9 @@
 -- Eigener Ladebildschirm im Soccer-Jam-Stil: Navy mit schraegen Lime/Orange-Streifen,
 -- springender Ball mit Speed-Linien und Logo.
 -- >>> LoadingKit
--- Gemeinsamer Kern aller Ladebildschirme: Buehne fuer Handy und PC, echter Fortschritt, Tipps,
--- SKIP-Knopf, Logo-Intro mit Glanz, sauberes Ausblenden und 15-s-Notbremse.
+-- Gemeinsamer Kern aller Ladebildschirme: das echte 3D-Spielbild als Vollbild mit Kamerafahrt,
+-- Icon-Karte, Fortschritt, Tipps, SKIP-Knopf, sauberes Ausblenden und 15-s-Notbremse.
+-- Solange das Bild laedt (oder falls es fehlt), zeigt das Spiel seine eigene gezeichnete Szene.
 -- Nicht im Spiel aendern! Quelle: tools/loading/LoadingKit.luau, verteilen mit: python3 tools/loading/sync.py
 local ContentProvider = game:GetService("ContentProvider")
 local Players = game:GetService("Players")
@@ -18,6 +19,7 @@ Kit.__index = Kit
 
 local MAX_TIME = 15 -- Notbremse: spaetestens dann ist der Bildschirm weg
 local STROKE_REFERENCE = 720 -- Bildschirmhoehe, fuer die die Konturstaerken gedacht sind
+local IMAGE_WAIT = 4 -- so lange darf das 3D-Bild zum Laden brauchen
 
 local function make(className: string, props: { [string]: any }, parent: Instance?): any
 	local instance = Instance.new(className)
@@ -41,6 +43,13 @@ local function shuffled(list: { string }): { string }
 	return copy
 end
 
+local function assetId(id: any): string?
+	if id == nil or id == "" or id == 0 then
+		return nil
+	end
+	return "rbxassetid://" .. tostring(id)
+end
+
 function Kit.new(theme: { [string]: any })
 	local self = setmetatable({}, Kit)
 	self.Theme = theme
@@ -50,16 +59,19 @@ function Kit.new(theme: { [string]: any })
 	self.Done = false
 	self.Skipped = false
 	self.Fading = false
+	self.ArtHidden = false
 	self.Animations = {}
 	self.Logos = {}
 	self.Shines = {}
+	local images = theme.Images or {}
+	self.Cinema = assetId(images.left) ~= nil and assetId(images.right) ~= nil
 
 	local gui = make("ScreenGui", { Name = "LoadingScreen", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 100 })
 	if theme.ZIndexBehavior then
 		gui.ZIndexBehavior = theme.ZIndexBehavior
 	end
 	self.Gui = gui
-	-- Hintergrund fuellt den ganzen Bildschirm, die Buehne bleibt 16:9 und damit auf jedem Geraet gleich
+	-- Ebenen: Hintergrund (eigene Szene des Spiels) < 3D-Bild < Bedienelemente
 	self.Background = make("Frame", {
 		Name = "Background",
 		Size = UDim2.fromScale(1, 1),
@@ -67,6 +79,7 @@ function Kit.new(theme: { [string]: any })
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 	}, gui)
+	-- Die Buehne bleibt 16:9 und sieht damit auf Handy, Tablet und PC gleich aus
 	self.Stage = make("Frame", {
 		Name = "Stage",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -76,6 +89,18 @@ function Kit.new(theme: { [string]: any })
 		ZIndex = 2,
 	}, self.Background)
 	make("UIAspectRatioConstraint", { AspectRatio = 16 / 9 }, self.Stage)
+	self.Hud = make("Frame", {
+		Name = "Hud",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 30,
+	}, self.Background)
+	make("UIAspectRatioConstraint", { AspectRatio = 16 / 9 }, self.Hud)
+	if self.Cinema then
+		self:_buildBackdrop(images)
+	end
 
 	-- Notbremse, auch falls im Spielcode etwas schiefgeht
 	task.delay(MAX_TIME + 2, function()
@@ -86,12 +111,109 @@ function Kit.new(theme: { [string]: any })
 	return self
 end
 
+-- Das 3D-Vorschaubild fuellt den Bildschirm (wie "cover"), zwei Haelften fuer volle Schaerfe
+function Kit:_buildBackdrop(images: { [string]: any })
+	local theme = self.Theme
+	local backdrop = make("Frame", {
+		Name = "Backdrop",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 15,
+	}, self.Background)
+	local picture = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		BackgroundTransparency = 1,
+		ZIndex = 15,
+	}, backdrop)
+	local zoom = make("UIScale", { Scale = 1.04 }, picture)
+	local function cover()
+		local size = self.Background.AbsoluteSize
+		if size.X <= 0 or size.Y <= 0 then
+			return
+		end
+		local width = math.max(size.X, size.Y * 16 / 9)
+		picture.Size = UDim2.fromOffset(width, width * 9 / 16)
+	end
+	cover()
+	self.Background:GetPropertyChangedSignal("AbsoluteSize"):Connect(cover)
+	local halves = {}
+	for i, key in { "left", "right" } do
+		halves[i] = make("ImageLabel", {
+			Position = UDim2.fromScale((i - 1) * 0.5, 0),
+			-- 1 Pixel Ueberlappung, damit keine Naht sichtbar ist
+			Size = UDim2.new(0.5, 1, 1, 0),
+			BackgroundTransparency = 1,
+			Image = assetId(images[key]) :: string,
+			ImageTransparency = 1,
+			ScaleType = Enum.ScaleType.Stretch,
+			ZIndex = 15,
+		}, picture)
+	end
+
+	-- Glanz, der ab und zu schraeg ueber das Bild zieht
+	local sheen = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 16 }, picture)
+	local sheenGradient = make("UIGradient", {
+		Rotation = 25,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.45, 1),
+			NumberSequenceKeypoint.new(0.5, 0.82),
+			NumberSequenceKeypoint.new(0.55, 1),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Offset = Vector2.new(-1, 0),
+	}, sheen)
+
+	-- Kino-Abdunklung: unten kraeftig (fuer Tipp und Balken), oben leicht, Raender weich
+	local shades = {}
+	local function shade(rotation: number, keypoints: { NumberSequenceKeypoint }, color: Color3?)
+		local frame = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = color or Color3.new(0, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 17 }, backdrop)
+		make("UIGradient", { Rotation = rotation, Transparency = NumberSequence.new(keypoints) }, frame)
+		table.insert(shades, frame)
+	end
+	shade(90, { NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 1), NumberSequenceKeypoint.new(0.78, 0.45), NumberSequenceKeypoint.new(1, 0.1) })
+	shade(90, { NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(0.18, 1), NumberSequenceKeypoint.new(1, 1) })
+	shade(0, { NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(0.15, 1), NumberSequenceKeypoint.new(0.85, 1), NumberSequenceKeypoint.new(1, 0.55) })
+	shade(90, { NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.7, 1), NumberSequenceKeypoint.new(1, 0.75) }, theme.Accent)
+
+	-- Leuchtende Funken, die langsam aufsteigen
+	local motes = {}
+	for i = 1, 16 do
+		local mote = make("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.fromScale(0.004 + (i % 3) * 0.002, 0.004 + (i % 3) * 0.002),
+			BackgroundColor3 = if i % 3 == 0 then Color3.new(1, 1, 1) else (theme.Accent or Color3.new(1, 1, 1)),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 18,
+		}, backdrop)
+		make("UIAspectRatioConstraint", {}, mote)
+		make("UICorner", { CornerRadius = UDim.new(1, 0) }, mote)
+		motes[i] = { Frame = mote, X = math.random(), Speed = 0.03 + math.random() * 0.04, Phase = math.random() }
+	end
+
+	self.Backdrop = {
+		Frame = backdrop,
+		Halves = halves,
+		Zoom = zoom,
+		Picture = picture,
+		SheenGradient = sheenGradient,
+		Shades = shades,
+		Motes = motes,
+		Shown = false,
+		Visible = 0,
+	}
+end
+
 -- Jede Frame-Animation bekommt (Zeit, dt, angezeigter Fortschritt 0..1)
 function Kit:Animate(callback: (number, number, number) -> ())
 	table.insert(self.Animations, callback)
 end
 
--- Logo: springt beim Start auf (Back-Easing); die Texte bekommen einen Glanzstreifen
+-- Logo der gezeichneten Szene: springt beim Start auf (Back-Easing), Texte bekommen einen Glanzstreifen
 function Kit:Logo(root: GuiObject, shine: { TextLabel }?)
 	local scale = root:FindFirstChildOfClass("UIScale") or make("UIScale", {}, root)
 	scale.Scale = 0
@@ -133,27 +255,52 @@ function Kit:_buildUi()
 	local accent = theme.Accent or Color3.fromRGB(255, 220, 70)
 	local body = asFont(theme.BodyFont or Enum.Font.GothamBold)
 	local heavy = asFont(theme.TitleFont or Enum.Font.GothamBlack)
-	local stage = self.Stage
-	local tipY = theme.TipY or 0.765
-	local barY = theme.BarY or 0.865
+	local hud = self.Hud
+	local cinema = self.Cinema
+	local icon = cinema and assetId((theme.Images or {}).icon)
+	-- Kino-Layout: alles unten, links die Icon-Karte; sonst mittig unter der gezeichneten Szene
+	local left = if icon then 0.205 else 0.5 - 0.37
+	local width = if cinema then 0.955 - 0.125 - left else 0.74
+	local tipY = if cinema then 0.795 else (theme.TipY or 0.765)
+	local barY = if cinema then 0.885 else (theme.BarY or 0.865)
+	self.Layout = { Left = left, Width = width, TipY = tipY, BarY = barY }
+
+	local iconCard
+	if icon then
+		iconCard = make("ImageLabel", {
+			Name = "Icon",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.105, 0.845),
+			Size = UDim2.fromScale(0.2, 0.2),
+			BackgroundColor3 = ink,
+			BackgroundTransparency = 1,
+			Image = icon,
+			ImageTransparency = 1,
+			ZIndex = 31,
+		}, hud)
+		make("UIAspectRatioConstraint", {}, iconCard)
+		make("UICorner", { CornerRadius = UDim.new(0.2, 0) }, iconCard)
+		make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 3, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, iconCard)
+		make("UIScale", { Scale = 0.6 }, iconCard)
+	end
 
 	-- Tipp-Karte (antippen = naechster Tipp)
 	local card = make("TextButton", {
 		Name = "TipCard",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, tipY + 0.02),
-		Size = UDim2.fromScale(0.74, 0.085),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(left, tipY + 0.02),
+		Size = UDim2.fromScale(width, 0.085),
 		BackgroundColor3 = theme.Panel or ink,
 		BackgroundTransparency = 1,
 		AutoButtonColor = false,
 		Text = "",
-		ZIndex = 20,
-	}, stage)
+		ZIndex = 31,
+	}, hud)
 	make("UICorner", { CornerRadius = UDim.new(0.3, 0) }, card)
 	local cardStroke = make("UIStroke", { Color = accent, Thickness = 2, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, card)
 	local chip = make("TextLabel", {
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0.012, 0.5),
+		Position = UDim2.fromScale(0.014, 0.5),
 		Size = UDim2.fromScale(0.095, 0.64),
 		BackgroundColor3 = accent,
 		BackgroundTransparency = 1,
@@ -162,10 +309,11 @@ function Kit:_buildUi()
 		TextScaled = true,
 		TextColor3 = theme.AccentText or ink,
 		TextTransparency = 1,
-		ZIndex = 21,
+		ZIndex = 32,
 	}, card)
 	make("UICorner", { CornerRadius = UDim.new(0.35, 0) }, chip)
 	make("UIPadding", { PaddingTop = UDim.new(0.16, 0), PaddingBottom = UDim.new(0.16, 0) }, chip)
+	make("UISizeConstraint", { MaxSize = Vector2.new(90, math.huge) }, chip)
 	local tip = make("TextLabel", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0.125, 0.5),
@@ -178,40 +326,51 @@ function Kit:_buildUi()
 		TextColor3 = theme.Text or Color3.new(1, 1, 1),
 		TextTransparency = 1,
 		Text = "",
-		ZIndex = 21,
+		ZIndex = 32,
 	}, card)
 	make("UITextSizeConstraint", { MaxTextSize = 30, MinTextSize = 9 }, tip)
 
-	-- Fortschrittsbalken mit Lauflicht, darunter Status links und Prozent rechts
+	-- Fortschrittsbalken mit Lauflicht und Leuchtspitze, darunter Status links und Prozent rechts
 	local barBack = make("Frame", {
 		Name = "Bar",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, barY + 0.02),
-		Size = UDim2.fromScale(0.5, 0.024),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(left, barY + 0.02),
+		Size = UDim2.fromScale(width, if cinema then 0.02 else 0.024),
 		BackgroundColor3 = theme.BarBack or ink,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Visible = theme.ShowBar ~= false,
-		ZIndex = 20,
-	}, stage)
+		Visible = cinema or theme.ShowBar ~= false,
+		ZIndex = 31,
+	}, hud)
 	make("UICorner", { CornerRadius = UDim.new(1, 0) }, barBack)
 	local barStroke = make("UIStroke", { Color = theme.BarStroke or ink, Thickness = 2, Transparency = 1 }, barBack)
-	local fill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 21 }, barBack)
+	local fill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 32 }, barBack)
 	make("UICorner", { CornerRadius = UDim.new(1, 0) }, fill)
 	make("UIGradient", { Color = theme.Bar or ColorSequence.new(accent) }, fill)
-	local glint = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Size = UDim2.fromScale(0.35, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 22 }, fill)
+	local glint = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Size = UDim2.fromScale(0.35, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 33 }, fill)
 	make("UIGradient", {
 		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.45), NumberSequenceKeypoint.new(1, 1) }),
 	}, glint)
+	local spark = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromScale(2.2, 2.2),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 34,
+	}, barBack)
+	make("UIAspectRatioConstraint", {}, spark)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, spark)
+	make("UIStroke", { Color = accent, Thickness = 3, Transparency = 1 }, spark)
 
 	local row = make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, barY + 0.025),
-		Size = UDim2.fromScale(0.5, 0.042),
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromScale(left, barY + 0.025),
+		Size = UDim2.fromScale(width, 0.042),
 		BackgroundTransparency = 1,
-		ZIndex = 20,
-	}, stage)
-	local statusColor = theme.StatusColor or theme.Text or Color3.new(1, 1, 1)
+		ZIndex = 31,
+	}, hud)
+	local statusColor = if cinema then Color3.fromRGB(235, 235, 245) else (theme.StatusColor or theme.Text or Color3.new(1, 1, 1))
 	local status = make("TextLabel", {
 		Size = UDim2.fromScale(0.8, 1),
 		BackgroundTransparency = 1,
@@ -221,7 +380,7 @@ function Kit:_buildUi()
 		TextColor3 = statusColor,
 		TextTransparency = 1,
 		Text = "",
-		ZIndex = 21,
+		ZIndex = 32,
 	}, row)
 	make("UITextSizeConstraint", { MaxTextSize = 24, MinTextSize = 8 }, status)
 	local percent = make("TextLabel", {
@@ -232,12 +391,12 @@ function Kit:_buildUi()
 		FontFace = heavy,
 		TextScaled = true,
 		TextXAlignment = Enum.TextXAlignment.Right,
-		TextColor3 = statusColor,
+		TextColor3 = if cinema then accent else statusColor,
 		TextTransparency = 1,
 		Text = "0%",
-		ZIndex = 21,
+		ZIndex = 32,
 	}, row)
-	make("UITextSizeConstraint", { MaxTextSize = 24, MinTextSize = 8 }, percent)
+	make("UITextSizeConstraint", { MaxTextSize = 26, MinTextSize = 8 }, percent)
 	for _, label in { status, percent } do
 		make("UIStroke", { Color = ink, Thickness = 1.5, Transparency = 1 }, label)
 	end
@@ -246,8 +405,8 @@ function Kit:_buildUi()
 	local skip = make("TextButton", {
 		Name = "Skip",
 		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.fromScale(0.985, 0.965),
-		Size = UDim2.fromScale(0.105, 0.072),
+		Position = UDim2.fromScale(0.975, if cinema then 0.955 else 0.965),
+		Size = UDim2.fromScale(if cinema then 0.1 else 0.105, 0.072),
 		BackgroundColor3 = accent,
 		BackgroundTransparency = 1,
 		AutoButtonColor = true,
@@ -257,14 +416,15 @@ function Kit:_buildUi()
 		TextColor3 = theme.AccentText or ink,
 		TextTransparency = 1,
 		Visible = false,
-		ZIndex = 23,
-	}, stage)
+		ZIndex = 35,
+	}, hud)
 	make("UICorner", { CornerRadius = UDim.new(0.3, 0) }, skip)
 	make("UIPadding", { PaddingTop = UDim.new(0.2, 0), PaddingBottom = UDim.new(0.2, 0), PaddingLeft = UDim.new(0.1, 0), PaddingRight = UDim.new(0.1, 0) }, skip)
 	make("UISizeConstraint", { MinSize = Vector2.new(84, 38) }, skip)
 	local skipStroke = make("UIStroke", { Color = ink, Thickness = 2.5, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, skip)
 
 	self.Ui = {
+		Icon = iconCard,
 		Card = card,
 		CardStroke = cardStroke,
 		Chip = chip,
@@ -273,6 +433,7 @@ function Kit:_buildUi()
 		BarStroke = barStroke,
 		Fill = fill,
 		Glint = glint,
+		Spark = spark,
 		Status = status,
 		Percent = percent,
 		Skip = skip,
@@ -301,21 +462,71 @@ end
 function Kit:_showUi()
 	local ui = self.Ui
 	local theme = self.Theme
-	local info = TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-	local tipY = theme.TipY or 0.765
-	local barY = theme.BarY or 0.865
-	TweenService:Create(ui.Card, info, { Position = UDim2.fromScale(0.5, tipY), BackgroundTransparency = theme.PanelTransparency or 0.35 }):Play()
+	local layout = self.Layout
+	local info = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+	TweenService:Create(ui.Card, info, { Position = UDim2.fromScale(layout.Left, layout.TipY), BackgroundTransparency = if self.Cinema then 0.3 else (theme.PanelTransparency or 0.35) }):Play()
 	TweenService:Create(ui.CardStroke, info, { Transparency = 0.55 }):Play()
 	TweenService:Create(ui.Chip, info, { BackgroundTransparency = 0, TextTransparency = 0 }):Play()
 	TweenService:Create(ui.Tip, info, { TextTransparency = 0 }):Play()
-	TweenService:Create(ui.BarBack, info, { Position = UDim2.fromScale(0.5, barY), BackgroundTransparency = theme.BarBackTransparency or 0.15 }):Play()
-	TweenService:Create(ui.BarStroke, info, { Transparency = 0.4 }):Play()
+	TweenService:Create(ui.BarBack, info, { Position = UDim2.fromScale(layout.Left, layout.BarY), BackgroundTransparency = if self.Cinema then 0.35 else (theme.BarBackTransparency or 0.15) }):Play()
+	TweenService:Create(ui.BarStroke, info, { Transparency = if self.Cinema then 0.7 else 0.4 }):Play()
 	TweenService:Create(ui.Fill, info, { BackgroundTransparency = 0 }):Play()
 	TweenService:Create(ui.Glint, info, { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(ui.Spark, info, { BackgroundTransparency = 0.1 }):Play()
+	TweenService:Create(ui.Spark:FindFirstChildOfClass("UIStroke"), info, { Transparency = 0.3 }):Play()
 	for _, label in { ui.Status, ui.Percent } do
 		TweenService:Create(label, info, { TextTransparency = 0 }):Play()
 		TweenService:Create(label:FindFirstChildOfClass("UIStroke"), info, { Transparency = 0.5 }):Play()
 	end
+	if ui.Icon then
+		local pop = TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		TweenService:Create(ui.Icon, info, { ImageTransparency = 0, BackgroundTransparency = 0 }):Play()
+		TweenService:Create(ui.Icon:FindFirstChildOfClass("UIScale"), pop, { Scale = 1 }):Play()
+		TweenService:Create(ui.Icon:FindFirstChildOfClass("UIStroke"), info, { Transparency = 0.25 }):Play()
+	end
+end
+
+-- 3D-Bild einblenden, sobald es geladen ist; danach ruht die gezeichnete Szene darunter
+function Kit:_showBackdrop()
+	local backdrop = self.Backdrop
+	if not backdrop then
+		return
+	end
+	local halves = backdrop.Halves
+	local icon = self.Ui.Icon
+	task.spawn(function()
+		local content = { halves[1], halves[2] }
+		if icon then
+			table.insert(content, icon)
+		end
+		local ready = false
+		task.spawn(function()
+			pcall(ContentProvider.PreloadAsync, ContentProvider, content)
+			ready = true
+		end)
+		local waitUntil = os.clock() + IMAGE_WAIT
+		while not (ready and halves[1].IsLoaded and halves[2].IsLoaded) and os.clock() < waitUntil and not self.Fading do
+			task.wait(0.05)
+		end
+		if self.Fading or not (halves[1].IsLoaded and halves[2].IsLoaded) then
+			return
+		end
+		backdrop.Shown = true
+		backdrop.ShownAt = os.clock()
+		local info = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		for _, half in halves do
+			TweenService:Create(half, info, { ImageTransparency = 0 }):Play()
+		end
+		TweenService:Create(backdrop.Frame, info, { BackgroundTransparency = 0 }):Play()
+		for _, frame in backdrop.Shades do
+			TweenService:Create(frame, info, { BackgroundTransparency = 0 }):Play()
+		end
+		task.delay(0.65, function()
+			if not self.Fading then
+				self.ArtHidden = true
+			end
+		end)
+	end)
 end
 
 function Kit:_runTips()
@@ -403,7 +614,8 @@ function Kit:_track()
 		table.insert(checks, check)
 	end
 	local statuses = theme.Status or { "Loading..." }
-	local minTime = theme.MinTime or 1.5
+	-- Mit 3D-Bild etwas laenger stehen lassen, damit man es auch sieht
+	local minTime = theme.MinTime or (if self.Cinema then 2.5 else 1.5)
 	local maxQueue = 1
 	local loadedAt: number? = nil
 	while not self.Skipped do
@@ -430,7 +642,10 @@ function Kit:_track()
 
 		local phase = if not loaded then 1 elseif not queueDone then 2 else 3
 		self.Ui.Status.Text = statuses[math.min(phase, #statuses)]
-		if (loaded and queueDone and passed == #checks and t >= minTime) or t >= MAX_TIME then
+		-- Das 3D-Bild soll nach dem Einblenden kurz zu sehen sein
+		local backdrop = self.Backdrop
+		local pictureSeen = not backdrop or not backdrop.Shown or os.clock() - (backdrop.ShownAt or 0) > 1.2
+		if (loaded and queueDone and passed == #checks and t >= minTime and pictureSeen) or t >= MAX_TIME then
 			break
 		end
 		task.wait(0.05)
@@ -449,8 +664,13 @@ function Kit:_outro()
 		return
 	end
 	local info = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local zoom = self.Stage:FindFirstChildOfClass("UIScale") or make("UIScale", {}, self.Stage)
-	TweenService:Create(zoom, info, { Scale = 1.06 }):Play()
+	for _, layer in { self.Stage, self.Hud } do
+		local zoom = layer:FindFirstChildOfClass("UIScale") or make("UIScale", {}, layer)
+		TweenService:Create(zoom, info, { Scale = 1.06 }):Play()
+	end
+	if self.Backdrop then
+		TweenService:Create(self.Backdrop.Zoom, info, { Scale = self.Backdrop.Zoom.Scale + 0.08 }):Play()
+	end
 	for _, item in self.Gui:GetDescendants() do
 		if item:IsA("GuiObject") then
 			TweenService:Create(item, info, { BackgroundTransparency = 1 }):Play()
@@ -473,11 +693,12 @@ function Kit:Run()
 		self:_scaleStrokes()
 	end
 	self.Gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	self:_showBackdrop()
 
 	-- Schriften vorladen, damit das Logo nicht mit der Ersatzschrift aufpoppt (hoechstens 0,6 s warten)
 	local fontsReady = false
 	task.spawn(function()
-		pcall(ContentProvider.PreloadAsync, ContentProvider, { self.Gui })
+		pcall(ContentProvider.PreloadAsync, ContentProvider, { self.Stage, self.Hud })
 		fontsReady = true
 	end)
 	task.spawn(function()
@@ -501,14 +722,32 @@ function Kit:Run()
 		local ui = self.Ui
 		ui.Fill.Size = UDim2.fromScale(math.max(shown, 0.03), 1)
 		ui.Glint.Position = UDim2.fromScale((t * 0.7) % 1.6 - 0.3, 0)
+		ui.Spark.Position = UDim2.fromScale(math.max(shown, 0.03), 0.5)
+		ui.Spark.Size = UDim2.fromScale(2.2 + math.sin(t * 8) * 0.3, 2.2)
 		ui.Percent.Text = `{math.floor(shown * 100 + 0.5)}%`
+		if ui.Icon then
+			ui.Icon.Rotation = math.sin(t * 1.6) * 2.5
+		end
+		local backdrop = self.Backdrop
+		if backdrop and backdrop.Shown and not self.Fading then
+			-- Langsame Kamerafahrt: Zoom und sanftes Schwenken
+			local since = os.clock() - backdrop.ShownAt
+			backdrop.Zoom.Scale = 1.04 + since * 0.012
+			backdrop.Picture.Position = UDim2.new(0.5 + math.sin(t * 0.25) * 0.012, 0, 0.5 + math.cos(t * 0.2) * 0.008, 0)
+			backdrop.SheenGradient.Offset = Vector2.new(math.clamp(((t % 4.5) - 1) / 1.6, 0, 1) * 2 - 1, 0)
+			for _, mote in backdrop.Motes do
+				local y = 1.05 - ((since * mote.Speed + mote.Phase) % 1.1)
+				mote.Frame.Position = UDim2.fromScale(mote.X + math.sin(t * 1.5 + mote.Phase * 6) * 0.01, y)
+				mote.Frame.BackgroundTransparency = 0.25 + (1 - y) * 0.7
+			end
+		end
 		for _, shine in self.Shines do
 			-- Glanz laeuft alle 3,2 s einmal ueber das Logo
 			shine.Gradient.Offset = Vector2.new(math.clamp(((t % 3.2) - 0.9) / 1.1, 0, 1) * 2 - 1, 0)
 			shine.Gloss.TextSize = shine.Label.TextSize
 		end
-		-- Beim Ausblenden stehen die Spiel-Animationen still, sonst setzen sie Transparenzen zurueck
-		for i = if self.Fading then 0 else #self.Animations, 1, -1 do
+		-- Beim Ausblenden und hinter dem 3D-Bild stehen die Spiel-Animationen still
+		for i = if self.Fading or self.ArtHidden then 0 else #self.Animations, 1, -1 do
 			local ok, err = pcall(self.Animations[i], t, dt, shown)
 			if not ok then
 				warn("LoadingScreen animation stopped:", err)
@@ -531,7 +770,7 @@ function Kit:Run()
 		while self.Shown < 0.995 and os.clock() < waitUntil do
 			task.wait()
 		end
-		task.wait(0.3)
+		task.wait(0.35)
 	end
 	self:_outro()
 	animation:Disconnect()
@@ -541,6 +780,9 @@ function Kit:Run()
 	self.Gui:Destroy()
 end
 -- <<< LoadingKit
+-- >>> LoadingImages (3D-Vorschaubild in zwei Haelften + Icon, aus tools/loading/images.json)
+local IMAGES = { left = "128793118109927", right = "80702402808135", icon = "107434890104716" }
+-- <<< LoadingImages
 
 local NAVY = Color3.fromRGB(16, 22, 52)
 local LIME = Color3.fromRGB(190, 255, 60)
@@ -548,6 +790,7 @@ local ORANGE = Color3.fromRGB(255, 110, 30)
 local FONT = Enum.Font.LuckiestGuy
 
 local kit = Kit.new({
+	Images = IMAGES,
 	Background = NAVY,
 	Ink = Color3.fromRGB(10, 14, 34),
 	Accent = LIME,

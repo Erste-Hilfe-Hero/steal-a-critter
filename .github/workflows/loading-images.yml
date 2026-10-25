@@ -1,0 +1,32 @@
+name: Upload loading screen images
+
+# Laedt Vorschaubilder und Icons aller Spiele als Bilder fuer die Ladebildschirme hoch und
+# schreibt die IDs nach tools/loading/images.json (Commit zurueck auf denselben Branch).
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths: [.github/workflows/loading-images.yml, tools/loading/upload_images.py]
+
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload images
+        run: |
+          pip install --quiet pillow
+          python3 tools/loading/upload_images.py
+      - name: Commit image IDs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898237+github-actions[bot]@users.noreply.github.com"
+          git add tools/loading/images.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Loading screen image IDs"
+          git push origin HEAD:${{ github.ref_name }}
