@@ -44,6 +44,9 @@ local lastContactTime = 0
 local inStart = false
 local finishSent = false
 local portalCooldown = 0
+local serverTeleport: CFrame? = nil -- letzter Teleport vom Server, solange der Charakter noch aufgebaut wird
+local characterSetupAt = 0
+local serverTeleportAt = -1
 local cursorFree = false
 local controls
 
@@ -110,12 +113,21 @@ local function checkZones()
 	local stage = player:GetAttribute("Stage") or 0
 	local point = state.Position
 	local feet = point - Vector3.new(0, HULL.Y / 2, 0)
+	-- Drop-in-Tor: gilt in jeder Stage (falls der Client nach dem Join noch in der Lobby steht)
+	local portal = zoneFor("StartPortal")
+	if portal and inside(portal, point) and os.clock() > portalCooldown then
+		portalCooldown = os.clock() + 2
+		remotes.Run:FireServer("Start")
+		-- Antwortet der Server nicht, selbst zum Start von Stage 1
+		local fallback = zoneFor("Start", 1)
+		local spawnAt = fallback and fallback:GetAttribute("Spawn")
+		task.delay(1.2, function()
+			if spawnAt and (state.Position - portal.Position).Magnitude < 60 then
+				Movement.Teleport(spawnAt)
+			end
+		end)
+	end
 	if stage == 0 then
-		local portal = zoneFor("StartPortal")
-		if portal and inside(portal, point) and os.clock() > portalCooldown then
-			portalCooldown = os.clock() + 2
-			remotes.Run:FireServer("Start")
-		end
 		local lobbyKill = workspace:GetAttribute("LobbyKillY")
 		local spawn = workspace:GetAttribute("LobbySpawn")
 		if lobbyKill and spawn and feet.Y < lobbyKill then
@@ -259,6 +271,7 @@ end)
 
 local function setupCharacter(newCharacter: Model)
 	character = newCharacter
+	characterSetupAt = os.clock()
 	humanoid = newCharacter:WaitForChild("Humanoid", 10) :: Humanoid?
 	root = newCharacter:WaitForChild("HumanoidRootPart", 10) :: BasePart?
 	if not humanoid or not root then
@@ -285,8 +298,12 @@ local function setupCharacter(newCharacter: Model)
 		table.insert(exclude, zones)
 	end
 	params.FilterDescendantsInstances = exclude
-	-- Startposition: wo der Server den Charakter hingestellt hat
-	Movement.Teleport(root.CFrame)
+	-- Startposition: der Teleport vom Server, falls er waehrend des Aufbaus kam, sonst wo der Charakter steht
+	if serverTeleport and serverTeleportAt >= characterSetupAt then
+		Movement.Teleport(serverTeleport)
+	else
+		Movement.Teleport(root.CFrame)
+	end
 end
 
 ---------------------------------------------------------------- Schleife
@@ -412,6 +429,8 @@ function Movement.Start()
 	RunService:BindToRenderStep("SurfMovement", Enum.RenderPriority.Input.Value + 1, step)
 
 	remotes.Teleport.OnClientEvent:Connect(function(cframe: CFrame)
+		serverTeleport = cframe
+		serverTeleportAt = os.clock()
 		Movement.Teleport(cframe)
 	end)
 	remotes.Checkpoint.OnClientEvent:Connect(function(action)

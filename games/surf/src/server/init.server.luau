@@ -21,7 +21,10 @@ end
 Services.WorldService:Build()
 for _, name in ORDER do
 	if Services[name].Start then
-		Services[name]:Start()
+		local ok, err = pcall(Services[name].Start, Services[name])
+		if not ok then
+			warn("[surf_ski] " .. name .. ":Start failed: " .. tostring(err))
+		end
 	end
 end
 
@@ -30,24 +33,31 @@ local function onCharacterAdded(player: Player, character: Model)
 	Services.CosmeticService:OnCharacterAdded(player, character)
 end
 
+local function safe(label: string, fn, ...)
+	local ok, err = pcall(fn, ...)
+	if not ok then
+		warn("[surf_ski] " .. label .. " failed: " .. tostring(err))
+	end
+end
+
 local function onPlayerAdded(player: Player)
 	local data = Services.DataService:Load(player)
 	if not data then
 		return
 	end
+	-- Erst Stage setzen und Respawn verbinden, damit ein Fehler in einem anderen Service niemanden in der Lobby festhaelt
 	Services.TimerService:OnPlayerReady(player)
-	Services.MonetizationService:LoadPasses(player)
-	Services.MonetizationService:OnPlayerReady(player)
-	Services.CosmeticService:OnPlayerReady(player)
-	Services.ProgressService:OnPlayerReady(player)
-	Services.EventService:OnPlayerReady(player)
-
 	player.CharacterAdded:Connect(function(character)
-		onCharacterAdded(player, character)
+		safe("CharacterAdded", onCharacterAdded, player, character)
 	end)
 	if player.Character then
-		task.spawn(onCharacterAdded, player, player.Character)
+		task.spawn(safe, "CharacterAdded", onCharacterAdded, player, player.Character)
 	end
+	safe("LoadPasses", Services.MonetizationService.LoadPasses, Services.MonetizationService, player)
+	safe("Monetization", Services.MonetizationService.OnPlayerReady, Services.MonetizationService, player)
+	safe("Cosmetic", Services.CosmeticService.OnPlayerReady, Services.CosmeticService, player)
+	safe("Progress", Services.ProgressService.OnPlayerReady, Services.ProgressService, player)
+	safe("Event", Services.EventService.OnPlayerReady, Services.EventService, player)
 end
 
 -- Fehlersuche: Client-Fehler und Zustand der ersten Minute pro Spieler im DataStore "SurfDiag" ablegen
