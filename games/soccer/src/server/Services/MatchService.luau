@@ -234,6 +234,11 @@ end
 
 ---------------------------------------------------------------- Teams
 
+-- Smoke-Test (Open Cloud Luau Execution, ohne echte Spieler): Bots spielen trotzdem ein Match
+local function anyPlayers(): boolean
+	return #Players:GetPlayers() > 0 or workspace:GetAttribute("SmokeTest") == true
+end
+
 local function humanCount(teamName: string): number
 	return #teamObjects[teamName]:GetPlayers()
 end
@@ -248,7 +253,7 @@ end
 function MatchService:Rebalance()
 	local humans = { Blue = humanCount("Blue"), Red = humanCount("Red") }
 	local size = math.clamp(math.max(humans.Blue, humans.Red), Config.MinTeamSize, Config.MaxTeamSize)
-	if #Players:GetPlayers() == 0 then
+	if not anyPlayers() then
 		size = 0
 	end
 	for teamName in Config.Teams do
@@ -494,7 +499,7 @@ local function runMatch()
 		local t = os.clock()
 		local dt = t - lastTick
 		lastTick = t
-		if #Players:GetPlayers() == 0 then
+		if not anyPlayers() then
 			return
 		end
 		if MatchService.GoalScored then
@@ -551,7 +556,7 @@ function MatchService:Start()
 	setState("Waiting")
 	task.spawn(function()
 		while true do
-			if #Players:GetPlayers() > 0 then
+			if anyPlayers() then
 				self:Rebalance()
 				local ok, err = pcall(runMatch)
 				if not ok then

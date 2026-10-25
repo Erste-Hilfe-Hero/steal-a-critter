@@ -363,17 +363,6 @@ if player.Character then
 end
 applyView()
 
-Extras.Start({
-	SetFov = function(fov: number)
-		baseFov = fov
-	end,
-	SetFirstPerson = function(on: boolean)
-		if firstPerson ~= on then
-			firstPerson = on
-			applyView()
-		end
-	end,
-})
 
 local function styleViewmodel()
 	local team = Config.Teams[player:GetAttribute("Team") or ""]
@@ -565,3 +554,22 @@ TextChatService.OnIncomingMessage = function(message: TextChatMessage)
 	end
 	return properties
 end
+
+-- Erweiterungen zuletzt starten: ein Fehler dort darf Steuerung, Schwert und Sounds nicht abschalten
+task.spawn(function()
+	local ok, err = pcall(Extras.Start, {
+		SetFov = function(fov: number)
+			baseFov = fov
+		end,
+		SetFirstPerson = function(on: boolean)
+			if firstPerson ~= on then
+				firstPerson = on
+				applyView()
+			end
+		end,
+	})
+	if not ok then
+		warn("[Extras] start failed:", err)
+		UI.Toast("Extras error: " .. string.sub(tostring(err), 1, 120), Config.Colors.Red)
+	end
+end)
