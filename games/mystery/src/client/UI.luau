@@ -32,6 +32,12 @@ local LOGO = Enum.Font.LuckiestGuy
 local Profile: any = nil
 local Role: string? = nil
 local RoundState = "Intermission"
+local Odds: any = nil -- letzte Rollen-Chancen vom Server (inkl. aktiver Glueckbringer)
+
+UI.Tab = {} :: { [string]: string }
+-- Solange ein Unterfenster (Kisten-Animation, Schmiede) offen ist, baut ein Profil-Update das Fenster nicht neu
+UI.Hold = 0
+local pendingRebuild = false
 
 ---------------------------------------------------------------- Bausteine
 
@@ -333,15 +339,21 @@ corner(modifierChip, 13)
 pad(modifierChip, 4)
 local modifierText = label(modifierChip, "", 15, { Size = UDim2.fromOffset(0, 18), AutomaticSize = Enum.AutomaticSize.X, TextWrapped = false, Font = HEAVY })
 
--- Linke Menueleiste
-local menu = frame(root, { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 12, 0.5, 10), Size = UDim2.fromOffset(64, 420), BackgroundTransparency = 1 })
-local menuList = list(menu, 8)
-menuList.VerticalAlignment = Enum.VerticalAlignment.Center
+-- Linke Menueleiste: Raster mit 2 Spalten unter dem oberen HUD
+-- (eine lange Spalte ueberlappte auf Handys die Muenzanzeige und den FREE-COINS-Knopf)
+local menu = frame(root, { Position = UDim2.fromOffset(12, 96), Size = UDim2.fromOffset(128, 300), BackgroundTransparency = 1 })
+local menuGrid = Instance.new("UIGridLayout")
+menuGrid.CellSize = UDim2.fromOffset(60, 52)
+menuGrid.CellPadding = UDim2.fromOffset(6, 6)
+menuGrid.SortOrder = Enum.SortOrder.LayoutOrder
+menuGrid.Parent = menu
 local menuBadges = {}
+local menuCount = 0
 local openWindow: (name: string) -> ()
 
 local function menuButton(name: string, icon: string, caption: string, color: Color3)
-	local b = button(menu, "", C.Panel, { Size = UDim2.fromOffset(60, 52) }, function()
+	menuCount += 1
+	local b = button(menu, "", C.Panel, { Size = UDim2.fromOffset(60, 52), LayoutOrder = menuCount }, function()
 		openWindow(name)
 	end)
 	stroke(b, color, 2, 0.15)
@@ -359,7 +371,22 @@ menuButton("Pass", "🌙", "PASS", C.Purple)
 menuButton("Quests", "📜", "QUESTS", C.Green)
 menuButton("Spin", "🎡", "SPIN", C.Orange)
 menuButton("Emotes", "💃", "EMOTES", C.Pink)
+menuButton("Players", "👥", "PLAYERS", C.Cyan)
 menuButton("Settings", "⚙️", "MORE", C.Muted)
+
+-- Midnight Hour: Countdown bzw. Restzeit (antippen oeffnet den Shop, dort kann man eine starten)
+local eventChip = button(root, "", C.Panel, { Position = UDim2.fromOffset(12, 58), Size = UDim2.fromOffset(250, 30), TextSize = 14 }, function()
+	UI.Tab.Shop = "Coins"
+	openWindow("Shop")
+end)
+stroke(eventChip, C.Purple, 2, 0.1)
+
+-- Letzter gefundener Hinweis (waehrend der Runde)
+local clueNote = label(root, "", 16, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 88), Size = UDim2.fromOffset(440, 20), Font = HEAVY, TextColor3 = C.Cyan, Visible = false, TextScaled = true })
+local clueStroke = Instance.new("UIStroke")
+clueStroke.Thickness = 2
+clueStroke.Color = C.Night
+clueStroke.Parent = clueNote
 
 -- Gratis-Muenzen per Video (unten links)
 local adButton = button(root, "FREE COINS ▶", C.Green, { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 12, 1, -12), Size = UDim2.fromOffset(150, 38), TextSize = 16 }, function()
@@ -466,7 +493,7 @@ voteRowList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 local myVote = nil
 local voteKey = ""
 
-local THEME_COLORS = { Manor = Color3.fromRGB(150, 90, 200), Arcade = Color3.fromRGB(255, 80, 200), Lodge = Color3.fromRGB(120, 200, 255), School = Color3.fromRGB(110, 200, 120), Lab = Color3.fromRGB(80, 220, 255) }
+local THEME_COLORS = { Manor = Color3.fromRGB(150, 90, 200), Arcade = Color3.fromRGB(255, 80, 200), Lodge = Color3.fromRGB(120, 200, 255), School = Color3.fromRGB(110, 200, 120), Lab = Color3.fromRGB(80, 220, 255), Museum = Color3.fromRGB(230, 190, 90) }
 
 local function refreshVotes()
 	local options = HttpService:JSONDecode(ReplicatedStorage:GetAttribute("MapOptions") or "[]")
@@ -584,7 +611,7 @@ end
 local function showResults(info)
 	local murdererWon = info.Winner == "Murderer"
 	local color = if murdererWon then C.Red else C.Green
-	local card = frame(overlay, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(500, 300), BackgroundColor3 = C.Night, BackgroundTransparency = 0.04 })
+	local card = frame(overlay, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(500, 336), BackgroundColor3 = C.Night, BackgroundTransparency = 0.04 })
 	corner(card, 22)
 	stroke(card, color, 4, 0)
 	local title = label(card, if murdererWon then "MURDERER WINS" else "INNOCENTS WIN", 46, { Position = UDim2.fromOffset(0, 14), Size = UDim2.new(1, 0, 0, 54), Font = LOGO, TextColor3 = color })
@@ -593,7 +620,7 @@ local function showResults(info)
 	s.Color = C.Night
 	s.Parent = title
 	label(card, info.Reason, 18, { Position = UDim2.fromOffset(20, 70), Size = UDim2.new(1, -40, 0, 24), TextColor3 = C.Muted })
-	local rows = frame(card, { Position = UDim2.fromOffset(30, 104), Size = UDim2.new(1, -60, 0, 140), BackgroundTransparency = 1 })
+	local rows = frame(card, { Position = UDim2.fromOffset(30, 104), Size = UDim2.new(1, -60, 0, 176), BackgroundTransparency = 1 })
 	list(rows, 6)
 	local function row(name: string, value: string, c: Color3)
 		local r = frame(rows, { Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = C.Panel })
@@ -609,7 +636,10 @@ local function showResults(info)
 	if info.MVP then
 		row("MVP", `{info.MVP.Name}  ({info.MVP.Coins} coins{if info.MVP.KOs > 0 then ", " .. info.MVP.KOs .. " KOs" else ""})`, C.Moon)
 	end
-	local reward = label(card, "", 20, { Name = "Reward", Position = UDim2.new(0, 0, 1, -44), Size = UDim2.new(1, 0, 0, 30), Font = TITLE, TextColor3 = C.Cyan })
+	if info.LastSurvivor then
+		row("Last survivor", info.LastSurvivor, C.Green)
+	end
+	local reward = label(card, "", 20, { Name = "Reward", Position = UDim2.new(0, 20, 1, -46), Size = UDim2.new(1, -40, 0, 30), Font = TITLE, TextColor3 = C.Cyan, TextScaled = true })
 	UI.ResultCard = card
 	UI.ResultReward = reward
 	local uiScale = Instance.new("UIScale")
@@ -672,6 +702,8 @@ local windowTitle = label(window, "", 30, { Position = UDim2.fromOffset(22, 10),
 local _closeButton = button(window, "✕", C.Red, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 12), Size = UDim2.fromOffset(38, 38), TextSize = 20 }, function()
 	windowHolder.Visible = false
 	UI.Window = nil
+	UI.Hold = 0
+	pendingRebuild = false
 end)
 local tabsRow = frame(window, { Position = UDim2.fromOffset(20, 54), Size = UDim2.new(1, -40, 0, 34), BackgroundTransparency = 1 })
 list(tabsRow, 6, true)
@@ -681,8 +713,19 @@ UI.Window = nil :: string?
 UI.Guessed = false
 UI.ResultCard = nil :: Frame?
 UI.ResultReward = nil :: TextLabel?
-UI.Tab = {} :: { [string]: string }
 local builders = {}
+
+local function hold()
+	UI.Hold += 1
+end
+
+local function release()
+	UI.Hold = math.max(0, UI.Hold - 1)
+	if UI.Hold == 0 and pendingRebuild and UI.Window then
+		pendingRebuild = false
+		openWindow(UI.Window)
+	end
+end
 
 local function clear(f: Instance)
 	for _, child in f:GetChildren() do
@@ -742,6 +785,9 @@ function openWindow(name: string)
 		return
 	end
 	UI.Window = name
+	-- Neu aufbauen zerstoert alle Unterfenster: deren Sperre gilt dann nicht mehr
+	UI.Hold = 0
+	pendingRebuild = false
 	clear(tabsRow)
 	clear(body)
 	windowHolder.Visible = true
@@ -774,7 +820,7 @@ end
 
 builders.Shop = function()
 	windowTitle.Text = "SHOP"
-	setTabs("Shop", { "Passes", "Coins", "Bundles", "Direct" }, "Passes")
+	setTabs("Shop", { "Passes", "Coins", "Bundles", "Direct", "Charms" }, "Passes")
 	local tab = UI.Tab.Shop
 	local s = scroller(body)
 	grid(s, Vector2.new(210, 150), 12)
@@ -793,6 +839,38 @@ builders.Shop = function()
 		productCard(s, "MurdererTicket", "Murderer Ticket", "Be the MURDERER in your next round. Guaranteed!", C.Red, 10)
 		productCard(s, "SheriffTicket", "Sheriff Ticket", "Be the SHERIFF in your next round. Guaranteed!", C.Blue, 11)
 		productCard(s, "Blackout", "Server Blackout", "Turn off all the lights next round. Flashlights only!", C.Purple, 12)
+		productCard(s, "MidnightHour", "Midnight Hour", `Start it for the WHOLE server: 2x coins and 1.5x XP for {Config.MidnightHour.BoughtMinutes} minutes!`, C.Purple, 13)
+	elseif tab == "Charms" then
+		-- Glueckbringer: nur Spiel-Muenzen, kein Zufallskauf (erhoeht nur die angezeigte Chance)
+		local order = 0
+		for _, role in { "Murderer", "Sheriff" } do
+			order += 1
+			local def = Config.Charms[role]
+			local color = Config.Roles[role].Color
+			local active = Odds and Odds.Charms and Odds.Charms[role] == true
+			local card = frame(s, { BackgroundColor3 = C.Panel, LayoutOrder = order })
+			corner(card, 14)
+			stroke(card, color, 2, 0.25)
+			label(card, def.Name, 20, { Position = UDim2.fromOffset(10, 8), Size = UDim2.new(1, -20, 0, 26), Font = TITLE, TextColor3 = color })
+			label(card, `+{def.Tickets} {role} tickets: a much higher chance until you get the role.`, 14, { Position = UDim2.fromOffset(10, 36), Size = UDim2.new(1, -20, 0, 50), TextColor3 = C.Muted, TextYAlignment = Enum.TextYAlignment.Top })
+			if active then
+				label(card, "ACTIVE ✓", 18, { Position = UDim2.new(0, 10, 1, -40), Size = UDim2.new(1, -20, 0, 32), Font = HEAVY, TextColor3 = C.Green })
+			else
+				button(card, "$" .. Format.Number(def.Price), C.Moon, { Position = UDim2.new(0, 10, 1, -42), Size = UDim2.new(1, -20, 0, 34) }, function()
+					local result = call("Charm", role)
+					if result.Ok then
+						Odds = Odds or {}
+						Odds.Charms = Odds.Charms or {}
+						Odds.Charms[role] = true
+						openWindow("Shop")
+					else
+						UI.Toast(result.Error or "Could not buy", C.Red)
+					end
+				end)
+			end
+		end
+		local tip = frame(s, { BackgroundTransparency = 1, LayoutOrder = 10 })
+		label(tip, "Charms cost coins only. Your current chances are shown in the lobby.", 14, { Size = UDim2.fromScale(1, 1), TextColor3 = C.Muted })
 	elseif tab == "Bundles" then
 		if not (Profile and Profile.StarterBought) then
 			productCard(s, "StarterPack", "Starter Pack", "One time: 2,500 coins + Starlight knife + Starshot blaster", C.Moon, 1)
@@ -836,6 +914,8 @@ local function crateRoll(crate, result)
 	local odds = Config.CrateOdds(crate.Id)
 	local panel = frame(body, { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Night, ZIndex = 5 })
 	corner(panel, 14)
+	-- Muenz-Update kommt gleich nach dem Kauf: ohne Sperre wuerde es das Fenster neu bauen und die Animation loeschen
+	hold()
 	local strip = frame(panel, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromOffset(560, 150), BackgroundColor3 = C.Panel, ZIndex = 5, ClipsDescendants = true })
 	corner(strip, 14)
 	local _marker = frame(panel, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromOffset(4, 170), BackgroundColor3 = C.Moon, ZIndex = 8 })
@@ -872,6 +952,7 @@ local function crateRoll(crate, result)
 	label(panel, `{string.upper(item.Rarity)}: {item.Name}!`, 30, { Position = UDim2.new(0, 0, 0.78, 0), Size = UDim2.new(1, 0, 0, 40), Font = LOGO, TextColor3 = rarityColor(item.Rarity), ZIndex = 8 })
 	button(panel, "NICE!", C.Green, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.fromOffset(160, 38), ZIndex = 8 }, function()
 		panel:Destroy()
+		release()
 	end)
 end
 
@@ -884,10 +965,10 @@ builders.Crates = function()
 	local row = frame(body, { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 })
 	list(row, 10, true)
 	for i, crate in Config.Crates do
-		local card = frame(row, { Size = UDim2.new(0.25, -8, 1, 0), BackgroundColor3 = C.Panel, LayoutOrder = i })
+		local card = frame(row, { Size = UDim2.new(1 / #Config.Crates, -8, 1, 0), BackgroundColor3 = C.Panel, LayoutOrder = i })
 		corner(card, 14)
 		stroke(card, crate.Color, 2, 0.2)
-		label(card, crate.Name, 20, { Position = UDim2.fromOffset(6, 8), Size = UDim2.new(1, -12, 0, 26), Font = TITLE, TextColor3 = crate.Color })
+		label(card, crate.Name, 20, { Position = UDim2.fromOffset(6, 8), Size = UDim2.new(1, -12, 0, 26), Font = TITLE, TextColor3 = crate.Color, TextScaled = true })
 		-- Quoten immer sichtbar
 		local oddsList = scroller(card, { Position = UDim2.fromOffset(6, 38), Size = UDim2.new(1, -12, 1, -88) })
 		list(oddsList, 2)
@@ -913,6 +994,7 @@ end
 local function forgePanel(kind: string)
 	local panel = frame(body, { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Night, ZIndex = 5 })
 	corner(panel, 14)
+	hold()
 	label(panel, `FORGE: {Config.ForgeCost} duplicate skins of one rarity = 1 skin of the next rarity (you choose!)`, 16, { Size = UDim2.new(1, -20, 0, 40), Position = UDim2.fromOffset(10, 4), ZIndex = 6, TextColor3 = C.Muted })
 	local s = scroller(panel, { Position = UDim2.fromOffset(10, 48), Size = UDim2.new(1, -20, 1, -100), ZIndex = 6 })
 	list(s, 8)
@@ -938,6 +1020,7 @@ local function forgePanel(kind: string)
 					local result = call("Forge", kind, rarity.Id, item.Id)
 					if result.Ok then
 						panel:Destroy()
+						release()
 					else
 						UI.Toast(result.Error or "Cannot forge", C.Red)
 					end
@@ -948,6 +1031,7 @@ local function forgePanel(kind: string)
 	end
 	button(panel, "BACK", C.Panel2, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.fromOffset(140, 36), ZIndex = 7 }, function()
 		panel:Destroy()
+		release()
 	end)
 end
 
@@ -1096,7 +1180,7 @@ end
 
 builders.Quests = function()
 	windowTitle.Text = "QUESTS"
-	setTabs("Quests", { "Daily", "Achievements", "Stats" }, "Daily")
+	setTabs("Quests", { "Daily", "Weekly", "Achievements", "Stats" }, "Daily")
 	if not Profile then
 		return
 	end
@@ -1119,17 +1203,24 @@ builders.Quests = function()
 		for i, q in Profile.Quests do
 			row(i, q.Text, q.Progress, q.Goal, `$${q.Reward}`, q.Done)
 		end
+	elseif tab == "Weekly" then
+		local left = math.max(0, (Profile.WeekEnds or 0) - workspace:GetServerTimeNow())
+		local days, hours = left // 86400, (left % 86400) // 3600
+		label(s, `Big weekly quests  •  new ones in {days}d {hours}h  •  +{Config.WeeklyQuestXP} Pass XP each`, 15, { Size = UDim2.new(1, 0, 0, 22), TextColor3 = C.Muted, LayoutOrder = 0 })
+		for i, q in Profile.WeeklyQuests or {} do
+			row(i, q.Text, q.Progress, q.Goal, `$${Format.Number(q.Reward)}`, q.Done)
+		end
 	elseif tab == "Achievements" then
 		for i, a in Profile.Achievements do
 			row(i, `{a.Name}  (title: {a.Title})`, a.Progress, a.Goal, "+$200", a.Done)
 		end
 	else
 		local st = Profile.Stats
-		for i, entry in { { "Rounds played", st.Rounds }, { "Wins", st.Wins }, { "Knockouts (Murderer)", st.KOs }, { "Murderers stopped", st.Stops }, { "Rounds survived", st.Survived }, { "Coins collected", st.CoinsCollected }, { "Prestige", Profile.Prestige } } do
+		for i, entry in { { "Rounds played", st.Rounds }, { "Wins", st.Wins }, { "Win streak (best)", `{Profile.WinStreak or 0} ({st.BestStreak or 0})` }, { "Knockouts (Murderer)", st.KOs }, { "Murderers stopped", st.Stops }, { "Rounds survived", st.Survived }, { "Last survivor wins", st.LastSurvivor or 0 }, { "MVP rounds", st.MVPs or 0 }, { "Clues found", st.CluesFound or 0 }, { "Correct ghost guesses", st.GhostGuesses or 0 }, { "Coins collected", st.CoinsCollected }, { "Prestige", Profile.Prestige } } do
 			local r = frame(s, { Size = UDim2.new(1, -10, 0, 40), BackgroundColor3 = C.Panel, LayoutOrder = i })
 			corner(r, 10)
 			label(r, entry[1], 17, { Position = UDim2.fromOffset(12, 0), Size = UDim2.new(0.6, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C.Muted, Font = HEAVY })
-			label(r, Format.Number(entry[2]), 20, { Position = UDim2.fromScale(0.6, 0), Size = UDim2.new(0.4, -12, 1, 0), TextXAlignment = Enum.TextXAlignment.Right, Font = TITLE, TextColor3 = C.Moon })
+			label(r, if typeof(entry[2]) == "number" then Format.Number(entry[2]) else tostring(entry[2]), 20, { Position = UDim2.fromScale(0.6, 0), Size = UDim2.new(0.4, -12, 1, 0), TextXAlignment = Enum.TextXAlignment.Right, Font = TITLE, TextColor3 = C.Moon })
 		end
 	end
 end
@@ -1230,16 +1321,75 @@ builders.Settings = function()
 		task.wait(0.2)
 		openWindow("Settings")
 	end)
+	-- Gespeicherte Einstellungen (Schalter)
+	local settings = Profile and Profile.Settings or {}
+	local toggles = {
+		{ Key = "Sfx", Text = "Sound effects" },
+		{ Key = "Pets", Text = "Show pets" },
+		{ Key = "AimAssist", Text = "Aim assist (touch screens)" },
+	}
+	local toggleRow = frame(s, { Size = UDim2.new(1, -10, 0, 44), BackgroundTransparency = 1, LayoutOrder = 3 })
+	list(toggleRow, 8, true)
+	for i, toggle in toggles do
+		local on = settings[toggle.Key] ~= false
+		button(toggleRow, `{toggle.Text}: {if on then "ON" else "OFF"}`, if on then C.Cyan else C.Panel2, { Size = UDim2.new(1 / #toggles, -6, 1, 0), LayoutOrder = i, TextSize = 14, TextWrapped = true }, function()
+			local result = call("Setting", toggle.Key, not on)
+			if result.Ok and Profile then
+				Profile.Settings = Profile.Settings or {}
+				Profile.Settings[toggle.Key] = not on
+				UI.ApplySettings()
+				openWindow("Settings")
+			end
+		end)
+	end
 	if Profile and Profile.Level >= Config.PrestigeLevel then
-		button(s, "PRESTIGE (reset level, +★ and 2,500 coins)", C.Purple, { Size = UDim2.new(1, -10, 0, 44), LayoutOrder = 3 }, function()
+		button(s, "PRESTIGE (reset level, +★ and 2,500 coins)", C.Purple, { Size = UDim2.new(1, -10, 0, 44), LayoutOrder = 4 }, function()
 			local r = call("Prestige")
 			UI.Toast(if r.Ok then "Prestiged!" else (r.Error or ""), if r.Ok then C.Moon else C.Red)
 		end)
 	end
-	button(s, "HOW TO PLAY", C.Panel2, { Size = UDim2.new(1, -10, 0, 44), LayoutOrder = 4 }, function()
+	button(s, "HOW TO PLAY", C.Panel2, { Size = UDim2.new(1, -10, 0, 44), LayoutOrder = 5 }, function()
 		openWindow("Tutorial")
 	end)
-	label(s, "Follow the game for new codes!  Controls: Click = stab/shoot, T = throw, Q/F/R = abilities, Shift = sprint, E = hide/doors.", 15, { Size = UDim2.new(1, -10, 0, 50), LayoutOrder = 5, TextColor3 = C.Muted })
+	label(s, "Follow the game for new codes!  Controls: Click = stab/shoot, T = throw, Q/F/R = abilities, Shift = sprint, E = hide/doors.", 15, { Size = UDim2.new(1, -10, 0, 50), LayoutOrder = 6, TextColor3 = C.Muted })
+end
+
+-- Einstellungen auf Effekte und Steuerung anwenden
+function UI.ApplySettings()
+	local settings = Profile and Profile.Settings or {}
+	Effects.SfxEnabled = settings.Sfx ~= false
+	Effects.ShowPets = settings.Pets ~= false
+	Controls.AimAssist = settings.AimAssist ~= false
+end
+
+---------------------------------------------------------------- Spielerliste (die Roblox-Liste ist wegen geheimer Rollen aus)
+
+builders.Players = function()
+	windowTitle.Text = "PLAYERS"
+	local s = scroller(body)
+	list(s, 6)
+	local players = Players:GetPlayers()
+	table.sort(players, function(a, b)
+		local pa, pb = a:GetAttribute("Prestige") or 0, b:GetAttribute("Prestige") or 0
+		if pa ~= pb then
+			return pa > pb
+		end
+		return (a:GetAttribute("Level") or 0) > (b:GetAttribute("Level") or 0)
+	end)
+	for i, other in players do
+		local r = frame(s, { Size = UDim2.new(1, -10, 0, 48), BackgroundColor3 = if other == player then C.Panel2 else C.Panel, LayoutOrder = i })
+		corner(r, 10)
+		local vip = other:GetAttribute("Pass_VIP") == true
+		stroke(r, if vip then C.Moon else C.Edge, 1.5, 0.3)
+		local prestige = other:GetAttribute("Prestige") or 0
+		local stars = if prestige > 0 then string.rep("★", math.min(prestige, 5)) .. " " else ""
+		label(r, stars .. other.DisplayName, 18, { Position = UDim2.fromOffset(12, 2), Size = UDim2.new(0.45, -12, 0, 26), TextXAlignment = Enum.TextXAlignment.Left, Font = HEAVY, TextColor3 = if vip then C.Moon else C.White, TextTruncate = Enum.TextTruncate.AtEnd, TextWrapped = false })
+		local title = other:GetAttribute("Title") or ""
+		label(r, if title ~= "" then `[{string.upper(title)}]` elseif vip then "[VIP]" else "@" .. other.Name, 13, { Position = UDim2.fromOffset(12, 26), Size = UDim2.new(0.45, -12, 0, 18), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = C.Cyan, TextTruncate = Enum.TextTruncate.AtEnd, TextWrapped = false })
+		local streak = other:GetAttribute("Streak") or 0
+		local info = `Lv {other:GetAttribute("Level") or 1}   •   {Format.Number(other:GetAttribute("Wins") or 0)} wins` .. (if streak >= 2 then `   •   🔥{streak}` else "")
+		label(r, info, 16, { Position = UDim2.fromScale(0.45, 0), Size = UDim2.new(0.55, -12, 1, 0), TextXAlignment = Enum.TextXAlignment.Right, Font = HEAVY, TextColor3 = C.Moon, TextWrapped = false })
+	end
 end
 
 ---------------------------------------------------------------- Ghost Guess
@@ -1271,10 +1421,10 @@ end
 builders.Tutorial = function()
 	windowTitle.Text = "HOW TO PLAY"
 	local pages = {
-		{ "INNOCENT", C.Green, "Most players are Innocent. Collect coins, hide in closets (E), slam doors and SPRINT away. Survive until the timer ends!" },
+		{ "INNOCENT", C.Green, "Most players are Innocent. Collect coins, hide in closets (E), slam doors and SPRINT away. Grab glowing CLUES to learn who the Murderer is. Survive until the timer ends!" },
 		{ "SHERIFF", C.Blue, "The Sheriff has a blaster. Find the Murderer and shoot them. Use SCAN to see the Murderer's footprints. Careful: hit an innocent and you're out too!" },
 		{ "MURDERER", C.Red, "Knock everyone out without getting caught. Click to stab, T to throw. Use secret VENTS, DASH, SHADOW and GLUE TRAPS." },
-		{ "EXTRAS", C.Moon, "Round modifiers, power-up boxes, ghost guesses, battle pass, crates with visible odds, the skin forge, pets, titles and more!" },
+		{ "EXTRAS", C.Moon, "Round modifiers, power-up boxes, ghost guesses, win streaks, Midnight Hour (2x coins), weekly quests, battle pass, crates with visible odds, the skin forge, pets, titles and more!" },
 	}
 	local row = frame(body, { Size = UDim2.new(1, 0, 1, -50), BackgroundTransparency = 1 })
 	list(row, 10, true)
@@ -1302,15 +1452,15 @@ local function refreshProfile()
 	levelText.Text = `Lv {Profile.Level}` .. (if Profile.Prestige > 0 then `  ★{Profile.Prestige}` else "")
 	xpFill.Size = UDim2.fromScale(math.clamp(Profile.XP / Profile.XPNeeded, 0, 1), 1)
 	menuBadges.Spin.Visible = Profile.NextSpin <= 0
-	local questReady = false
-	for _, q in Profile.Quests do
-		if not q.Done and q.Progress >= q.Goal then
-			questReady = true
+	UI.ApplySettings()
+	-- Quests werden sofort beim Erreichen belohnt; das Abzeichen setzt das "Quest"-Fx (siehe unten)
+	-- Spin/Guess/Settings nicht neu bauen (laufende Drehung, Auswahl, getippter Code)
+	if UI.Window and UI.Window ~= "Spin" and UI.Window ~= "Guess" and UI.Window ~= "Settings" then
+		if UI.Hold > 0 then
+			pendingRebuild = true
+		else
+			openWindow(UI.Window)
 		end
-	end
-	menuBadges.Quests.Visible = questReady
-	if UI.Window and UI.Window ~= "Spin" and UI.Window ~= "Guess" then
-		openWindow(UI.Window)
 	end
 end
 
@@ -1349,7 +1499,25 @@ local function refreshRound()
 	stamina.Visible = abilityBar.Visible and Role ~= "Murderer"
 	spectateBar.Visible = playing and not inRound
 	guessButton.Visible = spectateBar.Visible and RoundState == "Playing" and not UI.Guessed
-	spectateName.Text = if Controls.Spectating then (Controls.Spectating:FindFirstChildOfClass("Humanoid") :: Humanoid).DisplayName else "SPECTATE"
+	-- Ein K.O.-ter Bot wird zerstoert: dann gibt es keinen Humanoid mehr (vorher Fehler -> HUD fror ein)
+	local spectated = Controls.Spectating
+	local spectatedHumanoid = spectated and spectated:FindFirstChildOfClass("Humanoid")
+	spectateName.Text = if spectatedHumanoid then spectatedHumanoid.DisplayName elseif spectated then spectated.Name else "SPECTATE"
+	clueNote.Visible = playing and inRound and clueNote.Text ~= ""
+	-- Midnight Hour
+	local now = workspace:GetServerTimeNow()
+	local eventEnds = ReplicatedStorage:GetAttribute("EventEnds") or 0
+	if eventEnds > now then
+		eventChip.Text = `🌙 MIDNIGHT HOUR  {Format.Time(eventEnds - now)}  •  2x COINS`
+		eventChip.BackgroundColor3 = C.Purple
+		eventChip.TextColor3 = C.White
+	else
+		local nextAt = ReplicatedStorage:GetAttribute("EventNext") or 0
+		eventChip.Text = if nextAt > now then `🌙 Midnight Hour in {Format.Time(nextAt - now)}` else "🌙 Midnight Hour"
+		eventChip.BackgroundColor3 = C.Panel
+		eventChip.TextColor3 = C.Muted
+	end
+	eventChip.Visible = not (playing and inRound) or eventEnds > now
 	menu.Visible = not (playing and inRound)
 	adButton.Visible = not (playing and inRound)
 	-- Abklingzeiten
@@ -1413,8 +1581,12 @@ function UI.Start()
 			bagText.Text = "0 coins"
 			bagFill.Size = UDim2.fromScale(0, 1)
 			UI.Guessed = false
+			if info.Role ~= "Hero" then
+				clueNote.Text = ""
+			end
 		elseif kind == "Out" then
 			setRole(nil)
+			clueNote.Text = ""
 			popup("KNOCKED OUT!", if info.By then `By {info.By}. Spectate or make a Ghost Guess!` else "Spectate or make a Ghost Guess!", C.Red, 3)
 			task.delay(3.5, function()
 				if RoundState == "Playing" then
@@ -1423,6 +1595,7 @@ function UI.Start()
 			end)
 		elseif kind == "Clear" then
 			setRole(nil)
+			clueNote.Text = ""
 			Effects.Hidden = false
 			if Controls.Spectating then
 				Controls.StopSpectate()
@@ -1434,7 +1607,13 @@ function UI.Start()
 				UI.Toast("Hidden! Press E to leave (max 15s)", C.Purple)
 			end
 		elseif kind == "Odds" then
+			Odds = info
 			local extra = ""
+			for _, role in { "Murderer", "Sheriff" } do
+				if info.Charms and info.Charms[role] then
+					extra ..= `  •  <font color='#aa64ff'>{role} Charm</font>`
+				end
+			end
 			if info.MurdererTickets > 0 then
 				extra ..= "  •  <font color='#ffd666'>Murderer Ticket ready</font>"
 			end
@@ -1466,7 +1645,12 @@ function UI.Start()
 		elseif kind == "Achievement" then
 			popup("ACHIEVEMENT!", `{info.Name}  •  new title: {info.Title}`, C.Moon, 3)
 		elseif kind == "Quest" then
-			UI.Toast(`Quest done: {info.Text}  +${info.Reward}`, C.Green)
+			UI.Toast(`{if info.Weekly then "Weekly quest" else "Quest"} done: {info.Text}  +${Format.Number(info.Reward)}`, C.Green)
+			menuBadges.Quests.Visible = true
+		elseif kind == "Clue" then
+			clueNote.Text = `🔍 Clue {info.Count}: {info.Text}`
+			popup(`CLUE #{info.Count}!`, info.Text, C.Cyan, 4)
+			UI.Toast(`+{info.Reward} coins for the clue`, C.Moon)
 		elseif kind == "Tier" then
 			UI.Toast(`Battle Pass tier {info.Tier}!`, C.Purple)
 			menuBadges.Pass.Visible = true
@@ -1474,7 +1658,19 @@ function UI.Start()
 			popup(`DAY {info.Streak} STREAK!`, `Daily login reward: +{info.Coins} coins. Come back tomorrow for more!`, C.Moon, 4)
 		elseif kind == "RoundReward" then
 			if UI.ResultReward and UI.ResultReward.Parent then
-				UI.ResultReward.Text = `You earned +{info.XP} XP  •  {info.Coins} coins` .. (if info.Won then "  •  WIN!" else "")
+				local extras = ""
+				if info.Won and (info.Streak or 0) >= 2 then
+					extras ..= `  •  🔥 {info.Streak} WIN STREAK`
+				elseif info.Won then
+					extras ..= "  •  WIN!"
+				end
+				if info.MVP then
+					extras ..= "  •  MVP!"
+				end
+				if info.LastSurvivor then
+					extras ..= "  •  LAST SURVIVOR!"
+				end
+				UI.ResultReward.Text = `You earned +{info.XP} XP  •  {info.Coins} coins` .. extras
 			end
 		elseif kind == "CoinsGained" then
 			UI.Toast(`+{Format.Number(info.Amount)} coins`, C.Moon)
@@ -1488,6 +1684,9 @@ function UI.Start()
 		local state = ReplicatedStorage:GetAttribute("RoundState")
 		if state == "Intermission" then
 			setRole(nil)
+			-- Auch Zuschauer aus der Lobby duerfen in der naechsten Runde wieder raten
+			UI.Guessed = false
+			Controls.Sprinting = false
 			refreshVotes()
 		elseif state == "Playing" and Role == "Murderer" then
 			UI.Toast("Your knife is ready! Click to stab, T to throw.", C.Red)
@@ -1499,7 +1698,11 @@ function UI.Start()
 	refreshVotes()
 	task.spawn(function()
 		while true do
-			refreshRound()
+			-- Ein Fehler darf die Schleife nicht beenden, sonst friert das ganze HUD ein
+			local ok, err = pcall(refreshRound)
+			if not ok then
+				warn("[UI]", err)
+			end
 			task.wait(0.2)
 		end
 	end)

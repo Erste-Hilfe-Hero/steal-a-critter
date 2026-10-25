@@ -137,6 +137,8 @@ Config.Modifiers = {
 	{ Id = "Speedy", Name = "SPEED RUSH", Text = "Everyone runs faster!", Color = Color3.fromRGB(80, 220, 255) },
 	{ Id = "Fog", Name = "MIDNIGHT FOG", Text = "Thick fog - trust no one!", Color = Color3.fromRGB(150, 160, 190) },
 	{ Id = "GoldRush", Name = "GOLD RUSH", Text = "Coins rain down twice as fast!", Color = Color3.fromRGB(255, 170, 40) },
+	{ Id = "SuperJump", Name = "SUPER JUMP", Text = "Bouncy shoes for everyone - jump over furniture!", Color = Color3.fromRGB(120, 255, 170) },
+	{ Id = "LuckyBoxes", Name = "LUCKY BOXES", Text = "Power-up boxes appear three times as often!", Color = Color3.fromRGB(200, 120, 255) },
 }
 
 ---------------------------------------------------------------- Karten
@@ -147,6 +149,7 @@ Config.Maps = {
 	{ Id = "Lodge", Name = "Frosty Lodge", Cols = 3, Rows = 3, Theme = "Lodge" },
 	{ Id = "School", Name = "Spooky School", Cols = 4, Rows = 3, Theme = "School" },
 	{ Id = "Lab", Name = "Starlight Lab", Cols = 3, Rows = 3, Theme = "Lab" },
+	{ Id = "Museum", Name = "Midnight Museum", Cols = 4, Rows = 2, Theme = "Museum" },
 }
 Config.RoomSize = 42
 Config.WallHeight = 16
@@ -188,6 +191,10 @@ Config.Knives = {
 	{ Id = "CodeCutter", Name = "Code Cutter", Rarity = "Uncommon", Blade = Color3.fromRGB(80, 220, 255), Handle = Color3.fromRGB(20, 20, 30), Style = "Classic", Neon = true, Exclusive = true },
 	{ Id = "Moonfang", Name = "Moonfang", Rarity = "Midnight", Blade = Color3.fromRGB(200, 220, 255), Handle = Color3.fromRGB(60, 40, 120), Style = "Moon", Neon = true, Glow = Color3.fromRGB(170, 200, 255), Particles = "Sparkles", Exclusive = true },
 	{ Id = "Lollipop", Name = "Lollipop Swirl", Rarity = "Legendary", Blade = Color3.fromRGB(255, 120, 200), Handle = Color3.fromRGB(255, 255, 255), Style = "Candy", Neon = true, Glow = Color3.fromRGB(255, 120, 200), Exclusive = true },
+	-- Update: neue Skins (Kisten, Mystery Box, Direkt-Shop)
+	{ Id = "Quill", Name = "Quill Feather", Rarity = "Common", Blade = Color3.fromRGB(240, 235, 220), Handle = Color3.fromRGB(40, 50, 90), Style = "Fang" },
+	{ Id = "IcePop", Name = "Ice Pop", Rarity = "Uncommon", Blade = Color3.fromRGB(120, 200, 255), Handle = Color3.fromRGB(230, 200, 150), Style = "Round", Material = "Ice" },
+	{ Id = "Aurora", Name = "Aurora Blade", Rarity = "Legendary", Blade = Color3.fromRGB(90, 255, 200), Handle = Color3.fromRGB(30, 40, 80), Style = "Katana", Neon = true, Glow = Color3.fromRGB(90, 255, 200), Particles = "Sparkles" },
 }
 
 -- Blaster (Sheriff): Form, Farben, Strahlfarbe
@@ -204,6 +211,8 @@ Config.Guns = {
 	{ Id = "Lunar", Name = "Lunar Ray", Rarity = "Midnight", Body = Color3.fromRGB(40, 30, 90), Accent = Color3.fromRGB(255, 214, 102), Beam = Color3.fromRGB(255, 214, 102), Style = "Laser", Neon = true, Particles = "Sparkles", Exclusive = true },
 	{ Id = "Starshot", Name = "Starshot", Rarity = "Rare", Body = Color3.fromRGB(40, 40, 90), Accent = Color3.fromRGB(255, 240, 180), Beam = Color3.fromRGB(255, 240, 180), Style = "Revolver", Exclusive = true },
 	{ Id = "Sprinkle", Name = "Sprinkle Shot", Rarity = "Legendary", Body = Color3.fromRGB(255, 180, 220), Accent = Color3.fromRGB(120, 220, 255), Beam = Color3.fromRGB(255, 120, 200), Style = "Toy", Neon = true, Exclusive = true },
+	{ Id = "Popper", Name = "Party Popper", Rarity = "Uncommon", Body = Color3.fromRGB(255, 200, 40), Accent = Color3.fromRGB(255, 92, 170), Beam = Color3.fromRGB(255, 230, 120), Style = "Toy" },
+	{ Id = "Nebula", Name = "Nebula Ray", Rarity = "Legendary", Body = Color3.fromRGB(40, 20, 70), Accent = Color3.fromRGB(170, 100, 255), Beam = Color3.fromRGB(200, 140, 255), Style = "Laser", Neon = true, Particles = "Stars" },
 }
 
 -- Haustiere folgen ihrem Besitzer (rein kosmetisch, vom Client gebaut)
@@ -217,6 +226,8 @@ Config.Pets = {
 	{ Id = "Dragon", Name = "Star Dragon", Rarity = "Godly", Color = Color3.fromRGB(120, 80, 255), Shape = "Dragon", Glow = true },
 	{ Id = "Moonling", Name = "Moonling", Rarity = "Midnight", Color = Color3.fromRGB(255, 214, 102), Shape = "Moon", Glow = true, Exclusive = true },
 	{ Id = "Cat", Name = "Midnight Cat", Rarity = "Rare", Color = Color3.fromRGB(40, 40, 60), Shape = "Fox", Exclusive = true },
+	{ Id = "Snowy", Name = "Snowy", Rarity = "Uncommon", Color = Color3.fromRGB(220, 240, 255), Shape = "Ghost" },
+	{ Id = "Ember", Name = "Ember Fox", Rarity = "Rare", Color = Color3.fromRGB(255, 110, 60), Shape = "Fox", Glow = true },
 }
 
 -- Cartoon-K.O.-Effekte (kein Blut)
@@ -228,6 +239,8 @@ Config.Effects = {
 	{ Id = "Bubbles", Name = "Bubbles", Rarity = "Legendary", Color = Color3.fromRGB(120, 210, 255) },
 	{ Id = "Lightning", Name = "Zap", Rarity = "Godly", Color = Color3.fromRGB(150, 220, 255) },
 	{ Id = "Moonbeam", Name = "Moonbeam", Rarity = "Midnight", Color = Color3.fromRGB(255, 214, 102), Exclusive = true },
+	{ Id = "Snow", Name = "Snowflakes", Rarity = "Uncommon", Color = Color3.fromRGB(220, 240, 255) },
+	{ Id = "Rainbow", Name = "Rainbow", Rarity = "Legendary", Color = Color3.fromRGB(120, 255, 170) },
 }
 
 Config.ItemKinds = { "Knife", "Gun", "Pet", "Effect" }
@@ -252,6 +265,7 @@ Config.Crates = {
 	{ Id = "GunCrate", Name = "Blaster Crate", Kind = "Gun", Price = 1000, Color = Color3.fromRGB(70, 150, 255) },
 	{ Id = "PetCrate", Name = "Pet Egg", Kind = "Pet", Price = 1500, Color = Color3.fromRGB(90, 230, 120) },
 	{ Id = "EffectCrate", Name = "Effect Box", Kind = "Effect", Price = 800, Color = Color3.fromRGB(255, 200, 40) },
+	{ Id = "MysteryCrate", Name = "Mystery Box", Kind = "Mixed", Price = 1200, Color = Color3.fromRGB(170, 100, 255) }, -- alle Arten gemischt
 }
 
 -- Gewinnchancen einer Kiste: Seltenheitsgewicht / Anzahl Skins dieser Seltenheit
@@ -266,10 +280,14 @@ function Config.CrateOdds(crateId: string): { { Kind: string, Id: string, Chance
 		return {}
 	end
 	local byRarity = {}
-	for _, item in Config.ItemLists[crate.Kind] do
-		if not item.Exclusive and item.Id ~= "Default" and item.Rarity ~= "Midnight" then
-			byRarity[item.Rarity] = byRarity[item.Rarity] or {}
-			table.insert(byRarity[item.Rarity], item)
+	-- "Mixed" (Mystery Box) enthaelt alle Arten; jeder Eintrag merkt sich seine Art
+	local kinds = if crate.Kind == "Mixed" then Config.ItemKinds else { crate.Kind }
+	for _, kind in kinds do
+		for _, item in Config.ItemLists[kind] do
+			if not item.Exclusive and item.Id ~= "Default" and item.Rarity ~= "Midnight" then
+				byRarity[item.Rarity] = byRarity[item.Rarity] or {}
+				table.insert(byRarity[item.Rarity], { Kind = kind, Item = item })
+			end
 		end
 	end
 	local total = 0
@@ -279,8 +297,8 @@ function Config.CrateOdds(crateId: string): { { Kind: string, Id: string, Chance
 	local odds = {}
 	for rarityId, items in byRarity do
 		local weight = Config.Rarities[Config.RarityIndex[rarityId]].Weight
-		for _, item in items do
-			table.insert(odds, { Kind = crate.Kind, Id = item.Id, Chance = weight / total / #items })
+		for _, entry in items do
+			table.insert(odds, { Kind = entry.Kind, Id = entry.Item.Id, Chance = weight / total / #items })
 		end
 	end
 	table.sort(odds, function(a, b)
@@ -332,9 +350,23 @@ Config.Quests = {
 	{ Id = "Hide", Text = "Hide in a closet %d times", Stat = "Hide", Goal = 3, Reward = 100 },
 	{ Id = "PowerUp", Text = "Grab %d power-ups", Stat = "PowerUp", Goal = 4, Reward = 120 },
 	{ Id = "Crate", Text = "Open %d crates", Stat = "Crate", Goal = 1, Reward = 150 },
+	{ Id = "Clue", Text = "Find %d clues", Stat = "Clue", Goal = 3, Reward = 140 },
 }
 Config.QuestsPerDay = 3
 Config.QuestXP = 150 -- Battle-Pass-XP pro erledigter Quest
+
+-- Woechentliche Quests: groessere Ziele, groessere Belohnung (neue Woche jeden Montag 0 Uhr UTC)
+Config.WeeklyQuests = {
+	{ Id = "WCoins", Text = "Collect %d coins", Stat = "Coins", Goal = 600, Reward = 1000 },
+	{ Id = "WWin", Text = "Win %d rounds", Stat = "Win", Goal = 15, Reward = 1200 },
+	{ Id = "WPlay", Text = "Play %d rounds", Stat = "Play", Goal = 30, Reward = 800 },
+	{ Id = "WClue", Text = "Find %d clues", Stat = "Clue", Goal = 15, Reward = 900 },
+	{ Id = "WSurvive", Text = "Survive %d rounds", Stat = "Survive", Goal = 12, Reward = 1000 },
+	{ Id = "WKO", Text = "Knock out %d players as Murderer", Stat = "KO", Goal = 25, Reward = 1200 },
+	{ Id = "WAbility", Text = "Use abilities %d times", Stat = "Ability", Goal = 40, Reward = 700 },
+}
+Config.WeeklyQuestsPerWeek = 3
+Config.WeeklyQuestXP = 600
 
 Config.Achievements = {
 	{ Id = "FirstWin", Name = "First Win", Stat = "Wins", Goal = 1, Title = "Rookie" },
@@ -351,6 +383,14 @@ Config.Achievements = {
 	{ Id = "Level30", Name = "Level 30", Stat = "Level", Goal = 30, Title = "Mastermind" },
 	{ Id = "Forge", Name = "Forge Master", Stat = "Forged", Goal = 3, Title = "Smith" },
 	{ Id = "Hider", Name = "Hide and Seek", Stat = "Hides", Goal = 20, Title = "Hidden" },
+	-- Update: neue Erfolge und Titel
+	{ Id = "Clues25", Name = "Sharp Eye", Stat = "CluesFound", Goal = 25, Title = "Investigator" },
+	{ Id = "Streak5", Name = "On Fire", Stat = "BestStreak", Goal = 5, Title = "Unstoppable" },
+	{ Id = "LastOne", Name = "Last One Standing", Stat = "LastSurvivor", Goal = 3, Title = "Lone Wolf" },
+	{ Id = "Psychic", Name = "Ghost Whisperer", Stat = "GhostGuesses", Goal = 10, Title = "Psychic" },
+	{ Id = "MVP10", Name = "Star Player", Stat = "MVPs", Goal = 10, Title = "MVP" },
+	{ Id = "Unboxer", Name = "Unboxer", Stat = "CratesOpened", Goal = 25, Title = "Unboxer" },
+	{ Id = "Prestige1", Name = "Reborn", Stat = "Prestige", Goal = 1, Title = "Prestige" },
 }
 
 Config.DailyRewards = { 100, 150, 200, 250, 300, 400, 750 } -- Login-Serie, Tag 7 wiederholt sich
@@ -377,6 +417,28 @@ Config.Codes = {
 }
 
 Config.Obby = { Reward = 75, Cooldown = 600 }
+
+-- Hinweise (Lupen) auf der Karte: verraten nach und nach etwas ueber den Murderer
+Config.Clues = { FirstAfter = 15, Every = 30, MaxOnMap = 3, MaxPerRound = 6, Reward = 15 }
+
+-- Letzter Ueberlebender: Ansage, Tempo-Bonus und Extra-Muenzen, wenn er durchhaelt
+Config.LastSurvivor = { Reward = 25, SpeedBonus = 4 }
+
+-- Siegesserie: jeder Sieg in Folge gibt mehr Bonus-Muenzen
+Config.WinStreak = { PerWin = 5, Max = 50 }
+Config.MVPBonus = 15
+
+-- Midnight Hour: zur vollen und halben Stunde 5 Minuten lang doppelte Muenzen und 1,5x XP fuer den ganzen Server
+Config.MidnightHour = { Every = 30 * 60, Duration = 5 * 60, Coins = 2, XP = 1.5, BoughtMinutes = 10 }
+
+-- Glueckbringer: mit Muenzen die Chance auf eine Rolle erhoehen (bis man die Rolle bekommt oder den Server verlaesst)
+Config.Charms = {
+	Murderer = { Name = "Murderer Charm", Price = 1500, Tickets = 30 },
+	Sheriff = { Name = "Sheriff Charm", Price = 1000, Tickets = 30 },
+}
+
+-- Einstellungen, die gespeichert werden
+Config.SettingKeys = { Sfx = true, Pets = true, AimAssist = true }
 Config.GhostGuessReward = 25
 Config.AdCooldown = 300
 Config.StarterPackDelay = 120
@@ -409,6 +471,7 @@ Config.DevProducts = {
 	XPBoost = { ProductName = "2x XP 30 min", Kind = "XPBoost", Minutes = 30, Price = 39 },
 	Blackout = { ProductName = "Server Blackout", Kind = "Blackout", Price = 29 },
 	AdCoins = { ProductName = "Free Coins (Video Ad)", Kind = "AdCoins", Coins = 100, Price = 5 },
+	MidnightHour = { ProductName = "Midnight Hour", Kind = "MidnightHour", Price = 49 },
 }
 
 -- IDs aus ProductIds.json (vom Workflow geschrieben). Fehlt eine, sucht der Server per Name.

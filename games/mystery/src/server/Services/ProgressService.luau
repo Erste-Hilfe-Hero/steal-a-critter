@@ -15,6 +15,23 @@ local function today(): number
 	return os.time() // 86400
 end
 
+-- Wochennummer; der 1.1.1970 war ein Donnerstag, +3 Tage => neue Woche jeden Montag 0 Uhr UTC
+local function thisWeek(): number
+	return (os.time() // 86400 + 3) // 7
+end
+
+local function questList(saved, defs)
+	local list = {}
+	for _, q in saved do
+		for _, d in defs do
+			if d.Id == q.Id then
+				table.insert(list, { Id = q.Id, Text = string.format(d.Text, d.Goal), Progress = math.min(q.Progress, d.Goal), Goal = d.Goal, Reward = d.Reward, Done = q.Done })
+			end
+		end
+	end
+	return list
+end
+
 ---------------------------------------------------------------- Profil an den Client
 
 function ProgressService:Sync(player: Player)
@@ -23,18 +40,8 @@ function ProgressService:Sync(player: Player)
 	if not data then
 		return
 	end
-	local quests = {}
-	for _, q in data.Quests.List do
-		local def
-		for _, d in Config.Quests do
-			if d.Id == q.Id then
-				def = d
-			end
-		end
-		if def then
-			table.insert(quests, { Id = q.Id, Text = string.format(def.Text, def.Goal), Progress = math.min(q.Progress, def.Goal), Goal = def.Goal, Reward = def.Reward, Done = q.Done })
-		end
-	end
+	local quests = questList(data.Quests.List, Config.Quests)
+	local weekly = questList(data.WeeklyQuests.List, Config.WeeklyQuests)
 	local achievements = {}
 	for _, a in Config.Achievements do
 		table.insert(achievements, { Id = a.Id, Name = a.Name, Title = a.Title, Goal = a.Goal, Progress = math.min(data[a.Stat] or 0, a.Goal), Done = data.Achievements[a.Id] == true })
@@ -50,6 +57,8 @@ function ProgressService:Sync(player: Player)
 		Titles = data.Titles,
 		Achievements = achievements,
 		Quests = quests,
+		WeeklyQuests = weekly,
+		WeekEnds = (thisWeek() + 1) * 7 * 86400 - 3 * 86400,
 		Passes = data.Passes,
 		Tickets = data.Tickets,
 		BP = { XP = data.BP.XP, Tier = self:Tier(data), Premium = data.BP.Premium, Free = data.BP.Free, Paid = data.BP.Paid },
@@ -57,13 +66,20 @@ function ProgressService:Sync(player: Player)
 		NextSpin = math.max(0, data.LastSpin + Config.Spin.Cooldown - os.time()),
 		NextObby = math.max(0, data.LastObby + Config.Obby.Cooldown - os.time()),
 		BoostLeft = math.max(0, data.BoostUntil - os.time()),
-		Stats = { Wins = data.Wins, Rounds = data.Rounds, KOs = data.KOs, Stops = data.Stops, Survived = data.Survived, CoinsCollected = data.CoinsCollected },
+		Stats = { Wins = data.Wins, Rounds = data.Rounds, KOs = data.KOs, Stops = data.Stops, Survived = data.Survived, CoinsCollected = data.CoinsCollected, CluesFound = data.CluesFound, BestStreak = data.BestStreak, MVPs = data.MVPs, LastSurvivor = data.LastSurvivor, GhostGuesses = data.GhostGuesses },
+		WinStreak = data.WinStreak,
+		Settings = data.Settings,
 		Crates = player:GetAttribute("CratesAllowed") ~= false,
 		StarterBought = data.Passes.StarterPack == true,
 		Tutorial = data.Tutorial,
 	})
 	player:SetAttribute("Level", data.Level)
 	player:SetAttribute("Coins", data.Coins)
+	-- Fuer die Spielerliste (andere Clients lesen diese Attribute)
+	player:SetAttribute("Wins", data.Wins)
+	player:SetAttribute("Prestige", data.Prestige)
+	player:SetAttribute("Title", data.Equipped.Title)
+	player:SetAttribute("Streak", data.WinStreak)
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
 		(leaderstats :: any).Level.Value = data.Level;
@@ -119,6 +135,7 @@ function ProgressService:XPMultiplier(player: Player): number
 	if data and data.BoostUntil > os.time() then
 		m *= Config.XP.BoostMultiplier
 	end
+	m *= self.Services.RoundService:EventXPMultiplier()
 	return m
 end
 
@@ -201,6 +218,16 @@ local function rollQuests(data)
 	end
 end
 
+local function rollWeekly(data)
+	local pool = table.clone(Config.WeeklyQuests)
+	data.WeeklyQuests = { Week = thisWeek(), List = {} }
+	for _ = 1, Config.WeeklyQuestsPerWeek do
+		local def = table.remove(pool, math.random(1, #pool))
+		table.insert(data.WeeklyQuests.List, { Id = def.Id, Progress = 0, Done = false })
+	end
+end
+ProgressService.RollWeekly = rollWeekly
+
 function ProgressService:Track(player: Player, stat: string, amount: number)
 	local data = self.Services.DataService:Get(player)
 	if not data then
@@ -209,22 +236,33 @@ function ProgressService:Track(player: Player, stat: string, amount: number)
 	if data.Quests.Day ~= today() then
 		rollQuests(data)
 	end
-	for _, q in data.Quests.List do
-		if not q.Done then
-			for _, def in Config.Quests do
-				if def.Id == q.Id and def.Stat == stat then
-					q.Progress += amount
-					if q.Progress >= def.Goal then
-						q.Done = true
-						self:AddCoins(player, def.Reward, false)
-						data.BP.XP += Config.QuestXP
-						self:GrantBattlePass(player)
-						self.Services.Net.Fx:FireClient(player, "Quest", { Text = string.format(def.Text, def.Goal), Reward = def.Reward })
+	if data.WeeklyQuests.Week ~= thisWeek() then
+		rollWeekly(data)
+	end
+	local function progress(list, defs, bpXP: number, weekly: boolean)
+		for _, q in list do
+			if not q.Done then
+				for _, def in defs do
+					if def.Id == q.Id and def.Stat == stat then
+						q.Progress += amount
+						if q.Progress >= def.Goal then
+							q.Done = true
+							self:AddCoins(player, def.Reward, false)
+							local beforeTier = self:Tier(data)
+							data.BP.XP += bpXP
+							if self:Tier(data) > beforeTier then
+								self.Services.Net.Fx:FireClient(player, "Tier", { Tier = self:Tier(data) })
+							end
+							self:GrantBattlePass(player)
+							self.Services.Net.Fx:FireClient(player, "Quest", { Text = string.format(def.Text, def.Goal), Reward = def.Reward, Weekly = weekly })
+						end
 					end
 				end
 			end
 		end
 	end
+	progress(data.Quests.List, Config.Quests, Config.QuestXP, false)
+	progress(data.WeeklyQuests.List, Config.WeeklyQuests, Config.WeeklyQuestXP, true)
 	self:Refresh(player)
 end
 
@@ -327,6 +365,22 @@ function ProgressService:RoundReward(player: Player, result)
 		data.Wins += 1
 		coins += Config.Coins.WinBonus
 		self:Track(player, "Win", 1)
+		-- Siegesserie
+		data.WinStreak += 1
+		data.BestStreak = math.max(data.BestStreak, data.WinStreak)
+		if data.WinStreak >= 2 then
+			coins += math.min(data.WinStreak * Config.WinStreak.PerWin, Config.WinStreak.Max)
+		end
+	else
+		data.WinStreak = 0
+	end
+	if result.MVP then
+		data.MVPs += 1
+		coins += Config.MVPBonus
+	end
+	if result.LastSurvivor then
+		data.LastSurvivor += 1
+		coins += Config.LastSurvivor.Reward
 	end
 	if result.KOs > 0 then
 		xp += result.KOs * X.KO
@@ -349,7 +403,8 @@ function ProgressService:RoundReward(player: Player, result)
 		self:AddCoins(player, coins, false, true)
 	end
 	self:AddXP(player, xp)
-	self.Services.Net.Fx:FireClient(player, "RoundReward", { XP = math.floor(xp * self:XPMultiplier(player)), Coins = coins + result.Coins, Won = result.Won })
+	self:CheckAchievements(player)
+	self.Services.Net.Fx:FireClient(player, "RoundReward", { XP = math.floor(xp * self:XPMultiplier(player)), Coins = coins + result.Coins, Won = result.Won, Streak = data.WinStreak, MVP = result.MVP, LastSurvivor = result.LastSurvivor })
 	self.Services.MonetizationService:AfterRound(player, result)
 end
 
@@ -468,6 +523,7 @@ function ProgressService:Prestige(player: Player)
 	data.Prestige += 1
 	data.Coins += 2500
 	self.Services.Net.SendAnnounce(`{player.DisplayName} prestiged! ★{data.Prestige}`, C.Moon)
+	self:CheckAchievements(player)
 	self:UpdateNameplate(player)
 	self:Refresh(player)
 	return { Ok = true }
@@ -482,6 +538,9 @@ function ProgressService:OnPlayerReady(player: Player)
 	end
 	if data.Quests.Day ~= today() then
 		rollQuests(data)
+	end
+	if data.WeeklyQuests.Week ~= thisWeek() then
+		rollWeekly(data)
 	end
 	self:GrantBattlePass(player)
 	self:CheckAchievements(player)
@@ -526,6 +585,16 @@ function ProgressService:Init(services)
 		end
 		data.Equipped.Title = title
 		self:UpdateNameplate(player)
+		self:Refresh(player)
+		return { Ok = true }
+	end)
+	-- Einstellungen (nur bekannte Schalter, nur true/false)
+	Net.Handle("Setting", function(player, key, value)
+		local data = services.DataService:Get(player)
+		if not data or typeof(key) ~= "string" or not Config.SettingKeys[key] or typeof(value) ~= "boolean" then
+			return { Ok = false }
+		end
+		data.Settings[key] = value
 		self:Refresh(player)
 		return { Ok = true }
 	end)

@@ -19,6 +19,8 @@ fxFolder.Name = "LocalFx"
 fxFolder.Parent = workspace
 
 Effects.Role = nil :: string?
+Effects.SfxEnabled = true -- Einstellung "Sound effects"
+Effects.ShowPets = true -- Einstellung "Show pets"
 
 ---------------------------------------------------------------- Sounds (nur eingebaute Roblox-Sounds)
 
@@ -33,7 +35,7 @@ local SOUNDS = {
 
 function Effects.Sound(name: string, position: Vector3?, pitch: number?, volume: number?)
 	local id = SOUNDS[name]
-	if not id then
+	if not id or not Effects.SfxEnabled then
 		return
 	end
 	local sound = Instance.new("Sound")
@@ -130,6 +132,21 @@ local KO_EFFECTS = {
 		TweenService:Create(beam, TweenInfo.new(1.2), { Transparency = 1, Size = Vector3.new(60, 0.2, 0.2) }):Play()
 		Debris:AddItem(beam, 1.3)
 		burst(p, C.Moon, 40, { Texture = "rbxasset://textures/particles/sparkles_main.dds", Acceleration = Vector3.new(0, 15, 0), Light = 1 })
+	end,
+	Snow = function(p)
+		burst(p + Vector3.new(0, 4, 0), Color3.fromRGB(230, 245, 255), 60, { Texture = "rbxasset://textures/particles/sparkles_main.dds", Speed = NumberRange.new(2, 6), Acceleration = Vector3.new(0, -4, 0), Lifetime = NumberRange.new(1.2, 2), Light = 0.6 })
+		burst(p, Color3.fromRGB(235, 240, 250), 20, { Size = NumberSequence.new(1.6, 2.8), Speed = NumberRange.new(2, 5), Acceleration = Vector3.new(0, 2, 0), Light = 0 })
+	end,
+	Rainbow = function(p)
+		local colors = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 80)),
+			ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 180, 60)),
+			ColorSequenceKeypoint.new(0.4, Color3.fromRGB(255, 240, 80)),
+			ColorSequenceKeypoint.new(0.6, Color3.fromRGB(90, 230, 120)),
+			ColorSequenceKeypoint.new(0.8, Color3.fromRGB(80, 160, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 100, 255)),
+		})
+		burst(p, Color3.new(1, 1, 1), 70, { Colors = colors, Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(1, 0) }), Speed = NumberRange.new(12, 22), Acceleration = Vector3.new(0, 6, 0), Lifetime = NumberRange.new(0.8, 1.4), Light = 1 })
 	end,
 }
 
@@ -249,10 +266,11 @@ end
 
 ---------------------------------------------------------------- Fallengelassener Blaster
 
-local gunMarker: BillboardGui? = nil
-local function markGun(position: Vector3)
-	if gunMarker then
-		gunMarker:Destroy()
+local gunMarkers = {} -- [DropId] = Part (im Duo-Modus koennen zwei Blaster liegen)
+local function markGun(position: Vector3, id: number?)
+	local key = id or 0
+	if gunMarkers[key] then
+		gunMarkers[key]:Destroy()
 	end
 	local holder = Instance.new("Part")
 	holder.Anchored = true
@@ -278,7 +296,7 @@ local function markGun(position: Vector3)
 	local stroke = Instance.new("UIStroke")
 	stroke.Thickness = 3
 	stroke.Parent = label
-	gunMarker = gui
+	gunMarkers[key] = holder
 end
 
 ---------------------------------------------------------------- Haustiere
@@ -295,7 +313,7 @@ local function updatePets(dt: number)
 			alive[character] = true
 			local entry = pets[character] or {}
 			pets[character] = entry
-			local hidden = character:GetAttribute("Hidden") == true or character:GetAttribute("Cloaked") == true
+			local hidden = not Effects.ShowPets or character:GetAttribute("Hidden") == true or character:GetAttribute("Cloaked") == true
 			for i, slot in { "Pet", "Pet2" } do
 				local id = character:GetAttribute(slot)
 				local current = entry[slot]
@@ -413,16 +431,17 @@ function Effects.OnFx(kind: string, info)
 			end
 		end
 	elseif kind == "GunDropped" then
-		markGun(info.Position)
+		markGun(info.Position, info.Id)
 		Effects.Sound("Ping", info.Position, 1.4, 1)
 	elseif kind == "GunTaken" then
-		if gunMarker then
-			local holder = gunMarker.Parent
-			gunMarker = nil
-			if holder then
-				holder:Destroy()
-			end
+		local key = info.Id or 0
+		if gunMarkers[key] then
+			gunMarkers[key]:Destroy()
+			gunMarkers[key] = nil
 		end
+	elseif kind == "CluePickup" then
+		burst(info.Position, C.Cyan, 25, { Texture = "rbxasset://textures/particles/sparkles_main.dds", Speed = NumberRange.new(4, 10), Light = 1 })
+		Effects.Sound("Ping", info.Position, 1.8, 0.5)
 	elseif kind == "Door" then
 		Effects.Sound("Click", info.Position, 0.5, 1)
 	elseif kind == "ClosetOpen" then
@@ -472,7 +491,7 @@ function Effects.Start()
 			spinning[part] = nil
 		end)
 	end
-	for _, tag in { "Spin", "Bob", "Coin", "PowerUp" } do
+	for _, tag in { "Spin", "Bob", "Coin", "PowerUp", "Clue" } do
 		track(tag)
 	end
 	RunService.RenderStepped:Connect(function(dt)
@@ -486,7 +505,7 @@ function Effects.Start()
 				part.CFrame = info.Base * CFrame.Angles(0, (t * 0.8 + info.Seed) % (math.pi * 2), 0)
 			elseif info.Tag == "Bob" then
 				part.CFrame = info.Base + Vector3.new(0, math.sin(t * 1.2) * 0.8, 0)
-			elseif info.Tag == "Coin" then
+			elseif info.Tag == "Coin" or info.Tag == "Clue" then
 				part.CFrame = CFrame.new(info.Base.Position + Vector3.new(0, math.sin(t * 3 + info.Seed) * 0.3, 0)) * CFrame.Angles(0, t * 3 + info.Seed, math.rad(90))
 			elseif info.Tag == "PowerUp" then
 				part.CFrame = CFrame.new(info.Base.Position + Vector3.new(0, math.sin(t * 2 + info.Seed) * 0.5, 0)) * CFrame.Angles(t, t * 1.3, 0)
@@ -504,22 +523,29 @@ function Effects.Start()
 	refreshPrompts()
 
 	ReplicatedStorage:GetAttributeChangedSignal("Modifier"):Connect(refreshFlashlights)
-	CollectionService:GetInstanceAddedSignal("Actor"):Connect(function(model)
-		task.defer(refreshFlashlights)
+	-- Pro Figur nur einmal verbinden (ueberlebende Spieler bekommen jede Runde wieder den Tag "Actor")
+	local watched = setmetatable({}, { __mode = "k" })
+	local function watchActor(model: Instance)
+		if watched[model] then
+			return
+		end
+		watched[model] = true
 		model:GetAttributeChangedSignal("Shield"):Connect(function()
-			refreshShield(model)
+			refreshShield(model :: Model)
 		end)
 		model:GetAttributeChangedSignal("Cloaked"):Connect(refreshFlashlights)
+	end
+	CollectionService:GetInstanceAddedSignal("Actor"):Connect(function(model)
+		task.defer(refreshFlashlights)
+		watchActor(model)
 	end)
 	for _, model in CollectionService:GetTagged("Actor") do
-		model:GetAttributeChangedSignal("Shield"):Connect(function()
-			refreshShield(model)
-		end)
+		watchActor(model)
 	end
 	ReplicatedStorage:GetAttributeChangedSignal("RoundState"):Connect(function()
 		if ReplicatedStorage:GetAttribute("RoundState") == "Intermission" then
 			fxFolder:ClearAllChildren()
-			gunMarker = nil
+			table.clear(gunMarkers)
 		end
 	end)
 end

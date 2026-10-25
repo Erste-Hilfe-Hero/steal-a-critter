@@ -133,6 +133,17 @@ local THEMES = {
 		Rooms = { "Lab", "Server", "Lab", "Storage", "Reactor", "Lab", "Server", "Lab", "Storage" },
 		Ambient = Color3.fromRGB(60, 80, 110),
 	},
+	-- Update: Mitternachts-Museum (Gemaelde, Fossilien, Edelsteine, Statuen)
+	Museum = {
+		Floor = { Color3.fromRGB(200, 190, 175), Enum.Material.Marble },
+		Floor2 = { Color3.fromRGB(120, 40, 50), Enum.Material.Carpet },
+		Wall = Color3.fromRGB(215, 205, 190),
+		Wall2 = Color3.fromRGB(80, 60, 90),
+		Trim = Color3.fromRGB(190, 150, 60),
+		Lamp = Color3.fromRGB(255, 230, 180),
+		Rooms = { "Gallery", "Fossil", "Gems", "Gallery", "Statue", "Gallery", "Storage", "Gems" },
+		Ambient = Color3.fromRGB(70, 65, 95),
+	},
 }
 MapBuilder.Themes = THEMES
 
@@ -406,6 +417,57 @@ local function furnish(m: Model, kind: string, cf: CFrame, theme, r: any, extras
 			local rack = new(m, { Name = "Rack", Size = Vector3.new(3, 9, 3), CFrame = cf * CFrame.new(i * 6, 4.5, 6), Color = Color3.fromRGB(30, 34, 44), Material = Enum.Material.Metal })
 			for y = 0, 6 do
 				deco(m, { Name = "Led", Size = Vector3.new(2.4, 0.15, 0.1), CFrame = rack.CFrame * CFrame.new(0, -3.6 + y, -1.55), Color = if r() < 0.5 then Color3.fromRGB(80, 220, 255) else Color3.fromRGB(90, 230, 120), Material = Enum.Material.Neon })
+			end
+		end
+	elseif kind == "Gallery" then
+		-- Bilderrahmen an zwei Waenden, Bank in der Mitte, Absperrkordel
+		for _, side in { (closetSide + 1) % 4, (closetSide + 3) % 4 } do
+			for i = -1, 1 do
+				local spot = wallSpot(side, i * 11) * CFrame.new(0, 7, 1.6)
+				new(m, { Name = "Frame", Size = Vector3.new(7, 5, 0.4), CFrame = spot, Color = theme.Trim, Material = Enum.Material.Foil })
+				deco(m, { Name = "Painting", Size = Vector3.new(6, 4, 0.2), CFrame = spot * CFrame.new(0, 0, -0.25), Color = Color3.fromHSV(r(), 0.55, 0.8), Material = Enum.Material.SmoothPlastic })
+				deco(m, { Name = "Moon", Shape = Enum.PartType.Ball, Size = Vector3.new(1.4, 1.4, 0.3), CFrame = spot * CFrame.new(r(-2, 2), 0.8, -0.35), Color = Config.Colors.Moon, Material = Enum.Material.Neon })
+			end
+		end
+		new(m, { Name = "Bench", Size = Vector3.new(8, 1.6, 2.6), CFrame = cf * CFrame.new(0, 0.8, 0), Color = Color3.fromRGB(80, 50, 40), Material = Enum.Material.Wood })
+		Furniture.Rug(m, cf, Color3.fromRGB(140, 30, 40), 14, 8)
+	elseif kind == "Fossil" then
+		-- Cartoon-Dino aus Knochen-Teilen auf einem Podest
+		new(m, { Name = "Stage", Size = Vector3.new(20, 1, 10), CFrame = cf * CFrame.new(0, 0.5, 0), Color = Color3.fromRGB(110, 90, 70), Material = Enum.Material.Slate })
+		local bone = Color3.fromRGB(240, 230, 205)
+		for i = -3, 3 do
+			deco(m, { Name = "Rib", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.6, 4 - math.abs(i) * 0.4, 4 - math.abs(i) * 0.4), CFrame = cf * CFrame.new(i * 1.4, 5, 0), Color = bone, CanCollide = true })
+		end
+		new(m, { Name = "Spine", Size = Vector3.new(14, 0.7, 0.7), CFrame = cf * CFrame.new(0, 6.6, 0), Color = bone })
+		new(m, { Name = "Skull", Size = Vector3.new(3, 2.2, 2), CFrame = cf * CFrame.new(8.4, 7.6, 0), Color = bone })
+		for x = -1, 1, 2 do
+			new(m, { Name = "Leg", Size = Vector3.new(0.7, 5, 0.7), CFrame = cf * CFrame.new(x * 3.5, 3.5, 0), Color = bone })
+		end
+		Furniture.Plant(m, wallSpot((closetSide + 2) % 4, 12))
+	elseif kind == "Gems" then
+		-- Edelsteine in Glasvitrinen
+		for i = -1, 1 do
+			for z = -1, 1, 2 do
+				local base = cf * CFrame.new(i * 8, 0, z * 6)
+				new(m, { Name = "Pedestal", Size = Vector3.new(3, 3.4, 3), CFrame = base * CFrame.new(0, 1.7, 0), Color = Color3.fromRGB(230, 225, 215), Material = Enum.Material.Marble })
+				local c = Color3.fromHSV(r(), 0.75, 1)
+				local gem = deco(m, { Name = "Gem", Size = Vector3.new(1.2, 1.2, 1.2), CFrame = base * CFrame.new(0, 4.4, 0) * CFrame.Angles(math.rad(45), 0, math.rad(45)), Color = c, Material = Enum.Material.Neon })
+				gem:AddTag("Spin")
+				light(gem, c, 8, 1)
+				deco(m, { Name = "Case", Size = Vector3.new(2.6, 2.6, 2.6), CFrame = base * CFrame.new(0, 4.7, 0), Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass, Transparency = 0.75, CanCollide = true })
+			end
+		end
+	elseif kind == "Statue" then
+		-- Mond-Statue auf Sockel, Saeulen in den Ecken
+		new(m, { Name = "Plinth", Size = Vector3.new(6, 3, 6), CFrame = cf * CFrame.new(0, 1.5, 0), Color = Color3.fromRGB(200, 195, 185), Material = Enum.Material.Marble })
+		new(m, { Name = "StatueBody", Size = Vector3.new(2.4, 5, 1.6), CFrame = cf * CFrame.new(0, 5.5, 0), Color = Color3.fromRGB(220, 220, 225), Material = Enum.Material.Marble })
+		new(m, { Name = "StatueHead", Shape = Enum.PartType.Ball, Size = Vector3.new(2, 2, 2), CFrame = cf * CFrame.new(0, 9, 0), Color = Color3.fromRGB(220, 220, 225), Material = Enum.Material.Marble })
+		local orb = deco(m, { Name = "StatueMoon", Shape = Enum.PartType.Ball, Size = Vector3.new(1.4, 1.4, 1.4), CFrame = cf * CFrame.new(1.8, 8.4, 0), Color = Config.Colors.Moon, Material = Enum.Material.Neon })
+		light(orb, Config.Colors.Moon, 14, 1.2)
+		orb:AddTag("Lamp")
+		for x = -1, 1, 2 do
+			for z = -1, 1, 2 do
+				new(m, { Name = "Column", Shape = Enum.PartType.Cylinder, Size = Vector3.new(H - 1, 2.4, 2.4), CFrame = cf * CFrame.new(x * 14, (H - 1) / 2, z * 14) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(225, 220, 210), Material = Enum.Material.Marble })
 			end
 		end
 	elseif kind == "Reactor" then

@@ -154,7 +154,14 @@ local function setAnchored(actor, anchored: boolean)
 	actor.Root.Anchored = anchored
 end
 
-function MapService:ReleaseCloset(actor)
+-- Alle Versteckten freigeben, ohne sie vor den Schrank zu setzen (Rundenende)
+function MapService:ReleaseAllClosets()
+	for actor in closetOf do
+		self:ReleaseCloset(actor, true)
+	end
+end
+
+function MapService:ReleaseCloset(actor, stayInPlace: boolean?)
 	local closet = closetOf[actor]
 	if not closet then
 		return
@@ -167,7 +174,7 @@ function MapService:ReleaseCloset(actor)
 	if actor.Root.Parent then
 		setAnchored(actor, false)
 		local door = closet.PrimaryPart
-		if door then
+		if door and not stayInPlace then
 			actor.Model:PivotTo(door.CFrame * CFrame.new(0, -0.5, -3.2) * CFrame.Angles(0, math.pi, 0))
 		end
 	end
@@ -313,6 +320,7 @@ end
 ---------------------------------------------------------------- Bestenlisten
 
 local boards = {}
+local nameCache = {} -- [userId] = Name (spart Anfragen, die Liste wird alle 2 Minuten neu gebaut)
 local function updateBoards()
 	for _, panel in CollectionService:GetTagged("Leaderboard") do
 		local stat = panel:GetAttribute("Stat")
@@ -336,11 +344,16 @@ local function updateBoards()
 		local lines = { (if stat == "Wins" then "TOP WINS" else "TOP KNOCKOUTS") }
 		if ok and pages then
 			for rank, entry in pages:GetCurrentPage() do
-				local name = "?"
-				local okName, result = pcall(Players.GetNameFromUserIdAsync, Players, tonumber(entry.key) :: number)
-				if okName then
-					name = result
+				local userId = tonumber(entry.key) :: number
+				local name = nameCache[userId]
+				if not name then
+					local okName, result = pcall(Players.GetNameFromUserIdAsync, Players, userId)
+					if okName then
+						name = result
+						nameCache[userId] = result
+					end
 				end
+				name = name or "?"
 				table.insert(lines, `{rank}. {name}  {Format.Number(entry.value)}`)
 			end
 		end

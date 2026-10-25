@@ -47,8 +47,10 @@ local tickets = {} -- [userId] = { Murderer = n, Sheriff = n } (Chance steigt je
 local votes = {} -- [Player] = mapIndex
 local mapOptions = {} -- { mapIndex }
 local guesses = {} -- [Player] = actorId (Ghost Guess)
-local roundStats = {} -- Ergebnis-Daten fuer die laufende Runde
+local roundStats: any = {} -- Ergebnis-Daten fuer die laufende Runde
 local lastMapIndex = 0
+local charms = {} -- [userId] = { Murderer = true?, Sheriff = true? } (mit Muenzen gekaufte Glueckbringer)
+local eventBoostUntil = 0 -- gekaufte Midnight Hour (os.time)
 
 local function setState(state: string, endsAt: number)
 	RoundService.State = state
@@ -197,6 +199,7 @@ function RoundService:SendOdds()
 			Sheriff = if totals.Sheriff > 0 then t.Sheriff / totals.Sheriff else 0,
 			MurdererTickets = data and data.Tickets.Murderer or 0,
 			SheriffTickets = data and data.Tickets.Sheriff or 0,
+			Charms = charms[player.UserId] or {},
 		})
 	end
 end
@@ -251,10 +254,14 @@ local function assignRoles(actors: { Actor })
 			choose("Sheriff")
 		end
 	end
-	-- Chancen anpassen
+	-- Chancen anpassen (wer seine Rolle bekommt, verbraucht auch den Glueckbringer)
 	for _, actor in actors do
 		if actor.Player then
 			local t = ticketsFor(actor.Player.UserId)
+			local charm = charms[actor.Player.UserId]
+			if charm and (actor.Role == "Murderer" or actor.Role == "Sheriff") then
+				charm[actor.Role] = nil
+			end
 			if actor.Role == "Murderer" then
 				t.Murderer = Config.RoleTickets.Base
 				t.Sheriff += Config.RoleTickets.PerRound
@@ -285,6 +292,11 @@ local function applyModifier(mod)
 		if atmosphere then
 			savedLighting.Density = atmosphere.Density
 			atmosphere.Density = 0.62
+		end
+	elseif mod.Id == "SuperJump" then
+		for _, actor in RoundService.Actors do
+			actor.Humanoid.JumpPower = 95
+			actor.Humanoid.JumpHeight = 22
 		end
 	elseif mod.Id == "Blackout" then
 		savedLighting.Ambient = Lighting.Ambient
@@ -330,6 +342,76 @@ end
 
 function RoundService:CoinMultiplier(): number
 	return if self.Modifier and self.Modifier.Id == "DoubleCoins" then 2 else 1
+end
+
+---------------------------------------------------------------- Midnight Hour (Server-Event)
+
+-- Aktiv zur vollen und halben Stunde (fuer alle Server gleich) oder nach einem Kauf. Liefert das Ende (os.time) oder 0.
+function RoundService:EventEndsAt(): number
+	local MH = Config.MidnightHour
+	local t = os.time()
+	local slotStart = t - t % MH.Every
+	local ends = if t < slotStart + MH.Duration then slotStart + MH.Duration else 0
+	if eventBoostUntil > t then
+		ends = math.max(ends, eventBoostUntil)
+	end
+	return ends
+end
+
+function RoundService:EventActive(): boolean
+	return self:EventEndsAt() > 0
+end
+
+function RoundService:EventCoinMultiplier(): number
+	return if self:EventActive() then Config.MidnightHour.Coins else 1
+end
+
+function RoundService:EventXPMultiplier(): number
+	return if self:EventActive() then Config.MidnightHour.XP else 1
+end
+
+-- Gekaufte Midnight Hour: verlaengert ein laufendes Event oder startet sofort eins
+function RoundService:BoostEvent(minutes: number)
+	local base = math.max(os.time(), self:EventEndsAt())
+	eventBoostUntil = base + minutes * 60
+	self:PublishEvent()
+end
+
+local eventWasActive = false
+function RoundService:PublishEvent()
+	local MH = Config.MidnightHour
+	local ends = self:EventEndsAt()
+	local t = os.time()
+	ReplicatedStorage:SetAttribute("EventEnds", ends)
+	ReplicatedStorage:SetAttribute("EventNext", t - t % MH.Every + MH.Every)
+	local active = ends > 0
+	if active and not eventWasActive then
+		self.Services.Net.SendAnnounce(`MIDNIGHT HOUR! 2x coins and 1.5x XP for everyone!`, C.Purple)
+	end
+	eventWasActive = active
+end
+
+---------------------------------------------------------------- Glueckbringer (Muenzen)
+
+function RoundService:BuyCharm(player: Player, role: any)
+	local def = typeof(role) == "string" and Config.Charms[role]
+	if not def then
+		return { Ok = false, Error = "Unknown charm" }
+	end
+	local active = charms[player.UserId] or {}
+	if active[role] then
+		return { Ok = false, Error = "This charm is already active" }
+	end
+	if not self.Services.ProgressService:SpendCoins(player, def.Price) then
+		return { Ok = false, Error = "Not enough coins" }
+	end
+	active[role] = true
+	charms[player.UserId] = active
+	local t = ticketsFor(player.UserId)
+	t[role] += def.Tickets
+	self.Services.Net.SendNotify(player, `{def.Name} active! Higher {role} chance until you get the role.`, C.Moon)
+	self:SendOdds()
+	return { Ok = true }
 end
 
 ---------------------------------------------------------------- Abstimmung
@@ -404,7 +486,7 @@ function RoundService:StartRound(): boolean
 
 	table.clear(self.Actors)
 	table.clear(guesses)
-	roundStats = { Hero = nil, StoppedBy = nil, FirstKO = nil }
+	roundStats = { Hero = nil, StoppedBy = nil, FirstKO = nil, LastSurvivor = nil }
 	local actors = {}
 	for _, player in humans do
 		local actor = self:AddActor(player.Character :: Model, player, nil, player.DisplayName)
@@ -463,6 +545,7 @@ function RoundService:BeginPlay()
 	end
 	services.CoinService:StartRound(self.Map)
 	services.AbilityService:StartRound(self.Map)
+	services.ClueService:StartRound(self.Map)
 	setState("Playing", workspace:GetServerTimeNow() + R.Duration)
 	self.Winner = nil
 end
@@ -494,6 +577,32 @@ function RoundService:CheckWin()
 	end
 end
 
+function RoundService:GetLastSurvivor(): Actor?
+	return roundStats.LastSurvivor
+end
+
+-- Nur noch ein Nicht-Murderer uebrig: Ansage, Tempo-Bonus, Extra-Muenzen wenn er durchhaelt
+function RoundService:CheckLastSurvivor()
+	if self.State ~= "Playing" or roundStats.LastSurvivor then
+		return
+	end
+	local murderers, others = self:CountSides()
+	if murderers == 0 or others ~= 1 then
+		return
+	end
+	for _, actor in self.Actors do
+		if actor.Alive and actor.Role ~= "Murderer" then
+			roundStats.LastSurvivor = actor
+			self.Services.Net.SendAnnounce(`{actor.Name} is the LAST SURVIVOR!`, C.Moon)
+			self.Services.AbilityService:SpeedEffect(actor, "LastSurvivor", R.Duration, Config.LastSurvivor.SpeedBonus, nil)
+			if actor.Player then
+				self.Services.Net.SendNotify(actor.Player, `You're the last one! Survive for +{Config.LastSurvivor.Reward} coins!`, C.Moon)
+			end
+			return
+		end
+	end
+end
+
 -- Wird von CombatService bei jedem K.O. aufgerufen
 function RoundService:OnKO(victim: Actor, killer: Actor?, cause: string)
 	publishAlive()
@@ -514,6 +623,7 @@ function RoundService:OnKO(victim: Actor, killer: Actor?, cause: string)
 		self.Services.Net.Role:FireClient(victim.Player, "Out", { By = if killer then killer.Name else nil, ByRole = if killer and killer.Role == "Murderer" then "Murderer" else nil })
 	end
 	self:CheckWin()
+	self:CheckLastSurvivor()
 end
 
 function RoundService:EndRound(winner: string, reason: string)
@@ -525,6 +635,7 @@ function RoundService:EndRound(winner: string, reason: string)
 	setState("Results", workspace:GetServerTimeNow() + R.ResultsTime)
 	services.CoinService:StopRound()
 	services.AbilityService:StopRound()
+	services.ClueService:StopRound()
 
 	-- MVP = meiste Muenzen (bei Murderer-Sieg der Murderer)
 	local mvp, best = nil, -1
@@ -542,12 +653,6 @@ function RoundService:EndRound(winner: string, reason: string)
 			table.insert(sheriffs, actor.Name)
 		end
 	end
-	local murdererId
-	for _, actor in self.Actors do
-		if actor.Role == "Murderer" then
-			murdererId = actor.Id
-		end
-	end
 
 	-- Belohnungen fuer echte Spieler
 	for _, actor in self.Actors do
@@ -562,13 +667,17 @@ function RoundService:EndRound(winner: string, reason: string)
 				Stopped = roundStats.StoppedBy == actor,
 				Hero = roundStats.Hero == actor,
 				Coins = actor.Coins,
+				MVP = mvp == actor,
+				LastSurvivor = roundStats.LastSurvivor == actor and actor.Alive and winner ~= "Murderer",
 			})
 		end
 	end
-	-- Ghost Guess
+	-- Ghost Guess (im Duo-Modus zaehlt jeder der beiden Murderer)
 	for player, id in guesses do
-		if player.Parent and id == murdererId then
+		local target = self.Actors[id]
+		if player.Parent and target and target.Role == "Murderer" then
 			services.ProgressService:AddCoins(player, Config.GhostGuessReward, false)
+			services.ProgressService:AddStat(player, "GhostGuesses", 1)
 			services.Net.SendNotify(player, `Ghost Guess correct! +{Config.GhostGuessReward} coins`, C.Moon)
 		end
 	end
@@ -580,6 +689,7 @@ function RoundService:EndRound(winner: string, reason: string)
 		Sheriffs = sheriffs,
 		Hero = if roundStats.Hero then roundStats.Hero.Name else nil,
 		MVP = if mvp then { Name = mvp.Name, Coins = mvp.Coins, KOs = mvp.KOs } else nil,
+		LastSurvivor = if roundStats.LastSurvivor and roundStats.LastSurvivor.Alive and winner ~= "Murderer" then roundStats.LastSurvivor.Name else nil,
 		Map = self.MapDef and self.MapDef.Name or "",
 	})
 	for _, actor in self.Actors do
@@ -589,6 +699,9 @@ end
 
 function RoundService:Cleanup()
 	local services = self.Services
+	-- Zuerst alle aus den Schraenken holen (ohne Teleport): sonst landen Versteckte nach dem Lobby-Teleport
+	-- wieder vor dem Schrank auf der Karte, die gleich geloescht wird, und fallen ins Leere
+	services.MapService:ReleaseAllClosets()
 	clearModifier()
 	for _, actor in self.Actors do
 		if actor.Player then
@@ -626,6 +739,7 @@ function RoundService:OnPlayerLeft(player: Player)
 			self.Services.CombatService:DropGun(actor.Root.Position)
 		end
 		self:CheckWin()
+		self:CheckLastSurvivor()
 	end
 end
 
@@ -659,8 +773,12 @@ function RoundService:Init(services)
 		player:SetAttribute("AFK", on == true)
 		return { Ok = true }
 	end)
+	Net.Handle("Charm", function(player, role)
+		return self:BuyCharm(player, role)
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		tickets[player.UserId] = nil
+		charms[player.UserId] = nil
 	end)
 end
 
@@ -669,6 +787,12 @@ function RoundService:Start()
 	task.spawn(function()
 		while true do
 			self:Loop()
+		end
+	end)
+	task.spawn(function()
+		while true do
+			self:PublishEvent()
+			task.wait(1)
 		end
 	end)
 end

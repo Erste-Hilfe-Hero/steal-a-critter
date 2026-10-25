@@ -19,5 +19,6 @@
   {"key": "StarBundle", "name": "Starlight Bundle", "description": "Starlight knife, Starshot blaster and Midnight Cat pet", "price": 199},
   {"key": "XPBoost", "name": "2x XP 30 min", "description": "Double XP for 30 minutes", "price": 39},
   {"key": "Blackout", "name": "Server Blackout", "description": "Turn off all the lights for the next round", "price": 29},
-  {"key": "AdCoins", "name": "Free Coins (Video Ad)", "description": "Reward for watching a video ad: free coins", "price": 5}
+  {"key": "AdCoins", "name": "Free Coins (Video Ad)", "description": "Reward for watching a video ad: free coins", "price": 5},
+  {"key": "MidnightHour", "name": "Midnight Hour", "description": "Start a Midnight Hour for the whole server: 2x coins and 1.5x XP for 10 minutes", "price": 49}
 ]

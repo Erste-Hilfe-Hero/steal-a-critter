@@ -53,6 +53,23 @@ for _, track in { "Free", "Premium" } do
 	end
 end
 check("battle pass items exist", bpOk)
+-- Update: Mystery Box mischt alle Arten, neue Karte und Modifikatoren vorhanden
+local mixedKinds = {}
+for _, entry in Config.CrateOdds("MysteryCrate") do
+	mixedKinds[entry.Kind] = true
+end
+check("mystery box has all kinds", mixedKinds.Knife and mixedKinds.Gun and mixedKinds.Pet and mixedKinds.Effect)
+local hasMuseum = false
+for _, def in Config.Maps do
+	hasMuseum = hasMuseum or def.Id == "Museum"
+end
+check("museum map listed", hasMuseum)
+for _, a in Config.Achievements do
+	if a.Stat ~= "Level" and a.Stat ~= "Prestige" then
+		local dataKeys = { "Wins", "KOs", "Stops", "HeroStops", "Survived", "CoinsCollected", "Forged", "Hides", "CluesFound", "BestStreak", "LastSurvivor", "GhostGuesses", "MVPs", "CratesOpened" }
+		check("achievement stat " .. a.Id, table.find(dataKeys, a.Stat) ~= nil, a.Stat)
+	end
+end
 for _, product in Config.DevProducts do
 	for _, entry in product.Items or {} do
 		check("bundle item " .. entry[2], Config.GetItem(entry[1], entry[2]) ~= nil)
@@ -80,7 +97,7 @@ check("knife tool has handle", okTool and tool:FindFirstChild("Handle") ~= nil, 
 
 local folder = ServerScriptService:WaitForChild("Server")
 local services = {}
-local ORDER = { "DataService", "ProgressService", "InventoryService", "MapService", "CoinService", "CombatService", "AbilityService", "BotService", "RoundService", "MonetizationService" }
+local ORDER = { "DataService", "ProgressService", "InventoryService", "MapService", "CoinService", "ClueService", "CombatService", "AbilityService", "BotService", "RoundService", "MonetizationService" }
 local ok, err = pcall(function()
 	services.Net = require(folder.Services.Net)
 	for _, name in ORDER do
@@ -98,6 +115,15 @@ check("init services + lobby", ok, err)
 local lobby = workspace:FindFirstChild("Lobby")
 check("lobby spawn", lobby ~= nil and lobby:FindFirstChild("LobbySpawn") ~= nil)
 check("lobby booths", #CollectionService:GetTagged("Booth") == 4, #CollectionService:GetTagged("Booth"))
+
+-- Woechentliche Quests und Midnight Hour
+local fakeData = { WeeklyQuests = { Week = 0, List = {} } }
+services.ProgressService.RollWeekly(fakeData)
+check("weekly quests rolled", #fakeData.WeeklyQuests.List == Config.WeeklyQuestsPerWeek, #fakeData.WeeklyQuests.List)
+local okEvent, eventErr = pcall(function()
+	services.RoundService:BoostEvent(1)
+end)
+check("midnight hour boost", okEvent and services.RoundService:EventActive() and services.RoundService:EventCoinMultiplier() == Config.MidnightHour.Coins, eventErr)
 
 -- Jede Karte bauen
 local MapBuilder = require(folder.Services.MapBuilder)
@@ -184,6 +210,23 @@ if started and round.State == "Reveal" then
 	services.AbilityService:SpawnPowerUp()
 	check("power-up spawned", #workspace.PowerUps:GetChildren() >= 1, #workspace.PowerUps:GetChildren())
 
+	-- Hinweis: Lupe erscheinen lassen und aufheben (der Murderer darf nicht)
+	local clue
+	for _ = 1, 10 do
+		clue = services.ClueService:SpawnOne(round.Map)
+		if clue then
+			break
+		end
+	end
+	check("clue spawned", clue ~= nil)
+	if clue then
+		check("murderer cannot take clue", services.ClueService:Pickup(clue, murderer) == false)
+		check("innocent takes clue", services.ClueService:Pickup(clue, innocents[1]) == true and clue.Parent == nil)
+		check("clue counted", services.ClueService:Found(innocents[1]) == 1)
+	end
+	local hint = services.ClueService:HintFor(innocents[1], 3)
+	check("clue hint names letter", typeof(hint) == "string" and hint:find("starts with") ~= nil, hint)
+
 	-- Verstecken und durchsuchen
 	local closet
 	for _, c in CollectionService:GetTagged("Closet") do
@@ -252,6 +295,10 @@ if started and round.State == "Reveal" then
 	check("innocent hit", wrong.Alive == false)
 	check("sheriff out after mistake", sheriff.Alive == false)
 	check("blaster dropped", services.CombatService:GetDroppedGun() ~= nil)
+	-- Duo-Modus: ein zweiter fallengelassener Blaster loescht den ersten nicht mehr
+	services.CombatService:DropGun(spot.Position + Vector3.new(0, 0, 20))
+	check("two blasters can lie", #CollectionService:GetTagged("DroppedGun") == 2, #CollectionService:GetTagged("DroppedGun"))
+	check("last survivor announced", round:GetLastSurvivor() == innocents[2], if round:GetLastSurvivor() then round:GetLastSurvivor().Name else "none")
 
 	-- Letzter Unschuldiger hebt auf und wird Hero
 	task.wait(Config.Gun.DropPickupDelay + 0.2)
@@ -277,10 +324,12 @@ end
 ---------------------------------------------------------------- Runde 2: Murderer gewinnt
 
 task.wait(1.2)
+round.ForceModifier = "SuperJump"
 local started2 = pcall(round.StartRound, round)
 if started2 and round.State == "Reveal" then
 	round:BeginPlay()
 	local murderer = byRole("Murderer")[1]
+	check("super jump modifier", round.Modifier ~= nil and round.Modifier.Id == "SuperJump" and murderer.Humanoid.JumpHeight > 20, if round.Modifier then round.Modifier.Id else "none")
 	local spot = round.Map.Spawns[1]
 	-- Ein Stich trifft den Naechsten, das kann auch ein anderer Bot am Spawn sein: so lange stechen, bis alle raus sind
 	for _ = 1, 12 do
