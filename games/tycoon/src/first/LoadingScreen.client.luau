@@ -780,7 +780,7 @@ function Kit:Run()
 end
 -- <<< LoadingKit
 -- >>> LoadingImages (3D-Vorschaubild in zwei Haelften + Icon, aus tools/loading/images.json)
-local IMAGES = { left = "", right = "", icon = "" }
+local IMAGES = { left = "122079747109697", right = "115814342295004", icon = "96514040697548" }
 -- <<< LoadingImages
 
 local INK = Color3.fromRGB(18, 40, 22)

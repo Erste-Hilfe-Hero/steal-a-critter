@@ -781,7 +781,7 @@ function Kit:Run()
 end
 -- <<< LoadingKit
 -- >>> LoadingImages (3D-Vorschaubild in zwei Haelften + Icon, aus tools/loading/images.json)
-local IMAGES = { left = "", right = "", icon = "" }
+local IMAGES = { left = "90903610201529", right = "140084006725630", icon = "79129027132650" }
 -- <<< LoadingImages
 
 local TITLE = Font.new("rbxasset://fonts/families/Sarpanch.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
