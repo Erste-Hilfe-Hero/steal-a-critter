@@ -13,6 +13,11 @@ function Format.Number(n: number): string
 		value /= 1000
 		index += 1
 	end
+	-- 999.95K wuerde sonst als "1000K" statt "1M" angezeigt
+	if math.abs(value) >= 999.5 and index < #SUFFIXES then
+		value /= 1000
+		index += 1
+	end
 	local text = string.format(if math.abs(value) < 10 then "%.2f" elseif math.abs(value) < 100 then "%.1f" else "%.0f", value)
 	if text:find("%.") then
 		text = text:gsub("0+$", ""):gsub("%.$", "")

@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local Windows = require(script.Parent.Windows)
+local Sfx = require(script.Parent.Sfx)
 
 local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -180,6 +181,7 @@ local function invoke(action: string, arg: any?)
 	end
 	if not success and message then
 		toast(message, Color3.fromRGB(255, 110, 110))
+		Sfx.Play("Error")
 	end
 	return success, message, extra
 end
@@ -337,6 +339,7 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 			return
 		end
 		local page = pages[name]
+		Sfx.Play("Click")
 		if not openPage then
 			Windows.Opening("Hub")
 		end
@@ -996,6 +999,8 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 		Pressable = pressable,
 		TitleFont = TITLE_FONT,
 		LongTime = longTime,
+		ServerNow = serverNow,
+		Request = request,
 	}
 end
 

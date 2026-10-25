@@ -89,6 +89,12 @@ Config.Units = {
 	{ Id = "narwhal", Name = "Nebula Narwhal", Rarity = "Mythic", Price = 60_000_000, Income = 160_000, Color = Color3.fromRGB(110, 90, 255), Shape = "Ball", Body = "Ghost", Extras = { "Horns" } },
 	{ Id = "goat", Name = "Glitch Goat", Rarity = "Secret", Price = 150_000_000, Income = 400_000, Color = Color3.fromRGB(30, 30, 40), Shape = "Block", Body = "Quad", Extras = { "Horns", "Tail" } },
 	{ Id = "voiddragon", Name = "Void Dragon", Rarity = "Secret", Price = 400_000_000, Income = 1_000_000, Color = Color3.fromRGB(20, 10, 40), Shape = "Ball", Body = "Dragon", Extras = { "Horns", "Tail" } },
+
+	-- Neue Kreaturen (Update 4)
+	{ Id = "jelly", Name = "Jelly Jester", Rarity = "Uncommon", Price = 1_900, Income = 27, Color = Color3.fromRGB(255, 140, 200), Shape = "Ball", Body = "Blob", Extras = { "Horns" } },
+	{ Id = "owl", Name = "Night Owl", Rarity = "Rare", Price = 20_000, Income = 190, Color = Color3.fromRGB(120, 90, 60), Shape = "Ball", Body = "Bird", Extras = { "Beak", "Ears" } },
+	{ Id = "yeti", Name = "Frost Yeti", Rarity = "Epic", Price = 220_000, Income = 1_300, Color = Color3.fromRGB(225, 235, 250), Shape = "Ball", Body = "Biped", Extras = { "BigEars", "Horns" } },
+	{ Id = "phoenix", Name = "Pixel Phoenix", Rarity = "Legendary", Price = 4_000_000, Income = 14_000, Color = Color3.fromRGB(255, 120, 40), Shape = "Ball", Body = "Bird", Extras = { "Beak", "Comb", "Tail" } },
 }
 
 -- Gamepasses: einmal kaufen, fuer immer behalten. PriceHint = empfohlener Preis in Robux.
@@ -130,6 +136,8 @@ Config.DevProducts = {
 -- Mutationen: seltene Varianten auf dem Laufband mit Einkommens-Multiplikator
 Config.Mutations = {
 	{ Name = "Golden", Chance = 0.08, Multiplier = 2, Color = Color3.fromRGB(255, 205, 40), Material = Enum.Material.Foil },
+	-- Update 4: gibt es nur nachts auf dem Laufband
+	{ Name = "Moonlit", Chance = 0.03, Multiplier = 3, Color = Color3.fromRGB(160, 170, 255), Material = Enum.Material.Neon, NightOnly = true },
 	{ Name = "Diamond", Chance = 0.02, Multiplier = 4, Color = Color3.fromRGB(150, 230, 255), Material = Enum.Material.Glass },
 	{ Name = "Rainbow", Chance = 0.004, Multiplier = 10, Color = Color3.fromRGB(255, 80, 200), Material = Enum.Material.Neon },
 }
@@ -219,7 +227,7 @@ Config.Achievements = {
 	{ Id = "Rebirth1", Name = "Reborn", Stat = "Rebirths", Goal = 1, Cash = 50_000 },
 	{ Id = "Rebirth5", Name = "Phoenix", Stat = "Rebirths", Goal = 5, Cash = 5_000_000 },
 	{ Id = "Index10", Name = "Critter Scholar", Stat = "Index", Goal = 10, Cash = 50_000 },
-	{ Id = "IndexAll", Name = "Gotta Catch 'Em", Stat = "Index", Goal = 25, Cash = 10_000_000 },
+	{ Id = "IndexAll", Name = "Gotta Catch 'Em", Stat = "Index", Goal = #Config.Units, Cash = 10_000_000 },
 	{ Id = "Earn1M", Name = "Millionaire", Stat = "TotalEarned", Goal = 1_000_000, Cash = 50_000 },
 	{ Id = "Earn1B", Name = "Billionaire", Stat = "TotalEarned", Goal = 1_000_000_000, Cash = 50_000_000 },
 	{ Id = "Quests10", Name = "Quest Hero", Stat = "QuestsDone", Goal = 10, Cash = 100_000 },
@@ -274,6 +282,7 @@ Config.Codes = {
 	CRITTER = { Minutes = 10, Cash = 5_000 },
 	UPDATE2 = { Minutes = 20, Cash = 20_000 },
 	BIGBABA = { Minutes = 15, Cash = 10_000 },
+	UPDATE4 = { Minutes = 20, Cash = 25_000 },
 }
 
 -- Neulingsschutz: wer weniger als X Minuten gespielt hat, kann nicht bestohlen werden
@@ -393,6 +402,83 @@ Config.BaseColors = {
 	{ Name = "Rose", Color = Color3.fromRGB(235, 90, 150) },
 	{ Name = "Shadow", Color = Color3.fromRGB(60, 60, 75) },
 	{ Name = "Snow", Color = Color3.fromRGB(225, 230, 240) },
+}
+
+---------------------------------------------------------------- Update 4 (ExtraService, Extras.luau)
+
+-- Einfuehrung fuer neue Spieler: Schritte mit Belohnung (Stat = Zaehler in data.Stats). Target = wohin der Pfeil zeigt
+Config.TutorialSteps = {
+	{ Text = "Buy a critter from the belt", Stat = "Bought", Goal = 1, Cash = 500, Target = "Belt" },
+	{ Text = "Lock your base at the red button", Stat = "Locks", Goal = 1, Cash = 1_000, Target = "Lock" },
+	{ Text = "Hatch your FREE egg (MORE > EGGS)", Stat = "Hatched", Goal = 1, Cash = 1_500 },
+	{ Text = "Steal a critter from another base", Stat = "Stolen", Goal = 1, Cash = 3_000, Target = "Steal" },
+}
+
+-- Wochen-Quests: jede Woche (ab Montag 00:00 UTC) 3 grosse Aufgaben. Reward = Minuten Einkommen (mindestens MinCash)
+Config.WeeklyQuestsPerWeek = 3
+Config.WeeklyQuests = {
+	{ Id = "Buy", Stat = "Bought", Text = "Buy %d critters", Goal = 100, Minutes = 60 },
+	{ Id = "Steal", Stat = "Stolen", Text = "Steal %d critters", Goal = 15, Minutes = 90 },
+	{ Id = "Hatch", Stat = "Hatched", Text = "Hatch %d eggs", Goal = 30, Minutes = 60 },
+	{ Id = "Boss", Stat = "BossHits", Text = "Hit bosses %d times", Goal = 300, Minutes = 60 },
+	{ Id = "Gems", Stat = "Gems", Text = "Find %d gems", Goal = 25, Minutes = 45 },
+	{ Id = "Play", Stat = "Minutes", Text = "Play %d minutes", Goal = 180, Minutes = 90 },
+	{ Id = "Trips", Stat = "Expeditions", Text = "Finish %d expeditions", Goal = 8, Minutes = 75 },
+	{ Id = "Fuse", Stat = "Fused", Text = "Fuse %d critters", Goal = 5, Minutes = 90 },
+}
+Config.WeeklyMinCash = 20_000
+
+-- Titel ueber dem Namen: werden durch Statistiken freigeschaltet (Stat wie bei den Erfolgen, dazu PlayHours und Likes)
+Config.Titles = {
+	{ Id = "Rookie", Name = "Rookie", Text = "Everyone starts here", Stat = "PlayHours", Goal = 0, Color = Color3.fromRGB(200, 200, 210) },
+	{ Id = "Collector", Name = "Collector", Text = "Buy 50 critters", Stat = "Bought", Goal = 50, Color = Color3.fromRGB(120, 220, 255) },
+	{ Id = "Hatcher", Name = "Egg Whisperer", Text = "Hatch 25 eggs", Stat = "Hatched", Goal = 25, Color = Color3.fromRGB(150, 200, 255) },
+	{ Id = "Thief", Name = "Master Thief", Text = "Steal 25 critters", Stat = "Stolen", Goal = 25, Color = Color3.fromRGB(255, 110, 110) },
+	{ Id = "Slapper", Name = "Slap King", Text = "Slap 100 times", Stat = "Slaps", Goal = 100, Color = Color3.fromRGB(255, 170, 80) },
+	{ Id = "Scientist", Name = "Mad Scientist", Text = "Fuse 10 critters", Stat = "Fused", Goal = 10, Color = Color3.fromRGB(180, 110, 255) },
+	{ Id = "Explorer", Name = "Explorer", Text = "Finish 10 expeditions", Stat = "Expeditions", Goal = 10, Color = Color3.fromRGB(110, 230, 160) },
+	{ Id = "Slayer", Name = "Boss Slayer", Text = "Beat 10 bosses", Stat = "Bosses", Goal = 10, Color = Color3.fromRGB(255, 80, 120) },
+	{ Id = "Scholar", Name = "Critter Scholar", Text = "Discover 20 critters", Stat = "Index", Goal = 20, Color = Color3.fromRGB(200, 160, 255) },
+	{ Id = "Popular", Name = "Popular", Text = "Get 25 base likes", Stat = "Likes", Goal = 25, Color = Color3.fromRGB(255, 130, 180) },
+	{ Id = "Loyal", Name = "Loyal Boss", Text = "Reach a 7 day streak", Stat = "Streak", Goal = 7, Color = Color3.fromRGB(255, 210, 90) },
+	{ Id = "Phoenix", Name = "Phoenix", Text = "Rebirth 3 times", Stat = "Rebirths", Goal = 3, Color = Color3.fromRGB(255, 150, 60) },
+	{ Id = "Millionaire", Name = "Millionaire", Text = "Earn $1M in total", Stat = "TotalEarned", Goal = 1_000_000, Color = Color3.fromRGB(120, 255, 140) },
+	{ Id = "Billionaire", Name = "Billionaire", Text = "Earn $1B in total", Stat = "TotalEarned", Goal = 1_000_000_000, Color = Color3.fromRGB(255, 220, 60) },
+}
+
+-- Gratis-Ei: alle 12 Stunden ein Basic Egg
+Config.FreeEggCooldown = 12 * 3600
+Config.FreeEggId = "Basic"
+
+-- Expeditionen: eine Kreatur geht auf Reise (verdient waehrenddessen nichts und kann nicht geklaut werden),
+-- kommt mit Cash (RewardMinutes ihres Einkommens) und manchmal mit einer besseren Mutation zurueck
+Config.MaxExpeditions = 2
+Config.Expeditions = {
+	{ Id = "Short", Name = "Quick Trip", Minutes = 30, RewardMinutes = 45, MinCash = 1_000, Mutations = { { Name = "Golden", Chance = 0.05 } } },
+	{ Id = "Long", Name = "Big Adventure", Minutes = 120, RewardMinutes = 200, MinCash = 5_000, Mutations = { { Name = "Diamond", Chance = 0.02 }, { Name = "Golden", Chance = 0.15 } } },
+	{ Id = "Epic", Name = "Epic Quest", Minutes = 480, RewardMinutes = 900, MinCash = 25_000, Mutations = { { Name = "Rainbow", Chance = 0.01 }, { Name = "Diamond", Chance = 0.06 }, { Name = "Golden", Chance = 0.3 } } },
+}
+
+-- Schnell-Verkauf: alle einfachen Kreaturen dieser Seltenheiten auf einmal (ohne Mutation, Fusion, Training, Favorit)
+Config.BulkSellRarities = { "Common", "Uncommon" }
+
+-- Diebstahl-Protokoll: so viele Eintraege werden gespeichert
+Config.TheftLogSize = 12
+
+-- Abstimmung ueber das naechste Server-Event (Sekunden vor dem Start)
+Config.EventVoteTime = 45
+Config.EventVoteOptions = 3
+
+-- Trampoline am Ende des Laufbands
+Config.TrampolinePower = 95
+
+-- Basis-Deko (nur Spielgeld, rein optisch)
+Config.Decorations = {
+	{ Id = "Flowers", Name = "Flower Beds", Icon = "🌷", Price = 15_000 },
+	{ Id = "Lanterns", Name = "Lanterns", Icon = "🏮", Price = 50_000 },
+	{ Id = "Flag", Name = "Base Flag", Icon = "🚩", Price = 150_000 },
+	{ Id = "Fountain", Name = "Fountain", Icon = "⛲", Price = 750_000 },
+	{ Id = "Statue", Name = "Golden Statue", Icon = "🗿", Price = 5_000_000 },
 }
 
 -- Lookup-Tabellen

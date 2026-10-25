@@ -20,6 +20,7 @@ Net.FakePurchase = remote("FakePurchase") -- Client -> Server (nur Studio)
 Net.Offer = remote("Offer") -- Server -> Spieler: passendes Angebot im richtigen Moment (mit "No thanks")
 Net.WatchAd = remote("WatchAd") -- Client -> Server: Spieler will freiwillig eine Werbung sehen
 Net.Sync = remote("Sync") -- Server -> Spieler: Fortschritt (Quests, Index, Erfolge, Geschenke, Basis)
+Net.Sfx = remote("Sfx") -- Server -> Spieler: Soundeffekt abspielen (Name, siehe Client Sfx.luau)
 
 -- Client -> Server: Anfragen (Quest abholen, Rad drehen, Code einloesen ...). Antwort: ok, Text
 Net.Request = Instance.new("RemoteFunction")
@@ -70,6 +71,10 @@ function Net.SendOffer(player: Player, kind: string, key: string, reason: string
 	end
 	lastOffer[player] = now
 	Net.Offer:FireClient(player, kind, key, reason)
+end
+
+function Net.PlaySfx(player: Player, name: string)
+	Net.Sfx:FireClient(player, name)
 end
 
 function Net.SendAnnounce(text: string, color: Color3?)

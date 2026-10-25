@@ -531,10 +531,17 @@ function UnitFactory.PromptAnchor(model: Model, info): Attachment
 	return attachment
 end
 
+-- transparency 0 stellt den Originalzustand wieder her (Geister, Glas-Blobs und Fluegel sind von Haus aus
+-- leicht durchsichtig; frueher wurden sie nach einem gescheiterten Diebstahl voll undurchsichtig)
 function UnitFactory.SetTransparency(model: Model, transparency: number)
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
-			part.Transparency = transparency
+			local base = part:GetAttribute("BaseTransparency")
+			if base == nil then
+				base = part.Transparency
+				part:SetAttribute("BaseTransparency", base)
+			end
+			part.Transparency = math.max(base, transparency)
 		end
 	end
 end

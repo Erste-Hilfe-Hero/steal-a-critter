@@ -132,12 +132,12 @@ function Features.Start(api)
 	---------------------------------------------------------------- Eier
 
 	local eggPage = api.AddPage("Eggs", "🥚 CRITTER EGGS", Color3.fromRGB(80, 150, 220), false)
-	local eggGrid = create("Frame", { Size = UDim2.new(1, 0, 0, 280), BackgroundTransparency = 1, Parent = eggPage.Frame }, {
-		create("UIGridLayout", { CellSize = UDim2.fromOffset(196, 272), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
+	local eggGrid = create("Frame", { Size = UDim2.new(1, 0, 0, 240), BackgroundTransparency = 1, Parent = eggPage.Frame }, {
+		create("UIGridLayout", { CellSize = UDim2.fromOffset(196, 236), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
 	local hatchResult = text({
-		Position = UDim2.fromOffset(0, 286),
-		Size = UDim2.new(1, 0, 0, 40),
+		Position = UDim2.fromOffset(0, 242),
+		Size = UDim2.new(1, 0, 0, 32),
 		Text = "Eggs cost cash only. Your critter goes straight to your base!",
 		Font = TITLE_FONT,
 		TextSize = 18,
@@ -163,7 +163,7 @@ function Features.Start(api)
 		end
 		text({
 			Position = UDim2.fromOffset(10, 94),
-			Size = UDim2.new(1, -20, 0, 110),
+			Size = UDim2.new(1, -20, 0, 82),
 			Text = table.concat(odds, "\n"),
 			RichText = true,
 			TextSize = 15,
@@ -194,6 +194,57 @@ function Features.Start(api)
 		end)
 	end
 
+	-- Gratis-Ei alle 12 Stunden (Update 4, ExtraService)
+	local freeEggButton = button({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 280),
+		Size = UDim2.fromOffset(340, 46),
+		Text = "🎁 FREE EGG",
+		TextSize = 19,
+		Parent = eggPage.Frame,
+	}, THEME.Pink)
+	local function freeEggLeft(): number?
+		local state = api.GetState()
+		local extras = state and state.Extras
+		if not extras then
+			return nil
+		end
+		return (extras.FreeEggAt or 0) - api.ServerNow()
+	end
+	local function updateFreeEgg()
+		local left = freeEggLeft()
+		local ready = left ~= nil and left <= 0
+		freeEggButton.Text = if left == nil then "..." elseif ready then `🎁 HATCH FREE {string.upper(Config.FreeEggId)} EGG` else `🎁 Free egg in {api.LongTime(left)}`
+		api.SetEnabled(freeEggButton, ready, THEME.Pink)
+	end
+	freeEggButton.Activated:Connect(function()
+		if not freeEggButton.Active then
+			return
+		end
+		api.SetEnabled(freeEggButton, false, THEME.Pink)
+		hatchResult.Text = "🥚 Hatching..."
+		hatchResult.TextColor3 = THEME.Gold
+		act("FreeEgg", nil, function(ok, _, extra)
+			if ok and extra then
+				local rarity = Config.RaritiesByName[extra.Rarity]
+				hatchResult.Text = `🎉 You hatched {extra.Name} ({extra.Rarity})!`
+				hatchResult.TextColor3 = if rarity then rarity.Color else THEME.Gold
+			else
+				hatchResult.Text = "Eggs cost cash only. Your critter goes straight to your base!"
+				hatchResult.TextColor3 = THEME.Muted
+			end
+		end)
+	end)
+	eggPage.Refresh = updateFreeEgg
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			if api.IsOpen("Eggs") then
+				updateFreeEgg()
+			end
+		end
+	end)
+
 	---------------------------------------------------------------- Training und Tresor
 
 	local trainPage = listPage("Train", "🏋️ TRAIN & PROTECT", THEME.Orange)
@@ -204,14 +255,30 @@ function Features.Start(api)
 		rowButton(alarm, 1, 140, if f.Alarm then "✓ OWNED" else Format.Cash(Config.AlarmPrice), THEME.Red, not f.Alarm, function()
 			act("BuyAlarm")
 		end)
+		-- Schnell-Verkauf (Update 4): einfache Kreaturen auf einmal loswerden, Favoriten bleiben
+		local quick = row(trainPage.Frame, 2)
+		rowTitle(quick, "🧹 Quick sell", "Sells plain critters (keeps ❤, trained, mutated, fused)", nil, 290)
+		for index, rarityName in Config.BulkSellRarities do
+			local rarity = Config.RaritiesByName[rarityName]
+			rowButton(quick, #Config.BulkSellRarities - index + 1, 140, `ALL {string.upper(rarityName)}`, if rarity then rarity.Color:Lerp(Color3.new(0, 0, 0), 0.35) else THEME.Gray, true, function()
+				act("SellBulk", rarityName)
+			end)
+		end
 		if #f.Units == 0 then
-			header(trainPage.Frame, 2, "Buy critters on the belt or hatch eggs first!", THEME.Gold)
+			header(trainPage.Frame, 3, "Buy critters on the belt or hatch eggs first!", THEME.Gold)
 		end
 		for order, unit in f.Units do
 			local line = row(trainPage.Frame, 10 + order)
 			local rarity = Config.RaritiesByName[unit.Rarity]
 			local stars = string.rep("⭐", unit.Level)
-			rowTitle(line, unit.Name .. (if unit.Vault then "  🔒" else ""), `+{Format.Cash(unit.Income)}/s  {stars}`, rarity and rarity.Color, 290)
+			rowTitle(line, unit.Name .. (if unit.Vault then "  🔒" else "") .. (if unit.Favorite then "  ❤" else ""), `+{Format.Cash(unit.Income)}/s  {stars}`, rarity and rarity.Color, 350)
+			-- Favorit: kann nicht verkauft werden (Herz an/aus)
+			local heart = rowButton(line, 1, 52, if unit.Favorite then "❤" else "♡", if unit.Favorite then THEME.Pink else THEME.Gray, true, function()
+				act("Favorite", unit.Slot)
+			end)
+			-- links neben den beiden 140er-Knoepfen
+			heart.Position = UDim2.new(1, -10 - 2 * (140 + 8), 0.5, 0)
+			heart.TextSize = 22
 			local maxed = unit.Level >= Config.TrainMaxLevel
 			rowButton(line, 1, 140, if unit.Vault then "🔒 SAFE" else "🔒 " .. Format.Cash(unit.VaultCost), THEME.Blue, not unit.Vault, function()
 				act("Vault", unit.Slot)
@@ -379,7 +446,7 @@ function Features.Start(api)
 
 	---------------------------------------------------------------- Einstellungen
 
-	local settings = { Labels = "All", Hints = "On", Detail = "High", Buddy = "On" }
+	local settings = { Labels = "All", Hints = "On", Detail = "High", Buddy = "On", Sounds = "On" }
 
 	-- Namensschilder: alle, nur eigene (plus Laufband) oder keine
 	local function applyLabel(gui: Instance)
@@ -398,6 +465,7 @@ function Features.Start(api)
 	end
 	local function applyAll()
 		player:SetAttribute("HideHints", settings.Hints == "Off")
+		player:SetAttribute("SoundsOff", settings.Sounds == "Off")
 		for _, instance in workspace:GetDescendants() do
 			applyLabel(instance)
 			applyEffect(instance)
@@ -418,6 +486,7 @@ function Features.Start(api)
 		{ Key = "Hints", Title = "💬 Hint bar", Text = "Event, boss and bonus hints at the bottom", Values = { "On", "Off" } },
 		{ Key = "Detail", Title = "✨ Effects", Text = "Low = no sparkles and fire (faster on phones)", Values = { "High", "Low" } },
 		{ Key = "Buddy", Title = "🐾 Buddy", Text = `Your best critter follows you (+{math.floor(Config.BuddyBonus * 100)}% income)`, Values = { "On", "Off" } },
+		{ Key = "Sounds", Title = "🔊 Sounds", Text = "Sound effects for buying, stealing and rewards", Values = { "On", "Off" } },
 	}
 	local rebuildSettings = refresher(settingsPage, function()
 		for order, option in OPTIONS do
@@ -459,7 +528,10 @@ function Features.Start(api)
 
 	---------------------------------------------------------------- Kacheln im MORE-Menue
 
-	api.AddMoreTile("Eggs", "🥚", "EGGS", Color3.fromRGB(80, 150, 220), 1)
+	api.AddMoreTile("Eggs", "🥚", "EGGS", Color3.fromRGB(80, 150, 220), 1, function()
+		local left = freeEggLeft()
+		return left ~= nil and left <= 0
+	end)
 	api.AddMoreTile("Train", "🏋️", "TRAIN", THEME.Orange, 2)
 	api.AddMoreTile("Pass", "🎫", "PASS", Color3.fromRGB(170, 90, 230), 3, passClaimable)
 	api.AddMoreTile("Perks", "♻️", "PERKS", THEME.Purple, 4, function()

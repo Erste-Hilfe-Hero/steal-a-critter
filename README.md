@@ -80,6 +80,42 @@ Kaufabwicklung: `ProcessReceipt` mit Kaufhistorie gegen doppelte Vergabe und sof
 
 Deploy: `publish.yml` lädt erst eine gespeicherte Version hoch, testet sie mit `tests/smoke.luau` und schaltet sie nur bei 0 Fehlern live.
 
+## Update 4: 11 Fehler behoben, 15 neue Funktionen
+
+Alle neuen Spielstände-Felder sind optional (`DataService.defaultData`, nur neue Top-Level-Schlüssel), alte Saves laden unverändert. Neuer Code: `UPDATE4`. Keine neuen Produkte.
+
+**Behobene Fehler**
+
+1. Buddy verschwand nach dem Respawn und kam nicht zurück (`FeatureService`).
+2. Eigene Basisfarbe blieb nach dem Verlassen am Plot für den nächsten Besitzer (`PlotService`, `WorldService`).
+3. Abgebrochener Klau machte durchsichtige Kreaturen (Ghost, Glas, Flügel) undurchsichtig (`UnitFactory.SetTransparency`).
+4. Nach dem Slap-Stun gingen Speed-Pad, Alarm und Perk-Tempo verloren (`UnitService`).
+5. Trainieren/Tresor einer Kreatur, die gerade geklaut wird, verschwendete Geld (`FeatureService`).
+6. Klau scheiterte still, wenn die eigene Basis währenddessen voll wurde – jetzt mit Hinweis.
+7. `Format.Number` zeigte „1000K“ statt „1M“.
+8. Rebirth vor dem vollständigen Laden konnte einen Fehler werfen.
+9. Exploit: Halten an einem Prompt beginnen und an einem anderen sofort auslösen.
+10. Geschenk- und Glücksrad-Timer liefen nach, weil `Now`/`SessionSeconds` nur selten gesendet wurden.
+11. Sperr-Abklingzeit wurde beim Verlassen des Plots nicht zurückgesetzt.
+
+**15 neue Funktionen** (`ExtraService`, `src/client/Extras.luau`, `src/client/Sfx.luau`)
+
+1. Tutorial für neue Spieler mit Pfeil zum Ziel (Kaufen, Sperren, Ei, Klauen) und Belohnungen – überspringbar.
+2. Soundeffekte (Kauf, Klau, Alarm, Slap, Belohnung, Klick) – abschaltbar in SETTINGS.
+3. Wochen-Quests (3 pro Woche, größere Belohnungen).
+4. Titel freischalten und über dem Kopf anzeigen (14 Titel).
+5. Gratis-Ei alle 12 Stunden.
+6. Expeditionen: Kreatur auf Reise schicken (Kurz/Lang/Episch), Cash und Mutationschance bei Rückkehr.
+7. Favoriten ❤: geschützt vor Verkaufen.
+8. Schnellverkauf aller Common/Uncommon (Favoriten ausgenommen).
+9. Diebstahl-Protokoll: wer hat was geklaut, wer wurde gerettet.
+10. Dieb-Radar: roter Pfeil und Entfernung zum Dieb, der gerade bei dir klaut.
+11. Event-Abstimmung: Server wählt das nächste Event.
+12. Trampoline auf der Karte.
+13. Neue Nacht-Mutation „Moonlit“ (x3, nur nachts).
+14. 4 neue Kreaturen: Jelly, Owl, Yeti, Phoenix.
+15. Basis-Deko (Blumen, Laternen, Flagge, Brunnen, Statue).
+
 ## Projektstruktur (Rojo)
 
 ```

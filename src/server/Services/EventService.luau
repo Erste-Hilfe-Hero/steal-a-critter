@@ -12,6 +12,7 @@ local activeUntil = 0
 local partyUntil = 0 -- gekaufte Cash Party (Double Cash fuer alle)
 local goalProgress = 0 -- Server-Ziel: gemeinsam gekaufte/geklaute Kreaturen
 local coinFolder: Folder? = nil
+local vote = nil :: any -- { Options = { Event }, Votes = { [Player] = Index } } waehrend der Abstimmung
 
 local function happyHour(): boolean
 	return os.date("!*t").hour == Config.HappyHourUtc
@@ -146,6 +147,73 @@ local function stopEvent()
 	end
 end
 
+---------------------------------------------------------------- Abstimmung ueber das naechste Event (Update 4)
+
+local function publishVote()
+	if not vote then
+		return
+	end
+	local counts = table.create(#vote.Options, 0)
+	for player, index in vote.Votes do
+		if player.Parent then
+			counts[index] += 1
+		end
+	end
+	local names = {}
+	for _, event in vote.Options do
+		table.insert(names, event.Name)
+	end
+	workspace:SetAttribute("VoteOptions", table.concat(names, "|"))
+	workspace:SetAttribute("VoteCounts", table.concat(counts, "|"))
+	return counts
+end
+
+local function startVote()
+	local pool = table.clone(Config.Events)
+	local options = {}
+	for _ = 1, math.min(Config.EventVoteOptions, #pool) do
+		table.insert(options, table.remove(pool, math.random(1, #pool)))
+	end
+	vote = { Options = options, Votes = {} }
+	publishVote()
+	workspace:SetAttribute("VoteEnds", workspace:GetServerTimeNow() + Config.EventVoteTime)
+	EventService.Services.Net.SendAnnounce("🗳️ VOTE for the next event! Tap your favorite (top right).", Color3.fromRGB(150, 200, 255))
+end
+
+-- Meiste Stimmen gewinnt; Gleichstand oder keine Stimmen: Zufall unter den Besten
+local function finishVote()
+	local current = vote
+	local counts = publishVote()
+	vote = nil
+	workspace:SetAttribute("VoteOptions", nil)
+	workspace:SetAttribute("VoteCounts", nil)
+	workspace:SetAttribute("VoteEnds", nil)
+	if not current or not counts then
+		return Config.Events[math.random(1, #Config.Events)]
+	end
+	local best, bestCount = {}, -1
+	for index, count in counts do
+		if count > bestCount then
+			best, bestCount = { index }, count
+		elseif count == bestCount then
+			table.insert(best, index)
+		end
+	end
+	return current.Options[best[math.random(1, #best)]]
+end
+
+local function castVote(player: Player, index: any)
+	if not vote then
+		return false, "There is no vote right now"
+	end
+	if type(index) ~= "number" or not vote.Options[index] then
+		return false, "Unknown option"
+	end
+	vote.Votes[player] = index
+	publishVote()
+	return true, `You voted for {vote.Options[index].Name}!`
+end
+
 -- Taegliche Belohnung: jeden Kalendertag (UTC) einmal, Serie steigert den Betrag
 function EventService:OnPlayerReady(player: Player)
 	local data = self.Services.DataService:Get(player)
@@ -203,10 +271,14 @@ function EventService:Start()
 		end
 	end)
 
+	self.Services.Net.Handle("VoteEvent", castVote)
 	task.spawn(function()
 		while true do
-			task.wait(Config.EventInterval - Config.EventDuration)
-			startEvent(Config.Events[math.random(1, #Config.Events)])
+			-- Kurz vor dem Event stimmen alle ab, welches kommt
+			task.wait(Config.EventInterval - Config.EventDuration - Config.EventVoteTime)
+			startVote()
+			task.wait(Config.EventVoteTime)
+			startEvent(finishVote())
 			task.wait(Config.EventDuration)
 			stopEvent()
 		end

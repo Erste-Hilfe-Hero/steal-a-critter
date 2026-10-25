@@ -8,11 +8,14 @@ local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local UI = require(script.UI)
 local Hub = require(script.Hub)
 local Features = require(script.Features)
+local Extras = require(script.Extras)
 
 local player = Players.LocalPlayer
 
 UI.Start()
-Features.Start(Hub.Start(UI.Toast))
+local hubApi = Hub.Start(UI.Toast)
+Features.Start(hubApi)
+Extras.Start(hubApi)
 
 -- Eigene Kreaturen kann man nicht klauen: Prompt lokal ausblenden.
 -- Mit Fast-Steal-Pass ist die Haltezeit kuerzer, bei Rache fast sofort (der Server prueft das ebenfalls).

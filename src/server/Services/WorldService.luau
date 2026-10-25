@@ -364,6 +364,7 @@ function WorldService:Build()
 				Index = #self.Plots + 1,
 				Model = model,
 				Accent = accent,
+				DefaultAccent = accent, -- nach dem Verlassen zuruecksetzen (eigene Basis-Farbe gehoert dem Spieler)
 				CFrame = plotCF,
 				HalfSize = half,
 				Pads = pads,

@@ -54,13 +54,13 @@ local services = {}
 local ok, err = pcall(function()
 	local s = folder.Services
 	services.Net = require(s.Net)
-	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService" } do
+	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService", "ExtraService" } do
 		services[name] = require(s[name])
 	end
 end)
 check("require services", ok, err)
 
-local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService" }
+local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService", "ExtraService" }
 if ok then
 	ok, err = pcall(function()
 		for _, name in ORDER do
@@ -163,6 +163,58 @@ if ok then
 	check("night luck", services.FeatureService:NightLuck() >= 1)
 	local multOk, mult = pcall(services.FeatureService.GetMultiplier, services.FeatureService, game:GetService("Players"):GetPlayers()[1] or Instance.new("Folder"))
 	check("feature multiplier", multOk and mult == 1, mult)
+end
+
+-- Update 4
+check("format 999999 -> 1M", Format.Number(999_999) == "1M", Format.Number(999_999))
+check("tutorial steps", #Config.TutorialSteps >= 3)
+for _, quest in Config.WeeklyQuests do
+	check("weekly text " .. quest.Id, string.format(quest.Text, quest.Goal):find("%d") ~= nil and quest.Goal > 0)
+end
+check("weekly pool big enough", #Config.WeeklyQuests >= Config.WeeklyQuestsPerWeek)
+local titleIds = {}
+for _, title in Config.Titles do
+	check("title unique " .. title.Id, titleIds[title.Id] == nil)
+	titleIds[title.Id] = true
+end
+for _, trip in Config.Expeditions do
+	for _, upgrade in trip.Mutations do
+		check("trip mutation " .. trip.Id .. " " .. upgrade.Name, Units.MutationsByName[upgrade.Name] ~= nil)
+	end
+end
+check("moonlit mutation", Units.MutationsByName.Moonlit ~= nil and Units.MutationsByName.Moonlit.NightOnly == true)
+check("update4 code", Config.Codes.UPDATE4 ~= nil)
+check("vote fits in event cycle", Config.EventInterval - Config.EventDuration - Config.EventVoteTime > 0)
+for _, id in { "jelly", "owl", "yeti", "phoenix" } do
+	check("new critter " .. id, Config.UnitsById[id] ~= nil)
+end
+if ok then
+	check("trampolines", workspace:FindFirstChild("Trampolines") ~= nil and #workspace.Trampolines:GetChildren() > 0)
+	check("sfx remote", ReplicatedStorage.Remotes:FindFirstChild("Sfx") ~= nil)
+	local plots = services.WorldService.Plots
+	if #plots > 0 then
+		for _, decor in Config.Decorations do
+			local decorFolder = Instance.new("Folder")
+			local built, buildErr = services.ExtraService.BuildDecorPiece(decor.Id, decorFolder, plots[1].CFrame, plots[1].Accent)
+			check("decor " .. decor.Id, built and #decorFolder:GetChildren() > 0, buildErr)
+			decorFolder:Destroy()
+		end
+		check("plot default accent", plots[1].DefaultAccent ~= nil)
+	end
+	-- Durchsichtige Kreaturen (Geist) bleiben nach einem abgebrochenen Diebstahl durchsichtig
+	local UnitFactory = require(folder.Services.UnitFactory)
+	local ghost = UnitFactory.Build(Units.Info("banana"))
+	local before = ghost.PrimaryPart.Transparency
+	UnitFactory.SetTransparency(ghost, 0.7)
+	local during = ghost.PrimaryPart.Transparency
+	UnitFactory.SetTransparency(ghost, 0)
+	check("transparency restored", math.abs(during - 0.7) < 1e-3 and math.abs(ghost.PrimaryPart.Transparency - before) < 1e-6 and before > 0, ghost.PrimaryPart.Transparency)
+	ghost:Destroy()
+	local moonOk, moonModel = pcall(UnitFactory.Build, Units.Info(Units.Encode("owl", "Moonlit", 1)))
+	check("build moonlit owl", moonOk and moonModel.PrimaryPart ~= nil, if moonOk then nil else moonModel)
+	if moonOk then
+		moonModel:Destroy()
+	end
 end
 
 table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)
