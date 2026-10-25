@@ -484,4 +484,36 @@ for key, product in Config.DevProducts do
 	product.Id = tonumber(ids[key]) or 0
 end
 
+-- Spieler sind fest (kein Durchlaufen), duerfen aber nicht auf anderen stehen: steht jemand auf einem
+-- Kopf/Koerper, rutscht er seitlich herunter. Laeuft fuer den eigenen Charakter (Client) und fuer Bots (Server).
+local headParams = RaycastParams.new()
+headParams.FilterType = Enum.RaycastFilterType.Exclude
+function Config.SlideOffHeads(model: Model, root: BasePart)
+	headParams.FilterDescendantsInstances = { model }
+	local result = workspace:Spherecast(root.Position, 1.2, Vector3.new(0, -4.5, 0), headParams)
+	if not result then
+		return
+	end
+	local node: Instance? = result.Instance
+	local other: Model? = nil
+	while node and node ~= workspace do
+		if node:IsA("Model") and node:FindFirstChildOfClass("Humanoid") then
+			other = node
+			break
+		end
+		node = node.Parent
+	end
+	local otherRoot = other and other:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not otherRoot then
+		return
+	end
+	local away = root.Position - otherRoot.Position
+	away = Vector3.new(away.X, 0, away.Z)
+	if away.Magnitude < 0.05 then
+		away = root.CFrame.LookVector
+	end
+	local push = away.Unit * 20
+	root.AssemblyLinearVelocity = Vector3.new(push.X, math.min(root.AssemblyLinearVelocity.Y, -8), push.Z)
+end
+
 return Config
