@@ -34,20 +34,37 @@ local function defaultData()
 		LastOnline = 0,
 		Codes = {}, -- [Code] = true
 		Missions = { Day = 0, List = {} }, -- List = { { Id, Progress, Done } }
-		Stats = { Deliveries = 0, Arrests = 0, Robberies = 0, Races = 0, BestRace = 0, Jailed = 0 },
+		Stats = { Deliveries = 0, Arrests = 0, Robberies = 0, Races = 0, BestRace = 0, Jailed = 0, Trucks = 0, TopSpeed = 0, Chores = 0, Sprays = 0 },
 		StarterPack = false,
+		-- Update 2: Stufen, Erfolge, Titel, Gluecksrad, Tuning, Token, Einstellungen, Tutorial
+		XP = 0,
+		Level = 1,
+		Achievements = {}, -- [AchievementId] = true
+		Title = "",
+		SpinDay = 0,
+		Tune = {}, -- [CarId] = Stufe
+		Tokens = {}, -- [TokenId als Text] = true
+		Settings = table.clone(Config.DefaultSettings),
+		Tutorial = 0, -- erledigte Schritte; > #Config.Tutorial = fertig
 	}
 end
 
 local function reconcile(data)
-	for key, value in defaultData() do
+	local defaults = defaultData()
+	for key, value in defaults do
 		if data[key] == nil then
 			data[key] = value
 		end
 	end
-	for key, value in defaultData().Stats do
-		if data.Stats[key] == nil then
-			data.Stats[key] = value
+	-- verschachtelte Tabellen ebenfalls ergaenzen
+	for _, nested in { "Stats", "Settings" } do
+		if typeof(data[nested]) ~= "table" then
+			data[nested] = defaults[nested]
+		end
+		for key, value in defaults[nested] do
+			if data[nested][key] == nil then
+				data[nested][key] = value
+			end
 		end
 	end
 	return data
@@ -86,7 +103,12 @@ function DataService:Load(player: Player)
 	end
 	local profile
 	if ok then
+		-- Wer schon vor dem Tutorial gespielt hat, bekommt es nicht mehr
+		local veteran = stored ~= nil and stored.Tutorial == nil and (stored.TotalEarned or 0) > 0
 		profile = { Data = reconcile(stored or defaultData()), CanSave = true }
+		if veteran then
+			profile.Data.Tutorial = #Config.Tutorial + 1
+		end
 	else
 		profile = { Data = defaultData(), CanSave = false }
 		self.Services.Net.SendNotify(player, "Could not load your data. Progress this session will NOT be saved.", Config.Colors.Robber)
@@ -129,6 +151,15 @@ function DataService:UpdateAttributes(player: Player)
 	end
 	player:SetAttribute("OwnedCars", table.concat(owned, ","))
 	player:SetAttribute("BestRace", data.Stats.BestRace)
+	player:SetAttribute("Level", data.Level)
+	player:SetAttribute("XP", data.XP)
+	player:SetAttribute("XPNext", Config.XpForLevel(data.Level))
+	local tune = {}
+	for id, level in data.Tune do
+		table.insert(tune, `{id}:{level}`)
+	end
+	table.sort(tune)
+	player:SetAttribute("Tune", table.concat(tune, ","))
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
 		(leaderstats :: any).Cash.Value = math.floor(math.min(data.Cash, 2 ^ 53))

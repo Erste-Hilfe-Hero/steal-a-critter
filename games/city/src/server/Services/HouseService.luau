@@ -277,6 +277,7 @@ function HouseService:Upgrade(player: Player): (boolean, string?)
 	data.House += 1
 	self.Services.DataService:UpdateAttributes(player)
 	self:Refresh(player)
+	self.Services.ProgressService:Check(player)
 	if data.House >= 4 then
 		self.Services.Net.SendAnnounce(`{player.DisplayName} moved into a {nextHouse.Name}!`, C.Lemon)
 	end
@@ -351,6 +352,10 @@ function HouseService:Start()
 		if (player:GetAttribute("Wanted") or 0) > 0 then
 			return false, "Not while you are wanted!"
 		end
+		-- Sonst koennte man mit der Beute einfach vor der Polizei wegteleportieren
+		if (player:GetAttribute("Bag") or 0) > 0 then
+			return false, "Not while carrying loot! Cash it in at the HIDEOUT."
+		end
 		self.Services.VehicleService:Eject(player)
 		task.defer(function()
 			character:PivotTo(cf * CFrame.new(-8, 4, -30) * CFrame.Angles(0, math.rad(180), 0))
@@ -363,13 +368,14 @@ function HouseService:Start()
 		while true do
 			task.wait(Config.PaycheckInterval)
 			for _, player in Players:GetPlayers() do
-				if lotOf[player] and not player:GetAttribute("JailUntil") then
+				if lotOf[player] and not player:GetAttribute("JailUntil") and self.Services.DataService:Get(player) then
 					local base = Config.BasePaycheck + Config.Houses[self:GetTier(player)].Rent
 					if player.Team and player.Team.Name == "Police" then
 						base += Config.PolicePaycheck
 					end
 					local amount = self.Services.DataService:Earn(player, base)
 					self.Services.Net.SendNotify(player, `Paycheck +{Format.Cash(amount)}`, C.Green)
+					self.Services.ProgressService:Check(player)
 				end
 			end
 		end

@@ -23,6 +23,10 @@ local WorldService = {
 	Spawns = {} :: { [string]: Vector3 },
 	Showroom = {} :: { CFrame },
 	TeamObjects = {} :: { [string]: Team },
+	-- Update 2
+	SprayPad = nil :: BasePart?,
+	SpeedCams = {} :: { { Position: Vector3, Name: string } },
+	Tokens = {} :: { { Id: number, Position: Vector3 } },
 }
 
 local C = Config.Colors
@@ -263,6 +267,20 @@ local function plaza(c: Vector3)
 	})
 	board:SetAttribute("Title", "RICHEST IN TURBO CITY")
 	Build.Box(model, CFrame.new(c + Vector3.new(-62, 0, -6)), Vector3.new(2, 2, 2), INK)
+	-- Ranglisten fuer Polizei und Raeuber (Update 2)
+	for _, info in {
+		{ Name = "TopCopsBoard", Title = "TOP COPS (ARRESTS)", Z = -18, Color = C.Police },
+		{ Name = "TopRobbersBoard", Title = "MOST WANTED (LOOT GRABS)", Z = 18, Color = C.Robber },
+	} do
+		local extra = Build.Part(world, {
+			Name = info.Name,
+			Size = Vector3.new(24, 30, 1),
+			CFrame = facingCF(c + Vector3.new(64, 16, info.Z), Vector3.new(-1, 0, 0)),
+			Color = INK,
+		})
+		extra:SetAttribute("Title", info.Title)
+		Build.Box(model, CFrame.new(c + Vector3.new(64.8, 0, info.Z)), Vector3.new(1, 31, 25), info.Color)
+	end
 	WorldService.Spawns.Citizens = c + Vector3.new(0, 0, 40)
 end
 
@@ -461,6 +479,33 @@ local function hideout(c: Vector3)
 	WorldService.Spawns.Robbers = (cf * CFrame.new(0, 0.4, 12)).Position
 end
 
+-- Spray-Werkstatt: reinfahren und die Fahndungssterne verlieren (Update 2)
+local function sprayShop(c: Vector3)
+	local model = folder("SprayShop")
+	local cf = facingCF(c + Vector3.new(0, 0, -10), SOUTH)
+	hall(model, cf, 70, 24, 60, Color3.fromRGB(90, 80, 120), 30)
+	sign(model, cf * CFrame.new(0, 27.5, -30.5), Vector3.new(46, 8, 1), "TURBO SPRAY", C.Teal, C.Lemon)
+	for _, x in { -26, 26 } do
+		Build.Box(model, cf * CFrame.new(x, 0.4, 2), Vector3.new(3, 14, 3), C.Pink)
+		Build.Part(model, { Size = Vector3.new(2, 2, 2), CFrame = cf * CFrame.new(x * 0.88, 13, 2), Color = C.Lemon, Material = Enum.Material.Neon, CanCollide = false })
+	end
+	local pad = Build.Part(world, {
+		Name = "SprayPad",
+		Size = Vector3.new(30, 0.3, 34),
+		CFrame = cf * CFrame.new(0, 0.6, 2),
+		Color = C.Teal,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Transparency = 0.4,
+	})
+	Build.Billboard(pad, "DRIVE IN: LOSE YOUR STARS", C.Teal, 12, 140)
+	WorldService.SprayPad = pad
+	local containerColors = { C.Orange, C.Teal, C.Pink, C.Lemon }
+	for i = 0, 3 do
+		Build.Box(model, CFrame.new(c + Vector3.new(-66 + i * 44, 0, 58)), Vector3.new(18, 9, 30), containerColors[i + 1], Enum.Material.DiamondPlate)
+	end
+end
+
 local function industrial(c: Vector3)
 	local model = folder("Industrial")
 	local cf = facingCF(c + Vector3.new(0, 0, -30), SOUTH)
@@ -554,7 +599,7 @@ end
 ---------------------------------------------------------------- Stadtplan
 
 local MAP = {
-	{ "Jail", "Police", "Industrial", "Industrial", "Industrial", "Hideout" },
+	{ "Jail", "Police", "Industrial", "Industrial", "Spray", "Hideout" },
 	{ "Towers", "Towers", "Bank", "Towers", "Gems", "Towers" },
 	{ "Towers", "Shops", "Plaza", "Towers", "Shops", "Gas" },
 	{ "Towers", "Dealership", "Shops", "Depot", "Stunt", "Donut" },
@@ -567,6 +612,7 @@ local BUILDERS = {
 	Police = policeStation,
 	Industrial = industrial,
 	Hideout = hideout,
+	Spray = sprayShop,
 	Towers = function(c)
 		towers(c, 50, 170)
 	end,
@@ -727,6 +773,83 @@ local function buildStreetDetails()
 	Build.Sign(banner, "START / FINISH", Color3.new(1, 1, 1), INK, Enum.NormalId.Back)
 end
 
+-- Blitzer an langen Geraden (Update 2)
+local function buildSpeedCams()
+	local cams = folder("SpeedCams")
+	local spots = {
+		{ Position = Vector3.new(Config.RoadLine(3), 0, Config.BlockCenter(0, 1).Z), Side = Vector3.new(1, 0, 0), Name = "Downtown" },
+		{ Position = Vector3.new(Config.BlockCenter(4, 0).X, 0, Config.RoadLine(3)), Side = Vector3.new(0, 0, 1), Name = "Midtown" },
+		{ Position = Vector3.new(Config.BlockCenter(1, 0).X, 0, Config.RoadLine(6)), Side = Vector3.new(0, 0, -1), Name = "Beach Road" },
+		{ Position = Vector3.new(Config.RoadLine(6), 0, Config.BlockCenter(0, 4).Z), Side = Vector3.new(-1, 0, 0), Name = "East Side" },
+	}
+	for _, spot in spots do
+		local base = spot.Position + spot.Side * (Config.Road / 2 + 3)
+		Build.Box(cams, CFrame.new(base), Vector3.new(1, 14, 1), INK)
+		local box = Build.Part(cams, {
+			Size = Vector3.new(3, 2.4, 3),
+			CFrame = CFrame.lookAt(base + Vector3.new(0, 14, 0), spot.Position + Vector3.new(0, 14, 0)),
+			Color = C.Lemon,
+		})
+		Build.Part(cams, {
+			Size = Vector3.new(1.2, 1.2, 0.4),
+			CFrame = box.CFrame * CFrame.new(0, 0, -1.6),
+			Color = C.Robber,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		}):AddTag("Blink")
+		Build.Billboard(box, "SPEED CAM", C.Lemon, 3, 160)
+		table.insert(WorldService.SpeedCams, { Position = spot.Position, Name = spot.Name })
+	end
+end
+
+-- Versteckte Turbo-Token (Update 2)
+local function buildTokens()
+	local tokens = folder("Tokens")
+	local half = Config.CityHalf()
+	local spots = {
+		Config.BlockCenter(0, 4) + Vector3.new(-50, 3, -50), -- Park West
+		Config.BlockCenter(4, 4) + Vector3.new(55, 3, 55), -- Park Ost
+		Config.BlockCenter(4, 3) + Vector3.new(0, 20, -20), -- ueber der pinken Sprungschanze (nur mit dem Auto erreichbar)
+		Config.BlockCenter(2, 2) + Vector3.new(13, 4, 15), -- Brunnen
+		Vector3.new(-700, 3, half + 80), -- Strand
+		Vector3.new(30, 3, half + 120),
+		Vector3.new(650, 3, half + 70),
+		Config.BlockCenter(5, 0) + Vector3.new(0, 3, -64), -- hinter dem Versteck
+		Config.BlockCenter(0, 0) + Vector3.new(0, 3, -77), -- hinter dem Gefaengnis
+		Config.BlockCenter(1, 3) + Vector3.new(70, 3, 70), -- Autohaus
+		Config.BlockCenter(2, 0) + Vector3.new(0, 3, 17), -- Industrie
+		Config.BlockCenter(5, 2) + Vector3.new(-30, 3, 7), -- Tankstelle
+		Config.BlockCenter(2, 1) + Vector3.new(-70, 3, 70), -- Bank
+		Config.BlockCenter(5, 3) + Vector3.new(72, 3, -76), -- Donut-Laden
+		Vector3.new(0, 3, -half - 120), -- Wiese im Norden
+	}
+	for i, position in spots do
+		local coin = Build.Part(tokens, {
+			Name = "TurboToken",
+			Size = Vector3.new(0.7, 4, 4),
+			Shape = Enum.PartType.Cylinder,
+			CFrame = CFrame.new(position),
+			Color = Color3.fromRGB(255, 200, 40),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			CanQuery = false,
+		})
+		coin:SetAttribute("TokenId", i)
+		coin:AddTag("Spin")
+		coin:AddTag("TurboToken")
+		local sparkle = Instance.new("ParticleEmitter")
+		sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		sparkle.Color = ColorSequence.new(C.Lemon)
+		sparkle.Size = NumberSequence.new(0.8, 0)
+		sparkle.Rate = 6
+		sparkle.Lifetime = NumberRange.new(0.8, 1.2)
+		sparkle.Speed = NumberRange.new(2)
+		sparkle.LightEmission = 1
+		sparkle.Parent = coin
+		table.insert(WorldService.Tokens, { Id = i, Position = position })
+	end
+end
+
 local function setupLighting()
 	Lighting.ClockTime = 14
 	Lighting.Brightness = 2.4
@@ -810,6 +933,8 @@ function WorldService:Build()
 		end
 	end
 	buildStreetDetails()
+	buildSpeedCams()
+	buildTokens()
 	setupTeams()
 end
 

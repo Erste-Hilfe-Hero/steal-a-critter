@@ -33,10 +33,32 @@ end
 check("race reward", Config.RaceReward(60) > Config.RaceReward(120))
 check("starter car exists", Config.CarsById[Config.DevProducts.StarterPack.Car] ~= nil)
 
+-- Update 2: Fortschritt, Gluecksrad, Tuning, Events
+local KNOWN_STATS = { Deliveries = true, Arrests = true, Robberies = true, Races = true, Trucks = true, TopSpeed = true, Chores = true, Level = true, Tokens = true, House = true, Cars = true, TotalEarned = true }
+local titles = {}
+for _, achievement in Config.Achievements do
+	check("achievement stat " .. achievement.Id, KNOWN_STATS[achievement.Stat] == true and achievement.Goal > 0 and achievement.Reward > 0, achievement.Stat)
+	check("achievement title unique " .. achievement.Id, titles[achievement.Title] == nil and #achievement.Title <= 40, achievement.Title)
+	titles[achievement.Title] = true
+end
+check("xp curve grows", Config.XpForLevel(2) > Config.XpForLevel(1) and Config.XpForLevel(1) > 0)
+local weights = 0
+for _, prize in Config.SpinPrizes do
+	weights += prize.Weight
+	check("spin prize " .. prize.Label, (prize.Cash or prize.Xp or 0) > 0 and prize.Weight > 0)
+end
+check("spin weights", weights > 0)
+for _, car in Config.Cars do
+	check("tune cost " .. car.Id, Config.TuneCost(car, 1) > 0 and Config.TuneCost(car, Config.TuneMax) >= Config.TuneCost(car, 1))
+end
+check("city events", #Config.CityEvents >= 2 and Config.EventsById.CrimeWave ~= nil and Config.EventsById.DoubleBounty ~= nil and Config.EventsById.RushHour ~= nil)
+check("tutorial steps", #Config.Tutorial >= 3)
+check("max tune product", Config.DevProducts.MaxTune ~= nil and Config.DevProducts.MaxTune.Kind == "MaxTune")
+
 -- Services laden und starten wie init.server.luau
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
-local ORDER = { "DataService", "WorldService", "VehicleService", "HouseService", "JobService", "MonetizationService", "RewardService", "CommunityService" }
+local ORDER = { "DataService", "WorldService", "VehicleService", "HouseService", "JobService", "MonetizationService", "RewardService", "CommunityService", "ProgressService", "EventService" }
 local services = {}
 local ok, err = pcall(function()
 	services.Net = require(folder.Services.Net)
@@ -83,6 +105,17 @@ if ok then
 	check("nearest road point on road", onRoad, point)
 	check("leaderboard part", workspace:FindFirstChild("Leaderboard", true) ~= nil)
 	check("showroom spots", #world.Showroom >= 4, #world.Showroom)
+	check("turbo tokens", #world.Tokens == Config.AchievementsById.Tokens.Goal, #world.Tokens)
+	check("speed cams", #world.SpeedCams >= 3, #world.SpeedCams)
+	check("spray pad", world.SprayPad ~= nil)
+	check("top cops board", workspace:FindFirstChild("TopCopsBoard", true) ~= nil)
+	check("top robbers board", workspace:FindFirstChild("TopRobbersBoard", true) ~= nil)
+	for _, landmark in Config.Landmarks do
+		check("landmark block " .. landmark.Name, landmark.Block[1] < Config.Grid and landmark.Block[2] < Config.Grid)
+	end
+	local fake = { Level = 3, TotalEarned = 10, Tokens = { ["1"] = true }, Cars = { bubble = true }, House = 2, Stats = { Arrests = 4 } }
+	local stat = services.ProgressService.StatValue
+	check("stat values", stat(fake, "Level") == 3 and stat(fake, "Tokens") == 1 and stat(fake, "Cars") == 1 and stat(fake, "Arrests") == 4 and stat(fake, "Trucks") == 0)
 
 	-- Jede Hausstufe bauen
 	for tier = 1, #Config.Houses do
@@ -152,6 +185,21 @@ if ok then
 	check("start services", ok, err)
 	check("request remote", ReplicatedStorage:FindFirstChild("Remotes") ~= nil and ReplicatedStorage.Remotes:FindFirstChild("Request") ~= nil)
 	check("showroom cars", #workspace:GetChildren() > 5)
+	check("celebrate remote", ReplicatedStorage.Remotes:FindFirstChild("Celebrate") ~= nil)
+	check("chore remote", ReplicatedStorage.Remotes:FindFirstChild("Chore") ~= nil)
+	if ok then
+		local eventOk, eventErr = pcall(function()
+			services.EventService:StartEvent("CrimeWave")
+			check("city event active", services.EventService:Active("CrimeWave") and not services.EventService:Active("RushHour"))
+			workspace:SetAttribute("EventId", nil)
+			workspace:SetAttribute("EventUntil", nil)
+			local spawned = services.EventService:SpawnTruck()
+			check("armored truck spawns", spawned and workspace:FindFirstChild("ArmoredTruck") ~= nil and workspace:GetAttribute("TruckAt") ~= nil)
+			services.EventService:DespawnTruck()
+			check("armored truck despawns", workspace:FindFirstChild("ArmoredTruck") == nil and workspace:GetAttribute("TruckAt") == nil)
+		end)
+		check("events ran", eventOk, eventErr)
+	end
 end
 
 table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)

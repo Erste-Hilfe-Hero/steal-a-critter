@@ -17,6 +17,7 @@ local Drive = {
 	NitroActive = false,
 	NitroCharge = 1, -- 0..1 bis Nitro wieder bereit ist
 	OnNitroLocked = nil :: (() -> ())?,
+	FovEffects = true, -- Einstellung "Speed FX"
 }
 
 local currentSeat: VehicleSeat? = nil
@@ -181,7 +182,7 @@ local function step(dt: number)
 	Drive.NitroActive = nitro
 	Drive.NitroCharge = math.clamp(1 - (nitroReadyAt - now) / Config.NitroCooldown, 0, 1)
 	if camera then
-		local targetFov = 70 + math.clamp((math.abs(speed) - 50) / 70, 0, 1) * 12 + (if nitro then 8 else 0)
+		local targetFov = if Drive.FovEffects then 70 + math.clamp((math.abs(speed) - 50) / 70, 0, 1) * 12 + (if nitro then 8 else 0) else 70
 		camera.FieldOfView += (targetFov - camera.FieldOfView) * math.min(1, dt * 4)
 	end
 end

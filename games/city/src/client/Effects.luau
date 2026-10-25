@@ -17,6 +17,7 @@ local Effects = {
 	MarkerLabel = nil :: string?,
 	MarkerKind = nil :: string?,
 	OnOpenUI = nil :: ((string) -> ())?,
+	ShowPillar = true, -- Einstellung "GPS"
 }
 
 local MARKER_COLORS = {
@@ -24,7 +25,9 @@ local MARKER_COLORS = {
 	Race = C.Teal,
 	Hideout = C.Green,
 	Alarm = C.Robber,
+	Truck = C.Lemon,
 }
+Effects.MarkerColors = MARKER_COLORS
 
 local markerFolder = Instance.new("Folder")
 markerFolder.Name = "LocalMarker"
@@ -54,6 +57,8 @@ function Effects.SetMarker(position: Vector3?, label: string?, kind: string?)
 	pillar.Transparency = 0.45
 	pillar.Size = Vector3.new(4, 160, 4)
 	pillar.CFrame = CFrame.new(position + Vector3.new(0, 80, 0))
+	pillar.Name = "Pillar"
+	pillar.LocalTransparencyModifier = if Effects.ShowPillar then 0 else 1
 	pillar.Parent = markerFolder
 	local ring = Instance.new("Part")
 	ring.Anchored = true
@@ -216,6 +221,23 @@ function Effects.Start()
 				end
 				(head :: BasePart).Material = if night then Enum.Material.Neon else Enum.Material.SmoothPlastic
 			end
+			-- Schon gefundene Turbo-Token nur fuer diesen Spieler ausblenden
+			local found = {}
+			for id in string.gmatch(player:GetAttribute("Tokens") or "", "[^,]+") do
+				found[id] = true
+			end
+			for _, coin in CollectionService:GetTagged("TurboToken") do
+				local taken = found[tostring(coin:GetAttribute("TokenId"))] == true
+				(coin :: BasePart).LocalTransparencyModifier = if taken then 1 else 0
+				local sparkle = coin:FindFirstChildOfClass("ParticleEmitter")
+				if sparkle then
+					sparkle.Enabled = not taken
+				end
+			end
+			local pillar = markerFolder:FindFirstChild("Pillar") :: BasePart?
+			if pillar then
+				pillar.LocalTransparencyModifier = if Effects.ShowPillar then 0 else 1
+			end
 			task.wait(0.5)
 		end
 	end)
@@ -228,6 +250,11 @@ function Effects.Start()
 		for _, part in CollectionService:GetTagged("Spin") do
 			local p = part :: BasePart
 			p.CFrame = CFrame.new(p.Position) * CFrame.Angles(0, dt * 1.6, 0) * p.CFrame.Rotation
+		end
+		-- Drehteller im Autohaus
+		for _, part in CollectionService:GetTagged("SlowSpin") do
+			local p = part :: BasePart
+			p.CFrame = CFrame.new(p.Position) * CFrame.Angles(0, dt * 0.4, 0) * p.CFrame.Rotation
 		end
 		for _, part in CollectionService:GetTagged("Blink") do
 			(part :: BasePart).Transparency = if math.floor(t * 1.5) % 2 == 0 then 0 else 0.7

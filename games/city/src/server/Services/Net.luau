@@ -19,6 +19,8 @@ Net.Offer = remote("Offer") -- Server -> ein Spieler (Produkt-Schluessel, Grund)
 Net.Marker = remote("Marker") -- Server -> ein Spieler (Position oder nil, Beschriftung, Art)
 Net.FakePurchase = remote("FakePurchase") -- Client -> Server (nur Studio)
 Net.WatchAd = remote("WatchAd") -- Client -> Server: Spieler will freiwillig eine Werbung sehen
+Net.Celebrate = remote("Celebrate") -- Server -> ein Spieler (Titel, Untertitel, Art): grosses Banner + Sound
+Net.Chore = remote("Chore") -- Client -> Server: im Gefaengnis putzen (verkuerzt die Strafe)
 
 Net.Request = Instance.new("RemoteFunction")
 Net.Request.Name = "Request"
