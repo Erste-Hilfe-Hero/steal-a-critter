@@ -3,6 +3,7 @@
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
@@ -36,7 +37,16 @@ local THEME = {
 	Orange = Color3.fromRGB(245, 145, 50),
 	Red = Color3.fromRGB(220, 70, 80),
 	Gray = Color3.fromRGB(78, 82, 104),
+	Rainbow = Color3.fromRGB(255, 120, 220),
 }
+
+local RAINBOW_SEQUENCE = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 90)),
+	ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 80)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 230, 120)),
+	ColorSequenceKeypoint.new(0.75, Color3.fromRGB(80, 160, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 100, 255)),
+})
 
 -- Symbol pro Shop-Eintrag
 local ICONS = {
@@ -146,17 +156,18 @@ end
 
 local clickSound: Sound
 local hatchSound: Sound
+local tapSound: Sound
 local function play(sound: Sound?)
-	if sound then
+	if sound and player:GetAttribute("Set_Sound") ~= false then
 		SoundService:PlayLocalSound(sound)
 	end
 end
 
 ---------------------------------------------------------------- Kleines Haustier-Gesicht aus UI-Elementen (fuer Karten)
 
-local function petAvatar(parent: Instance, typeId: string, golden: boolean, size: number): Frame
+local function petAvatar(parent: Instance, typeId: string, golden: boolean, size: number, rainbow: boolean?): Frame
 	local def = Config.PetsById[typeId]
-	local color = if golden then THEME.Gold else def.Color
+	local color = if rainbow then THEME.Rainbow elseif golden then THEME.Gold else def.Color
 	local holder = create("Frame", { Size = UDim2.fromOffset(size, size), BackgroundTransparency = 1, Parent = parent }) :: Frame
 	if def.Ears then
 		for _, x in { 0.2, 0.8 } do
@@ -173,6 +184,9 @@ local function petAvatar(parent: Instance, typeId: string, golden: boolean, size
 		BackgroundColor3 = color,
 		Parent = holder,
 	}, { create("UICorner", { CornerRadius = UDim.new(if def.Shape == "Ball" then 0.5 else 0.28, 0) }), outline(2) })
+	if rainbow then
+		create("UIGradient", { Color = RAINBOW_SEQUENCE, Rotation = 30, Parent = body })
+	end
 	for _, x in { 0.32, 0.68 } do
 		create("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(x, 0.42), Size = UDim2.fromScale(0.18, 0.24), BackgroundColor3 = THEME.Outline, Parent = body }, {
 			create("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
@@ -236,10 +250,13 @@ local function showAnnouncement(message: string, color: Color3?)
 end
 
 -- "+123" ueber zerstoerten Sachen
-local function coinPop(amount: number, position: Vector3)
+local function coinPop(amount: number, position: Vector3, color: Color3?, prefix: string?)
+	if player:GetAttribute("Set_CoinPops") == false then
+		return
+	end
 	local anchor = create("Part", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, Transparency = 1, Size = Vector3.one, Position = position, Parent = workspace })
 	local gui = create("BillboardGui", { Size = UDim2.fromOffset(160, 44), AlwaysOnTop = true, MaxDistance = 120, Parent = anchor })
-	local label = text({ Size = UDim2.fromScale(1, 1), Text = "+" .. Format.Number(amount), TextColor3 = THEME.Coin, Font = TITLE_FONT, TextScaled = true, Parent = gui }, 2)
+	local label = text({ Size = UDim2.fromScale(1, 1), Text = (prefix or "+") .. Format.Number(amount), TextColor3 = color or THEME.Coin, Font = TITLE_FONT, TextScaled = true, Parent = gui }, 2)
 	TweenService:Create(gui, TweenInfo.new(1), { StudsOffset = Vector3.new(0, 4, 0) }):Play()
 	TweenService:Create(label, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { TextTransparency = 1 }):Play()
 	task.delay(1, function()
@@ -379,7 +396,7 @@ local refreshPets: () -> () = function() end
 local function sortedPets()
 	local list = {}
 	for uid, pet in inventory do
-		table.insert(list, { Uid = uid, Pet = pet, Power = Config.PetPower(pet.T, pet.G), Equipped = table.find(equipped, uid) ~= nil })
+		table.insert(list, { Uid = uid, Pet = pet, Power = Config.PetPower(pet.T, pet.G, pet.R), Equipped = table.find(equipped, uid) ~= nil })
 	end
 	table.sort(list, function(a, b)
 		if a.Equipped ~= b.Equipped then
@@ -393,10 +410,11 @@ local function sortedPets()
 	return list
 end
 
-local function countOf(typeId: string): number
+-- Wie viele Haustiere dieser Art kann man verbrauchen? (golden = goldene zaehlen; gesperrte nie)
+local function countOf(typeId: string, golden: boolean): number
 	local count = 0
 	for _, pet in inventory do
-		if pet.T == typeId and not pet.G then
+		if pet.T == typeId and (pet.G == true) == golden and not pet.R and not pet.L then
 			count += 1
 		end
 	end
@@ -409,7 +427,8 @@ local function buildPetsWindow(): Frame
 
 	local toolbar = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = body }, { listLayout(Enum.FillDirection.Horizontal, 10) })
 	local equipBest = button({ Size = UDim2.fromOffset(170, 40), Text = "Equip Best", TextSize = 18, LayoutOrder = 1, Parent = toolbar }, THEME.Green)
-	local deleteWeak = button({ Size = UDim2.fromOffset(260, 40), Text = "Delete Unequipped Commons", TextSize = 16, LayoutOrder = 2, Parent = toolbar }, THEME.Red)
+	local deleteWeak = button({ Size = UDim2.fromOffset(270, 40), Text = "Delete Commons & Uncommons", TextSize = 15, LayoutOrder = 2, Parent = toolbar }, THEME.Red)
+	text({ Size = UDim2.fromOffset(170, 40), Text = "Locked and equipped pets are kept", TextSize = 13, TextColor3 = THEME.Muted, TextWrapped = true, LayoutOrder = 3, Parent = toolbar })
 
 	local grid = create("ScrollingFrame", {
 		Position = UDim2.fromOffset(0, 50),
@@ -426,10 +445,12 @@ local function buildPetsWindow(): Frame
 	local detail = create("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 86), BackgroundColor3 = THEME.Row, Parent = body }, { corner(12), edge() })
 	local detailText = text({ Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 0, 28), Text = "", TextSize = 20, Font = TITLE_FONT, TextXAlignment = Enum.TextXAlignment.Left, Parent = detail })
 	local actions = create("Frame", { Position = UDim2.fromOffset(14, 40), Size = UDim2.new(1, -28, 0, 38), BackgroundTransparency = 1, Parent = detail }, { listLayout(Enum.FillDirection.Horizontal, 10) })
-	local equipButton = button({ Size = UDim2.fromOffset(170, 38), Text = "Equip", TextSize = 18, LayoutOrder = 1, Parent = actions }, THEME.Blue)
-	local goldenButton = button({ Size = UDim2.fromOffset(190, 38), Text = "Golden", TextSize = 18, LayoutOrder = 2, Parent = actions }, THEME.Orange)
-	local deleteButton = button({ Size = UDim2.fromOffset(150, 38), Text = "Delete", TextSize = 18, LayoutOrder = 3, Parent = actions }, THEME.Red)
+	local equipButton = button({ Size = UDim2.fromOffset(140, 38), Text = "Equip", TextSize = 18, LayoutOrder = 1, Parent = actions }, THEME.Blue)
+	local goldenButton = button({ Size = UDim2.fromOffset(200, 38), Text = "Golden", TextSize = 17, LayoutOrder = 2, Parent = actions }, THEME.Orange)
+	local lockButton = button({ Size = UDim2.fromOffset(100, 38), Text = "Lock", TextSize = 18, LayoutOrder = 3, Parent = actions }, THEME.Purple)
+	local deleteButton = button({ Size = UDim2.fromOffset(120, 38), Text = "Delete", TextSize = 18, LayoutOrder = 4, Parent = actions }, THEME.Red)
 	local deleteArmed = false
+	local weakArmed = 0 -- Zeitpunkt der ersten Beruehrung von "Delete Commons" (zweites Tippen bestaetigt)
 
 	local function refreshDetail()
 		local pet = selected and inventory[selected]
@@ -443,13 +464,23 @@ local function buildPetsWindow(): Frame
 			return
 		end
 		local def = Config.PetsById[pet.T]
-		detailText.Text = `{if pet.G then "Golden " else ""}{def.Name}  ·  {def.Rarity}  ·  Power {Format.Number(Config.PetPower(pet.T, pet.G))}`
-		detailText.TextColor3 = if pet.G then THEME.Gold else Config.RaritiesByName[def.Rarity].Color
+		local tier = if pet.R then "Rainbow " elseif pet.G then "Golden " else ""
+		detailText.Text = `{if pet.L then "🔒 " else ""}{tier}{def.Name}  ·  {def.Rarity}  ·  Power {Format.Number(Config.PetPower(pet.T, pet.G, pet.R))}`
+		detailText.TextColor3 = if pet.R then THEME.Rainbow elseif pet.G then THEME.Gold else Config.RaritiesByName[def.Rarity].Color
 		equipButton.Text = if table.find(equipped, selected) then "Unequip" else "Equip"
-		local count = countOf(pet.T)
-		goldenButton.Visible = not pet.G
-		goldenButton.Text = `Make Golden {math.min(count, Config.GoldenCraftAmount)}/{Config.GoldenCraftAmount}`
-		goldenButton.BackgroundColor3 = if count >= Config.GoldenCraftAmount then THEME.Orange else THEME.Gray
+		-- Normal -> Golden (5 gleiche), Golden -> Rainbow (5 gleiche goldene), Rainbow ist die hoechste Stufe
+		goldenButton.Visible = not pet.R
+		if pet.G then
+			local count = countOf(pet.T, true)
+			goldenButton.Text = `Make Rainbow {math.min(count, Config.RainbowCraftAmount)}/{Config.RainbowCraftAmount}`
+			goldenButton.BackgroundColor3 = if count >= Config.RainbowCraftAmount then THEME.Pink else THEME.Gray
+		else
+			local count = countOf(pet.T, false)
+			goldenButton.Text = `Make Golden {math.min(count, Config.GoldenCraftAmount)}/{Config.GoldenCraftAmount}`
+			goldenButton.BackgroundColor3 = if count >= Config.GoldenCraftAmount then THEME.Orange else THEME.Gray
+		end
+		lockButton.Text = if pet.L then "Unlock" else "Lock"
+		deleteButton.Visible = not pet.L
 	end
 
 	refreshPets = function()
@@ -467,11 +498,14 @@ local function buildPetsWindow(): Frame
 			local card = create("TextButton", {
 				Text = "",
 				LayoutOrder = order,
-				BackgroundColor3 = if item.Pet.G then Color3.fromRGB(110, 86, 24) else rarity.Color:Lerp(THEME.PanelDark, 0.62),
+				BackgroundColor3 = if item.Pet.R then Color3.fromRGB(150, 150, 150) elseif item.Pet.G then Color3.fromRGB(110, 86, 24) else rarity.Color:Lerp(THEME.PanelDark, 0.62),
 				AutoButtonColor = true,
 				Parent = grid,
 			}, { corner(12), create("UIStroke", { Thickness = if isSelected then 3 else 1.5, Color = if isSelected then Color3.new(1, 1, 1) else rarity.Color, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }) }) :: TextButton
-			local avatar = petAvatar(card, item.Pet.T, item.Pet.G, 50)
+			if item.Pet.R then
+				create("UIGradient", { Color = RAINBOW_SEQUENCE, Rotation = 45, Transparency = NumberSequence.new(0.35), Parent = card })
+			end
+			local avatar = petAvatar(card, item.Pet.T, item.Pet.G, 50, item.Pet.R)
 			avatar.AnchorPoint = Vector2.new(0.5, 0)
 			avatar.Position = UDim2.new(0.5, 0, 0, 8)
 			text({ Position = UDim2.fromOffset(4, 62), Size = UDim2.new(1, -8, 0, 20), Text = def.Name, TextSize = 14, TextTruncate = Enum.TextTruncate.AtEnd, Parent = card })
@@ -479,6 +513,9 @@ local function buildPetsWindow(): Frame
 			if item.Equipped then
 				create("Frame", { Position = UDim2.fromOffset(6, 6), Size = UDim2.fromOffset(20, 20), BackgroundColor3 = THEME.Green, Parent = card }, { create("UICorner", { CornerRadius = UDim.new(0.5, 0) }), outline(1.5) })
 				text({ Position = UDim2.fromOffset(6, 6), Size = UDim2.fromOffset(20, 20), Text = "✓", TextSize = 14, Parent = card })
+			end
+			if item.Pet.L then
+				text({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 4), Size = UDim2.fromOffset(22, 22), Text = "🔒", TextSize = 16, Parent = card })
 			end
 			card.Activated:Connect(function()
 				play(clickSound)
@@ -499,13 +536,28 @@ local function buildPetsWindow(): Frame
 		local uids = {}
 		for uid, pet in inventory do
 			local rarity = Config.RaritiesByName[Config.PetsById[pet.T].Rarity]
-			if rarity.Index <= 2 and not pet.G and not table.find(equipped, uid) then
+			if rarity.Index <= 2 and not pet.G and not pet.R and not pet.L and not table.find(equipped, uid) then
 				table.insert(uids, uid)
 			end
 		end
-		if #uids > 0 then
-			remotes.DeletePets:FireServer(uids)
+		if #uids == 0 then
+			showToast("No unequipped Common or Uncommon pets to delete.", THEME.Muted)
+			return
 		end
+		-- Erst nach einer Bestaetigung loeschen (ein Tippen aus Versehen kostet sonst viele Haustiere)
+		if os.clock() - weakArmed > 3 then
+			weakArmed = os.clock()
+			deleteWeak.Text = `Sure? Delete {#uids} pets`
+			task.delay(3, function()
+				if os.clock() - weakArmed >= 2.9 then
+					deleteWeak.Text = "Delete Commons & Uncommons"
+				end
+			end)
+			return
+		end
+		weakArmed = 0
+		deleteWeak.Text = "Delete Commons & Uncommons"
+		remotes.DeletePets:FireServer(uids)
 	end)
 	equipButton.Activated:Connect(function()
 		play(clickSound)
@@ -516,8 +568,16 @@ local function buildPetsWindow(): Frame
 	goldenButton.Activated:Connect(function()
 		play(clickSound)
 		local pet = selected and inventory[selected]
-		if pet then
+		if pet and pet.G then
+			remotes.CraftRainbow:FireServer(pet.T)
+		elseif pet then
 			remotes.CraftGolden:FireServer(pet.T)
+		end
+	end)
+	lockButton.Activated:Connect(function()
+		play(clickSound)
+		if selected then
+			remotes.ToggleLock:FireServer(selected)
 		end
 	end)
 	deleteButton.Activated:Connect(function()
@@ -651,6 +711,411 @@ local function buildShopWindow(): Frame
 	return frame
 end
 
+---------------------------------------------------------------- Fortschritt (Aufgaben, Erfolge, Index, Geschenke)
+
+-- Zustand vom Server (ProgressService:Push)
+local progressState: any = { Quests = {}, Achievements = {}, Discovered = {}, Title = "", PlaytimeClaimed = {}, Stats = {} }
+local progressListeners: { () -> () } = {}
+
+-- Fenster nur neu aufbauen, wenn sie offen sind (Updates kommen beim Farmen jede Sekunde); beim Oeffnen sofort
+local function onProgress(frame: Frame, callback: () -> ())
+	table.insert(progressListeners, function()
+		if frame.Visible then
+			callback()
+		end
+	end)
+	frame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if frame.Visible then
+			callback()
+		end
+	end)
+end
+
+-- "5h 03m" bzw. "12:30" fuer kurze Zeiten
+local function longTime(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	if seconds >= 3600 then
+		return string.format("%dh %02dm", seconds // 3600, (seconds % 3600) // 60)
+	end
+	return Format.Time(seconds)
+end
+
+local function scrollList(parent: Instance, position: UDim2, size: UDim2): ScrollingFrame
+	return create("ScrollingFrame", {
+		Position = position,
+		Size = size,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 5,
+		ScrollBarImageColor3 = THEME.Muted,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		Parent = parent,
+	}, { listLayout(Enum.FillDirection.Vertical, 8), padding(2, 2) }) :: ScrollingFrame
+end
+
+local function clearList(list: Instance)
+	for _, child in list:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+end
+
+local function progressBar(parent: Instance, position: UDim2, size: UDim2, ratio: number, color: Color3): Frame
+	local back = create("Frame", { Position = position, Size = size, BackgroundColor3 = THEME.PanelDark, Parent = parent }, { create("UICorner", { CornerRadius = UDim.new(0.5, 0) }) }) :: Frame
+	create("Frame", { Size = UDim2.fromScale(math.clamp(ratio, 0, 1), 1), BackgroundColor3 = color, Parent = back }, { create("UICorner", { CornerRadius = UDim.new(0.5, 0) }) })
+	return back
+end
+
+local function rewardText(reward): string
+	if reward.BoostSeconds then
+		return `⚡ 2x Coins {reward.BoostSeconds // 60} min`
+	end
+	return `🪙 coins for {reward.Eggs} egg{if reward.Eggs == 1 then "" else "s"}`
+end
+
+local function rowFrame(parent: Instance, height: number, order: number): Frame
+	return create("Frame", { Size = UDim2.new(1, -8, 0, height), BackgroundColor3 = THEME.Row, LayoutOrder = order, Parent = parent }, { corner(12), edge() }) :: Frame
+end
+
+local function leftText(props): TextLabel
+	props.TextXAlignment = Enum.TextXAlignment.Left
+	props.TextTruncate = props.TextTruncate or Enum.TextTruncate.AtEnd
+	return text(props)
+end
+
+---------------------------------------------------------------- Ziel fuer neue Spieler
+
+-- Naechstes sinnvolles Ziel als Text und (wenn vorhanden) das Teil in der Welt, auf das der Pfeil zeigt
+local function currentGoal(): (string?, BasePart?)
+	local world = workspace:FindFirstChild("World")
+	local zones = world and world:FindFirstChild("Zones")
+	if not zones then
+		return nil, nil
+	end
+	local coins = player:GetAttribute("Coins") or 0
+	local zone = player:GetAttribute("Zone") or 1
+	local hatched = player:GetAttribute("Hatched") or 0
+	local function zonePart(index: number, name: string): BasePart?
+		local folder = zones:FindFirstChild("Zone" .. index)
+		return folder and folder:FindFirstChild(name) :: BasePart?
+	end
+	if player:GetAttribute("DailyReady") then
+		return "Claim your free Daily Gift!", world:FindFirstChild("DailyGift") :: BasePart?
+	end
+	local firstEgg = Config.EggByZone[1]
+	if hatched == 0 then
+		if coins >= firstEgg.Price then
+			return `Hatch your first pet at the {firstEgg.Name}!`, zonePart(1, "Egg")
+		end
+		return `Break coin piles to get {Format.Coins(firstEgg.Price)}`, nil
+	end
+	local nextZone = Config.Zones[zone + 1]
+	if nextZone then
+		if coins >= nextZone.GateCost then
+			return `Unlock {nextZone.Name}!`, zonePart(zone + 1, "GateSign")
+		end
+		return `Next: {nextZone.Name}  {Format.Number(coins)} / {Format.Number(nextZone.GateCost)}`, nil
+	end
+	if (player:GetAttribute("Rebirths") or 0) == 0 then
+		return "Collect coins for your first Rebirth!", nil
+	end
+	return nil, nil
+end
+
+---------------------------------------------------------------- Aufgaben und Erfolge
+
+local function buildQuestsWindow(): (Frame, TextLabel)
+	local frame, body = window("Quests", Vector2.new(580, 440))
+	local tabs = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = body }, { listLayout(Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Left, Enum.VerticalAlignment.Center) })
+	local questTab = button({ Size = UDim2.fromOffset(150, 40), Text = "Daily Quests", TextSize = 17, LayoutOrder = 1, Parent = tabs }, THEME.Green)
+	local achTab = button({ Size = UDim2.fromOffset(160, 40), Text = "Achievements", TextSize = 17, LayoutOrder = 2, Parent = tabs }, THEME.Gray)
+	local resetLabel = text({ Size = UDim2.fromOffset(200, 40), Text = "", TextSize = 14, TextColor3 = THEME.Muted, LayoutOrder = 3, Parent = tabs })
+	local questList = scrollList(body, UDim2.fromOffset(0, 50), UDim2.new(1, 0, 1, -50))
+	local achList = scrollList(body, UDim2.fromOffset(0, 50), UDim2.new(1, 0, 1, -50))
+	achList.Visible = false
+
+	local function showTab(questsVisible: boolean)
+		questList.Visible = questsVisible
+		achList.Visible = not questsVisible
+		questTab.BackgroundColor3 = if questsVisible then THEME.Green else THEME.Gray
+		achTab.BackgroundColor3 = if questsVisible then THEME.Gray else THEME.Purple
+	end
+	questTab.Activated:Connect(function()
+		play(clickSound)
+		showTab(true)
+	end)
+	achTab.Activated:Connect(function()
+		play(clickSound)
+		showTab(false)
+	end)
+
+	local function refresh()
+		clearList(questList)
+		for order, quest in progressState.Quests or {} do
+			local def = Config.QuestsById[quest.Id]
+			if def then
+				local row = rowFrame(questList, 72, order)
+				local done = quest.Progress >= def.Goal
+				leftText({ Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -170, 0, 24), Text = def.Text, Font = TITLE_FONT, TextSize = 20, Parent = row })
+				leftText({ Position = UDim2.fromOffset(14, 33), Size = UDim2.new(1, -170, 0, 18), Text = `{math.min(quest.Progress, def.Goal)}/{def.Goal}  ·  {rewardText(def)}`, TextSize = 14, TextColor3 = THEME.Muted, Parent = row })
+				progressBar(row, UDim2.fromOffset(14, 56), UDim2.new(1, -170, 0, 8), quest.Progress / def.Goal, if done then THEME.Gold else THEME.Green)
+				local claimable = done and not quest.Claimed
+				local claim = button({
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -12, 0.5, 0),
+					Size = UDim2.fromOffset(130, 44),
+					Text = if quest.Claimed then "Done ✓" elseif done then "Claim" else "In progress",
+					TextSize = if claimable then 20 else 15,
+					Parent = row,
+				}, if claimable then THEME.Green else THEME.Gray)
+				claim.Activated:Connect(function()
+					play(clickSound)
+					if claimable then
+						remotes.ClaimQuest:FireServer(quest.Id)
+					end
+				end)
+			end
+		end
+		text({ Size = UDim2.new(1, -8, 0, 30), Text = "New quests every day. Rewards grow with your best zone!", TextSize = 14, TextColor3 = THEME.Muted, TextWrapped = true, LayoutOrder = 99, Parent = questList })
+
+		clearList(achList)
+		for order, achievement in Config.Achievements do
+			local unlocked = progressState.Achievements and progressState.Achievements[achievement.Id] == true
+			local value = (progressState.Stats and progressState.Stats[achievement.Stat]) or 0
+			local row = rowFrame(achList, 66, order)
+			leftText({ Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -170, 0, 24), Text = (if unlocked then "🏆 " else "🔒 ") .. achievement.Title, Font = TITLE_FONT, TextSize = 20, TextColor3 = if unlocked then THEME.Gold else THEME.Text, Parent = row })
+			leftText({ Position = UDim2.fromOffset(14, 34), Size = UDim2.new(1, -170, 0, 18), Text = `{achievement.Text}  ·  {rewardText(achievement)}`, TextSize = 14, TextColor3 = THEME.Muted, Parent = row })
+			if unlocked then
+				local using = progressState.Title == achievement.Id
+				local use = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(130, 42), Text = if using then "Title ON" else "Use Title", TextSize = 17, Parent = row }, if using then THEME.Green else THEME.Purple)
+				use.Activated:Connect(function()
+					play(clickSound)
+					remotes.SetTitle:FireServer(if using then "" else achievement.Id)
+				end)
+			else
+				text({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 10), Size = UDim2.fromOffset(130, 20), Text = `{Format.Number(math.min(value, achievement.Goal))} / {Format.Number(achievement.Goal)}`, TextSize = 15, Parent = row })
+				progressBar(row, UDim2.new(1, -142, 0, 38), UDim2.fromOffset(130, 10), value / achievement.Goal, THEME.Purple)
+			end
+		end
+		text({ Size = UDim2.new(1, -8, 0, 30), Text = "Your chosen title is shown above your head and in chat.", TextSize = 14, TextColor3 = THEME.Muted, TextWrapped = true, LayoutOrder = 99, Parent = achList })
+	end
+	onProgress(frame, refresh)
+	refresh()
+	return frame, resetLabel
+end
+
+---------------------------------------------------------------- Geschenke: Tages-Serie, Spielzeit, Codes
+
+local function buildGiftsWindow(): (Frame, () -> boolean)
+	local frame, body = window("Gifts", Vector2.new(540, 450))
+	local list = scrollList(body, UDim2.new(), UDim2.fromScale(1, 1))
+
+	-- Tages-Serie
+	local daily = rowFrame(list, 84, 1)
+	local streakLabel = leftText({ Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -170, 0, 26), Text = "", Font = TITLE_FONT, TextSize = 21, TextColor3 = THEME.Pink, Parent = daily })
+	local dailyInfo = text({ Position = UDim2.fromOffset(14, 36), Size = UDim2.new(1, -170, 0, 40), Text = "", TextSize = 14, TextColor3 = THEME.Muted, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Parent = daily })
+	local goGift = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(130, 44), Text = "Go to gift", TextSize = 17, Parent = daily }, THEME.Pink)
+	goGift.Activated:Connect(function()
+		play(clickSound)
+		remotes.Teleport:FireServer(1)
+		frame.Visible = false
+	end)
+
+	text({ Size = UDim2.new(1, -8, 0, 28), Text = "Playtime Gifts (this visit)", Font = TITLE_FONT, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2, Parent = list })
+	local playtimeRows = {}
+	for index, reward in Config.PlaytimeRewards do
+		local row = rowFrame(list, 52, 2 + index)
+		leftText({ Position = UDim2.fromOffset(14, 0), Size = UDim2.new(0, 90, 1, 0), Text = `⏱ {reward.Minutes} min`, Font = TITLE_FONT, TextSize = 18, Parent = row })
+		leftText({ Position = UDim2.fromOffset(110, 0), Size = UDim2.new(1, -260, 1, 0), Text = rewardText(reward), TextSize = 15, TextColor3 = THEME.Muted, Parent = row })
+		local claim = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(130, 38), Text = "", TextSize = 16, Parent = row }, THEME.Gray)
+		claim.Activated:Connect(function()
+			play(clickSound)
+			remotes.ClaimPlaytime:FireServer(index)
+		end)
+		playtimeRows[index] = claim
+	end
+
+	-- Codes
+	text({ Size = UDim2.new(1, -8, 0, 28), Text = "Codes", Font = TITLE_FONT, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 20, Parent = list })
+	local codeRow = rowFrame(list, 56, 21)
+	local codeBox = create("TextBox", {
+		Position = UDim2.fromOffset(10, 8),
+		Size = UDim2.new(1, -160, 0, 40),
+		BackgroundColor3 = THEME.PanelDark,
+		Text = "",
+		PlaceholderText = "Enter a code",
+		PlaceholderColor3 = THEME.Muted,
+		TextColor3 = THEME.Text,
+		Font = BODY_FONT,
+		TextSize = 18,
+		ClearTextOnFocus = false,
+		Parent = codeRow,
+	}, { corner(10), padding(10, 0) }) :: TextBox
+	local redeem = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(130, 40), Text = "Redeem", TextSize = 18, Parent = codeRow }, THEME.Green)
+	redeem.Activated:Connect(function()
+		play(clickSound)
+		local code = codeBox.Text
+		if code:match("%S") then
+			remotes.RedeemCode:FireServer(code:sub(1, 30))
+			codeBox.Text = ""
+		end
+	end)
+
+	-- Wird von der HUD-Schleife aufgerufen; gibt zurueck, ob ein Geschenk bereit ist (fuer das Badge)
+	local function update(): boolean
+		local nextDay = player:GetAttribute("DailyNextDay") or 1
+		local ready = player:GetAttribute("DailyReady") == true
+		local streak = player:GetAttribute("DailyStreak") or 0
+		local giftDay = if ready then nextDay else streak
+		streakLabel.Text = `🔥 Daily Gift  ·  Day {math.max(giftDay, 1)} streak`
+		dailyInfo.Text = if ready
+			then `Ready at the spawn! Coins for {Config.DailyGiftEggs(nextDay)} eggs. Day {Config.StreakMax} also gives free 2x Coins.`
+			else `Claimed today. Come back tomorrow for day {nextDay} (coins for {Config.DailyGiftEggs(nextDay)} eggs). Missing a day resets the streak.`
+		goGift.Visible = ready
+
+		local anyReady = false
+		local claimed = {}
+		for _, index in progressState.PlaytimeClaimed or {} do
+			claimed[index] = true
+		end
+		local elapsed = workspace:GetServerTimeNow() - (player:GetAttribute("SessionStart") or workspace:GetServerTimeNow())
+		for index, reward in Config.PlaytimeRewards do
+			local claim = playtimeRows[index]
+			local left = reward.Minutes * 60 - elapsed
+			if claimed[index] then
+				claim.Text = "Claimed ✓"
+				claim.BackgroundColor3 = THEME.Gray
+			elseif left <= 0 then
+				claim.Text = "Claim!"
+				claim.BackgroundColor3 = THEME.Green
+				anyReady = true
+			else
+				claim.Text = Format.Time(left)
+				claim.BackgroundColor3 = THEME.Gray
+			end
+		end
+		return anyReady
+	end
+	update()
+	return frame, update
+end
+
+---------------------------------------------------------------- Sammel-Index
+
+local function buildIndexWindow(): Frame
+	local frame, body = window("Index", Vector2.new(640, 450))
+	local bonusLabel = text({ Size = UDim2.new(1, 0, 0, 26), Text = "", TextSize = 16, TextColor3 = THEME.Gold, Parent = body })
+	local list = scrollList(body, UDim2.fromOffset(0, 32), UDim2.new(1, 0, 1, -32))
+
+	local function refresh()
+		clearList(list)
+		local discovered = progressState.Discovered or {}
+		local total, found = 0, 0
+		for order, egg in Config.Eggs do
+			local count = 0
+			for _, entry in egg.Pets do
+				total += 1
+				if discovered[entry.Pet] then
+					count += 1
+					found += 1
+				end
+			end
+			local complete = count == #egg.Pets
+			local section = rowFrame(list, 128, order)
+			leftText({ Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -24, 0, 24), Text = `{egg.Name}  {count}/{#egg.Pets}` .. (if complete then `  ✓ +{math.floor(Config.IndexBonusPerEgg * 100)}% coins` else ""), Font = TITLE_FONT, TextSize = 19, TextColor3 = if complete then THEME.Gold else THEME.Text, Parent = section })
+			local cells = create("Frame", { Position = UDim2.fromOffset(10, 34), Size = UDim2.new(1, -20, 0, 88), BackgroundTransparency = 1, Parent = section }, { listLayout(Enum.FillDirection.Horizontal, 8) })
+			for cellOrder, entry in egg.Pets do
+				local def = Config.PetsById[entry.Pet]
+				local known = discovered[entry.Pet] == true
+				local cell = create("Frame", { Size = UDim2.fromOffset(88, 88), BackgroundColor3 = if known then Config.RaritiesByName[def.Rarity].Color:Lerp(THEME.PanelDark, 0.62) else THEME.PanelDark, LayoutOrder = cellOrder, Parent = cells }, { corner(10) }) :: Frame
+				if known then
+					local avatar = petAvatar(cell, entry.Pet, false, 48)
+					avatar.AnchorPoint = Vector2.new(0.5, 0)
+					avatar.Position = UDim2.new(0.5, 0, 0, 6)
+					text({ Position = UDim2.fromOffset(2, 60), Size = UDim2.new(1, -4, 0, 22), Text = def.Name, TextSize = 12, TextWrapped = true, Parent = cell })
+				else
+					text({ Size = UDim2.new(1, 0, 0, 58), Text = "?", Font = TITLE_FONT, TextSize = 36, TextColor3 = THEME.Muted, Parent = cell })
+					text({ Position = UDim2.fromOffset(2, 60), Size = UDim2.new(1, -4, 0, 22), Text = def.Rarity, TextSize = 12, TextColor3 = Config.RaritiesByName[def.Rarity].Color, Parent = cell })
+				end
+			end
+		end
+		local completed = Config.CompletedEggs(discovered)
+		bonusLabel.Text = `Discovered {found}/{total}  ·  Complete eggs: {completed}/{#Config.Eggs}  ·  Bonus +{math.floor(completed * Config.IndexBonusPerEgg * 100)}% coins`
+	end
+	onProgress(frame, refresh)
+	refresh()
+	return frame
+end
+
+---------------------------------------------------------------- Schnellreise
+
+local function buildTravelWindow(): Frame
+	local frame, body = window("Travel", Vector2.new(440, 440))
+	local list = scrollList(body, UDim2.new(), UDim2.fromScale(1, 1))
+	local function refresh()
+		clearList(list)
+		local unlocked = player:GetAttribute("Zone") or 1
+		for index, zone in Config.Zones do
+			local row = rowFrame(list, 56, index)
+			create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(34, 34), BackgroundColor3 = zone.Ground, Parent = row }, { corner(8), outline(1.5) })
+			leftText({ Position = UDim2.fromOffset(54, 0), Size = UDim2.new(1, -200, 1, 0), Text = zone.Name, Font = TITLE_FONT, TextSize = 19, Parent = row })
+			local open = index <= unlocked
+			local go = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(130, 40), Text = if open then "Go" else "🔒 " .. Format.Number(zone.GateCost), TextSize = if open then 20 else 15, Parent = row }, if open then THEME.Blue else THEME.Gray)
+			go.Activated:Connect(function()
+				play(clickSound)
+				if open then
+					remotes.Teleport:FireServer(index)
+					frame.Visible = false
+				end
+			end)
+		end
+	end
+	player:GetAttributeChangedSignal("Zone"):Connect(refresh)
+	refresh()
+	return frame
+end
+
+---------------------------------------------------------------- Einstellungen
+
+local SETTING_ROWS = {
+	{ Key = "Sound", Text = "Sounds" },
+	{ Key = "OtherPets", Text = "Show other players' pets" },
+	{ Key = "CoinPops", Text = "Coin popups" },
+	{ Key = "Guide", Text = "Goal hint and arrow" },
+}
+
+local function buildSettingsWindow(): Frame
+	local frame, body = window("Settings", Vector2.new(440, 340))
+	local list = scrollList(body, UDim2.new(), UDim2.fromScale(1, 1))
+	for order, setting in SETTING_ROWS do
+		local row = rowFrame(list, 56, order)
+		leftText({ Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -150, 1, 0), Text = setting.Text, Font = TITLE_FONT, TextSize = 18, Parent = row })
+		local toggleButton = button({ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(110, 40), Text = "", TextSize = 18, Parent = row }, THEME.Gray)
+		local attribute = "Set_" .. setting.Key
+		local function isOn(): boolean
+			local value = player:GetAttribute(attribute)
+			if value == nil then
+				return Config.Settings[setting.Key] ~= false
+			end
+			return value == true
+		end
+		local function refresh()
+			local on = isOn()
+			toggleButton.Text = if on then "ON" else "OFF"
+			toggleButton.BackgroundColor3 = if on then THEME.Green else THEME.Gray
+		end
+		toggleButton.Activated:Connect(function()
+			play(clickSound)
+			remotes.SetSetting:FireServer(setting.Key, not isOn())
+		end)
+		player:GetAttributeChangedSignal(attribute):Connect(refresh)
+		refresh()
+	end
+	return frame
+end
+
 ---------------------------------------------------------------- Start
 
 function UI.Start()
@@ -664,6 +1129,7 @@ function UI.Start()
 
 	clickSound = create("Sound", { SoundId = "rbxasset://sounds/clickfast.wav", Volume = 0.4, Parent = gui }) :: Sound
 	hatchSound = create("Sound", { SoundId = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.6, Parent = gui }) :: Sound
+	tapSound = create("Sound", { SoundId = "rbxasset://sounds/clickfast.wav", Volume = 0.2, PlaybackSpeed = 1.4, Parent = gui }) :: Sound
 
 	-- Alles haengt an root; Mitte als Anker, damit UIScale den Bildschirm genau ausfuellt
 	local uiScale = create("UIScale", {}) :: UIScale
@@ -719,7 +1185,10 @@ function UI.Start()
 	local multiBadge = create("Frame", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 28), BackgroundColor3 = THEME.Purple, LayoutOrder = 3, Parent = coinPill }, { corner(14), padding(10, 0) })
 	local multiLabel = text({ AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Text = "x1", Font = TITLE_FONT, TextSize = 18, Parent = multiBadge })
 
-	local chips = create("Frame", { Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = 2, Parent = top }, { listLayout(Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center) })
+	-- Bei vielen aktiven Anzeigen (Boost, Server Luck, Happy Hour) in eine zweite Zeile umbrechen
+	local chipLayout = listLayout(Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center) :: UIListLayout
+	chipLayout.Wraps = true
+	local chips = create("Frame", { Size = UDim2.new(1, 0, 0, 28), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 2, Parent = top }, { chipLayout })
 	local function chip(order: number, color: Color3): TextLabel
 		local holder = create("Frame", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 28), BackgroundColor3 = THEME.PanelDark, BackgroundTransparency = 0.2, LayoutOrder = order, Parent = chips }, { corner(14), edge(), padding(12, 0) })
 		return text({ AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Text = "", TextSize = 16, TextColor3 = color, Parent = holder })
@@ -729,6 +1198,19 @@ function UI.Start()
 	local rankChip = chip(3, THEME.Muted)
 	local boostChip = chip(4, THEME.Coin)
 	local luckChip = chip(5, Color3.fromRGB(120, 255, 160))
+	local happyChip = chip(6, THEME.Gold)
+
+	-- Ziel fuer neue Spieler (mit Pfeil in der Welt, abschaltbar in den Einstellungen)
+	local guidePill = create("Frame", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 30),
+		BackgroundColor3 = THEME.PanelDark,
+		BackgroundTransparency = 0.15,
+		Visible = false,
+		LayoutOrder = 3,
+		Parent = top,
+	}, { corner(15), outline(1.5, THEME.Gold), padding(14, 0) }) :: Frame
+	local guideLabel = text({ AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Text = "", TextSize = 17, TextColor3 = THEME.Gold, Parent = guidePill })
 
 	announcePill = create("Frame", {
 		AutomaticSize = Enum.AutomaticSize.X,
@@ -736,7 +1218,7 @@ function UI.Start()
 		BackgroundColor3 = THEME.PanelDark,
 		BackgroundTransparency = 0.1,
 		Visible = false,
-		LayoutOrder = 3,
+		LayoutOrder = 4,
 		Parent = top,
 	}, { corner(20), outline(1.5, THEME.Gold), padding(18, 0), create("UIScale", {}) }) :: Frame
 	announceLabel = text({ AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Text = "", Font = TITLE_FONT, TextSize = 20, Parent = announcePill })
@@ -761,30 +1243,41 @@ function UI.Start()
 
 	------------------------------------------------ Links: Symbol-Menue
 
+	-- Zwei Spalten, damit alle Knoepfe auch auf kleinen Handys in die Hoehe passen
 	local menu = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 12, 0.5, 0),
-		Size = UDim2.fromOffset(84, 290),
+		Position = UDim2.new(0, 12, 0.5, 20),
+		Size = UDim2.fromOffset(148, 298),
 		BackgroundTransparency = 1,
 		Parent = root,
-	}, { listLayout(Enum.FillDirection.Vertical, 12) })
+	}, { create("UIGridLayout", { CellSize = UDim2.fromOffset(70, 70), CellPadding = UDim2.fromOffset(8, 6), SortOrder = Enum.SortOrder.LayoutOrder }) })
 	local function menuButton(icon: string, name: string, color: Color3, order: number): (TextButton, Frame)
-		local b = create("TextButton", { Size = UDim2.fromOffset(84, 84), BackgroundColor3 = color, Text = "", AutoButtonColor = true, LayoutOrder = order, Parent = menu }, { corner(20), outline(2), shine() }) :: TextButton
+		local b = create("TextButton", { BackgroundColor3 = color, Text = "", AutoButtonColor = true, LayoutOrder = order, Parent = menu }, { corner(18), outline(2), shine() }) :: TextButton
 		pressable(b)
-		text({ Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 46), Text = icon, TextSize = 38, Parent = b })
-		text({ Position = UDim2.new(0, 0, 1, -30), Size = UDim2.new(1, 0, 0, 24), Text = name, Font = TITLE_FONT, TextSize = 17, Parent = b }, 1.5)
+		text({ Position = UDim2.fromOffset(0, 4), Size = UDim2.new(1, 0, 0, 38), Text = icon, TextSize = 30, Parent = b })
+		text({ Position = UDim2.new(0, 0, 1, -25), Size = UDim2.new(1, 0, 0, 20), Text = name, Font = TITLE_FONT, TextSize = 15, Parent = b }, 1.5)
 		local badge = create("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 4, 0, -4), Size = UDim2.fromOffset(20, 20), BackgroundColor3 = THEME.Red, Visible = false, Parent = b }, { create("UICorner", { CornerRadius = UDim.new(0.5, 0) }), outline(2) }) :: Frame
 		return b, badge
 	end
 	local petsButton, petsBadge = menuButton("🐾", "Pets", THEME.Orange, 1)
 	local shopButton = menuButton("🛒", "Shop", THEME.Green, 2)
-	local rebirthButton, rebirthBadge = menuButton("♻️", "Rebirth", THEME.Purple, 3)
+	local questsButton, questsBadge = menuButton("📜", "Quests", THEME.Blue, 3)
+	local giftsButton, giftsBadge = menuButton("🎁", "Gifts", THEME.Pink, 4)
+	local indexButton = menuButton("📖", "Index", Color3.fromRGB(40, 170, 170), 5)
+	local travelButton = menuButton("🗺️", "Travel", Color3.fromRGB(70, 120, 200), 6)
+	local rebirthButton, rebirthBadge = menuButton("♻️", "Rebirth", THEME.Purple, 7)
+	local settingsButton = menuButton("⚙️", "Settings", THEME.Gray, 8)
 
 	-- Unten rechts: Auto Hatch
 	local autoButton = button({ AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -14, 1, -110), Size = UDim2.fromOffset(170, 50), Text = "Auto Hatch", TextSize = 19, Parent = root }, THEME.Gray)
 
 	local pets = buildPetsWindow()
 	local shop = buildShopWindow()
+	local quests, questResetLabel = buildQuestsWindow()
+	local gifts, updateGifts = buildGiftsWindow()
+	local index = buildIndexWindow()
+	local travel = buildTravelWindow()
+	local settings = buildSettingsWindow()
 
 	-- Rebirth-Fenster mit Fortschrittsbalken
 	local rebirth, rebirthBody = window("Rebirth", Vector2.new(420, 300))
@@ -802,6 +1295,21 @@ function UI.Start()
 	rebirthButton.Activated:Connect(function()
 		toggle(rebirth)
 	end)
+	questsButton.Activated:Connect(function()
+		toggle(quests)
+	end)
+	giftsButton.Activated:Connect(function()
+		toggle(gifts)
+	end)
+	indexButton.Activated:Connect(function()
+		toggle(index)
+	end)
+	travelButton.Activated:Connect(function()
+		toggle(travel)
+	end)
+	settingsButton.Activated:Connect(function()
+		toggle(settings)
+	end)
 	confirmRebirth.Activated:Connect(function()
 		play(clickSound)
 		remotes.RequestRebirth:FireServer()
@@ -815,6 +1323,16 @@ function UI.Start()
 	remotes.Notify.OnClientEvent:Connect(showToast)
 	remotes.Announce.OnClientEvent:Connect(showAnnouncement)
 	remotes.CoinPop.OnClientEvent:Connect(coinPop)
+	remotes.TapHit.OnClientEvent:Connect(function(damage, position)
+		play(tapSound)
+		coinPop(damage, position, Color3.fromRGB(255, 130, 130), "-")
+	end)
+	remotes.Progress.OnClientEvent:Connect(function(state)
+		progressState = state
+		for _, listener in progressListeners do
+			task.spawn(listener)
+		end
+	end)
 	remotes.Hatched.OnClientEvent:Connect(function(eggId, results)
 		task.spawn(showHatch, eggId, results)
 	end)
@@ -839,6 +1357,38 @@ function UI.Start()
 			TweenService:Create(coinScale, POP, { Scale = 1 }):Play()
 		end
 		lastCoins = coins
+	end)
+
+	-- Pfeil vom Spieler zum naechsten Ziel (nur lokal). Die Attachments haengen am Terrain, nicht an der Figur,
+	-- damit sie beim Respawn nicht mit zerstoert werden.
+	local guideFolder = create("Folder", { Name = "GuideArrow", Parent = workspace })
+	local guideStart = create("Attachment", { Name = "GuideStart", Parent = workspace.Terrain }) :: Attachment
+	local guideEnd = create("Attachment", { Name = "GuideEnd", Parent = workspace.Terrain }) :: Attachment
+	local guideTarget: BasePart? = nil
+	local guideBeam = create("Beam", {
+		Attachment0 = guideStart,
+		Attachment1 = guideEnd,
+		FaceCamera = true,
+		Width0 = 0.6,
+		Width1 = 0.6,
+		Segments = 1,
+		LightEmission = 1,
+		Color = ColorSequence.new(THEME.Gold),
+		Transparency = NumberSequence.new(0.25),
+		Enabled = false,
+		Parent = guideFolder,
+	}) :: Beam
+	RunService.RenderStepped:Connect(function()
+		local character = player.Character
+		local rootPart = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local target = guideTarget
+		if rootPart and target and target.Parent then
+			guideStart.WorldPosition = rootPart.Position - Vector3.new(0, 1.5, 0)
+			guideEnd.WorldPosition = target.Position + Vector3.new(0, 2, 0)
+			guideBeam.Enabled = true
+		else
+			guideBeam.Enabled = false
+		end
 	end)
 
 	-- Anzeige laufend aktualisieren
@@ -873,6 +1423,29 @@ function UI.Start()
 			local luckLeft = (workspace:GetAttribute("LuckUntil") or 0) - workspace:GetServerTimeNow()
 			luckChip.Parent.Visible = luckLeft > 0
 			luckChip.Text = `Server Luck x{Config.ServerLuckMultiplier}  {Format.Time(luckLeft)}`
+
+			local happy, happyLeft = Config.HappyHourState(workspace:GetServerTimeNow())
+			happyChip.Parent.Visible = happy or happyLeft <= 120
+			happyChip.Text = if happy then `Happy Hour x{Config.HappyHourMultiplier}  {Format.Time(happyLeft)}` else `Happy Hour in {Format.Time(happyLeft)}`
+
+			-- Badges: Aufgabe fertig / Geschenk bereit
+			local questReady = false
+			for _, quest in progressState.Quests or {} do
+				local def = Config.QuestsById[quest.Id]
+				if def and not quest.Claimed and quest.Progress >= def.Goal then
+					questReady = true
+				end
+			end
+			questsBadge.Visible = questReady
+			giftsBadge.Visible = updateGifts() or player:GetAttribute("DailyReady") == true
+			questResetLabel.Text = `New quests in {longTime(86400 - os.time() % 86400)}`
+
+			-- Ziel und Pfeil
+			local goalText, goalPart = currentGoal()
+			local showGuide = player:GetAttribute("Set_Guide") ~= false and goalText ~= nil
+			guidePill.Visible = showGuide
+			guideLabel.Text = "🎯 " .. (goalText or "")
+			guideTarget = if showGuide then goalPart else nil
 
 			local on = player:GetAttribute("AutoHatch") == true
 			autoButton.Text = if on then "Auto Hatch: ON" elseif player:GetAttribute("Pass_AutoHatch") then "Auto Hatch: OFF" else "Auto Hatch 🔒"

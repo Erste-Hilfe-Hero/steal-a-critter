@@ -9,6 +9,7 @@ local BreakableService = { Services = nil :: any }
 
 local breakables = {} -- [id] = { Id, Model, Zone, Health, MaxHealth, Reward, Fill, HpLabel, Damage = { [Player] = number } }
 local targets = {} -- [Player] = id
+local lastTap = {} -- [Player] = os.clock()
 local nextId = 0
 local rng = Random.new()
 
@@ -112,6 +113,7 @@ function BreakableService:Spawn(zoneIndex: number)
 
 	local entry = {
 		Id = id,
+		Kind = def.Id,
 		Model = model,
 		Zone = zoneIndex,
 		Position = position,
@@ -127,7 +129,7 @@ function BreakableService:Spawn(zoneIndex: number)
 
 	local click = model:FindFirstChildOfClass("ClickDetector") :: ClickDetector
 	click.MouseClick:Connect(function(player: Player)
-		self:SetTarget(player, id)
+		self:Tap(player, id)
 	end)
 	model.Parent = self.Services.WorldService.BreakablesFolder
 end
@@ -181,6 +183,10 @@ local function breakEntry(entry)
 			coins = math.max(1, math.floor(coins))
 			services.DataService:AddCoins(player, coins)
 			services.Net.CoinPop:FireClient(player, coins, entry.Position + Vector3.new(0, 4, 0))
+			services.ProgressService:Track(player, "Break", 1)
+			if entry.Kind ~= "pile" then
+				services.ProgressService:Track(player, "Chest", 1)
+			end
 		end
 	end
 	for player, id in targets do
@@ -193,6 +199,40 @@ local function breakEntry(entry)
 	task.delay(Config.RespawnTime, function()
 		BreakableService:Spawn(entry.Zone)
 	end)
+end
+
+-- Schaden eintragen; zerstoert die Sache, wenn keine Lebenspunkte mehr uebrig sind
+local function dealDamage(player: Player, entry, damage: number)
+	entry.Damage[player] = (entry.Damage[player] or 0) + damage
+	entry.Health -= damage
+	if entry.Health <= 0 then
+		breakEntry(entry)
+	else
+		updateBar(entry)
+	end
+end
+
+-- Antippen: Ziel waehlen und sofort Extra-Schaden machen (mit Abklingzeit gegen Autoklicker)
+function BreakableService:Tap(player: Player, id: string)
+	local entry = breakables[id]
+	if not entry or not canReach(player, entry) then
+		return
+	end
+	self:SetTarget(player, id)
+	local now = os.clock()
+	if now - (lastTap[player] or 0) < Config.TapCooldown then
+		return
+	end
+	local power = player:GetAttribute("Power") or 0
+	if power <= 0 then
+		return
+	end
+	lastTap[player] = now
+	local damage = math.max(1, power * Config.TapDamageShare)
+	local position = entry.Position + Vector3.new(0, entry.Model.PrimaryPart.Size.Y + 2, 0)
+	dealDamage(player, entry, damage)
+	self.Services.Net.TapHit:FireClient(player, damage, position)
+	self.Services.ProgressService:Track(player, "Tap", 1)
 end
 
 function BreakableService:Start()
@@ -221,14 +261,7 @@ function BreakableService:Start()
 					player:SetAttribute("Target", if entry then entry.Id else "")
 				end
 				if entry then
-					local damage = power * Config.DamageTick
-					entry.Damage[player] = (entry.Damage[player] or 0) + damage
-					entry.Health -= damage
-					if entry.Health <= 0 then
-						breakEntry(entry)
-					else
-						updateBar(entry)
-					end
+					dealDamage(player, entry, power * Config.DamageTick)
 				end
 			end
 		end
@@ -237,6 +270,7 @@ end
 
 function BreakableService:OnPlayerRemoving(player: Player)
 	targets[player] = nil
+	lastTap[player] = nil
 	for _, entry in breakables do
 		entry.Damage[player] = nil
 	end

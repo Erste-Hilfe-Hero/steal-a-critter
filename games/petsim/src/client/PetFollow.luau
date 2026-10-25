@@ -13,7 +13,13 @@ local folder = Instance.new("Folder")
 folder.Name = "ClientPets"
 folder.Parent = workspace
 
-local owners = {} -- [Player] = { Key = string, Pets = { { Model, Scale, CFrame } } }
+local owners = {} -- [Player] = { Key = string, Pets = { { Model, Scale, CFrame, Rainbow } } }
+local localPlayer = Players.LocalPlayer
+
+-- Einstellung "Other Pets": Haustiere anderer Spieler ausblenden (spart Leistung auf dem Handy)
+local function showOthers(): boolean
+	return localPlayer:GetAttribute("Set_OtherPets") ~= false
+end
 
 local function clear(player: Player)
 	local entry = owners[player]
@@ -27,6 +33,9 @@ end
 
 local function rebuild(player: Player)
 	local key = player:GetAttribute("EquippedPets") or ""
+	if player ~= localPlayer and not showOthers() then
+		key = ""
+	end
 	local entry = owners[player]
 	if entry and entry.Key == key then
 		return
@@ -36,10 +45,11 @@ local function rebuild(player: Player)
 	for _, token in string.split(key, ",") do
 		local typeId, flag = token:match("^([^:]+):?(%a*)$")
 		if typeId and Config.PetsById[typeId] then
-			local model = PetFactory.Build(typeId, flag == "g")
+			local model = PetFactory.Build(typeId, flag == "g", flag == "r")
 			model.Parent = folder
 			local scale = Config.RaritiesByName[Config.PetsById[typeId].Rarity].Scale
-			table.insert(entry.Pets, { Model = model, Scale = scale, CFrame = nil :: CFrame? })
+			local body = if flag == "r" then model.PrimaryPart else nil
+			table.insert(entry.Pets, { Model = model, Scale = scale, CFrame = nil :: CFrame?, Rainbow = body })
 		end
 	end
 	owners[player] = entry
@@ -58,6 +68,11 @@ function PetFollow.Start()
 	end
 	Players.PlayerAdded:Connect(watch)
 	Players.PlayerRemoving:Connect(clear)
+	localPlayer:GetAttributeChangedSignal("Set_OtherPets"):Connect(function()
+		for _, other in Players:GetPlayers() do
+			rebuild(other)
+		end
+	end)
 
 	local breakables = workspace:WaitForChild("World"):WaitForChild("Breakables")
 
@@ -95,6 +110,9 @@ function PetFollow.Start()
 				local current = if pet.CFrame then pet.CFrame:Lerp(goal, alpha) else goal
 				pet.CFrame = current
 				pet.Model:PivotTo(current)
+				if pet.Rainbow then
+					pet.Rainbow.Color = PetFactory.RainbowColor(now, index * 0.13)
+				end
 			end
 		end
 	end)
