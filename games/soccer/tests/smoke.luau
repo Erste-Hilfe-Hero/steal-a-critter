@@ -36,7 +36,7 @@ workspace:SetAttribute("SmokeTest", true)
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local Services = {}
-local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService", "ExtrasService", "FeaturesService", "PlusService", "DiagService" }
+local ORDER = require(folder.Services.Order)
 local ok, err = pcall(function()
 	Services.Net = require(folder.Services.Net)
 	for _, name in ORDER do

@@ -1,22 +1,11 @@
 -- Startpunkt des Servers: laedt alle Services und steuert Join/Leave in fester Reihenfolge.
 local Players = game:GetService("Players")
 
-local Services = {
-	Net = require(script.Services.Net),
-	DataService = require(script.Services.DataService),
-	ArenaService = require(script.Services.ArenaService),
-	ProgressService = require(script.Services.ProgressService),
-	BallService = require(script.Services.BallService),
-	CombatService = require(script.Services.CombatService),
-	BotService = require(script.Services.BotService),
-	MatchService = require(script.Services.MatchService),
-	MonetizationService = require(script.Services.MonetizationService),
-	ExtrasService = require(script.Services.ExtrasService),
-	DiagService = require(script.Services.DiagService),
-	FeaturesService = require(script.Services.FeaturesService),
-}
-
-local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService", "ExtrasService", "FeaturesService", "PlusService", "DiagService" }
+local ORDER = require(script.Services.Order)
+local Services = { Net = require(script.Services.Net) }
+for _, name in ORDER do
+	Services[name] = require(script.Services[name])
+end
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
