@@ -1,0 +1,24 @@
+name: Restart game servers
+
+# Startet alle laufenden Server eines Spiels neu, damit alle sofort die neueste Version spielen
+# (alte Server laufen sonst mit der alten Version weiter).
+on:
+  workflow_dispatch:
+    inputs:
+      universe:
+        description: "Universe ID"
+        required: true
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      UNIVERSE: ${{ inputs.universe }}
+    steps:
+      - name: Restart
+        run: |
+          R=$(curl -sS -X POST "https://apis.roblox.com/cloud/v2/universes/$UNIVERSE:restartServers" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" -d '{}' -w ' HTTP %{http_code}')
+          echo "::notice::restart: $R"
+          echo "$R" | grep -q 'HTTP 200' || exit 1
