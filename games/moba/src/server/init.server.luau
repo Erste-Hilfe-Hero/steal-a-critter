@@ -13,9 +13,10 @@ local Services = {
 	BotService = require(script.Services.BotService),
 	MatchService = require(script.Services.MatchService),
 	MonetizationService = require(script.Services.MonetizationService),
+	ProgressService = require(script.Services.ProgressService),
 }
 
-local ORDER = { "DataService", "CombatService", "WorldService", "LaneService", "JungleService", "VisionService", "HeroService", "BotService", "MatchService", "MonetizationService" }
+local ORDER = { "DataService", "CombatService", "WorldService", "LaneService", "JungleService", "VisionService", "HeroService", "BotService", "MatchService", "MonetizationService", "ProgressService" }
 
 Players.CharacterAutoLoads = false
 
@@ -36,6 +37,7 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	Services.MonetizationService:OnPlayerReady(player)
+	Services.ProgressService:OnPlayerReady(player)
 	Services.MatchService:OnPlayerReady(player)
 end
 
@@ -47,5 +49,6 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	Services.MatchService:OnPlayerRemoving(player)
 	Services.MonetizationService:OnPlayerRemoving(player)
+	Services.ProgressService:OnPlayerRemoving(player)
 	Services.DataService:Release(player)
 end)

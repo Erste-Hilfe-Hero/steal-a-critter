@@ -327,6 +327,7 @@ function HeroService:Create(info)
 		Role = role,
 		Lane = Config.RolesById[role] and Config.RolesById[role].Lane or "Mid",
 		Skin = info.Skin or "Default",
+		Title = info.Title or "",
 		Level = 1,
 		XP = 0,
 		SkillPoints = 1,
@@ -363,6 +364,7 @@ function HeroService:Create(info)
 	entry:SetAttribute("Team", hero.Team)
 	entry:SetAttribute("IsBot", hero.Bot)
 	entry:SetAttribute("UserId", if info.Player then info.Player.UserId else 0)
+	entry:SetAttribute("Title", hero.Title)
 	entry.Parent = scoreboard
 	hero.Entry = entry
 	Combat:Register(hero)
@@ -514,6 +516,7 @@ function HeroService:Bind(hero, model: Model, humanoid: Humanoid)
 	model:SetAttribute("HeroId", hero.HeroId)
 	model:SetAttribute("IsBot", hero.Bot)
 	model:SetAttribute("Skin", hero.Skin)
+	model:SetAttribute("Title", hero.Title or "")
 	self:Recompute(hero)
 	hero.HP = hero.MaxHP
 	hero.Mana = hero.MaxMana
@@ -1045,9 +1048,10 @@ function HeroService:CastSpell(hero, slot: string, aim: Vector3?): boolean
 	if id == "Flash" then
 		local direction = if aim then flat(aim) - position else flat(hero.Root.CFrame.LookVector) * spell.Range
 		if direction.Magnitude < 0.1 then
-			direction = flat(hero.Root.CFrame.LookVector)
+			direction = flat(hero.Root.CFrame.LookVector) * spell.Range
 		end
-		local destination = position + direction.Unit * math.min(spell.Range, math.max(direction.Magnitude, spell.Range))
+		-- Bis zum Zielpunkt, hoechstens die volle Reichweite (vorher immer volle Reichweite)
+		local destination = position + direction.Unit * math.clamp(direction.Magnitude, 6, spell.Range)
 		destination = Abilities.Walkable(position, destination)
 		net.SendFx("Flash", { From = position, To = destination })
 		self:Teleport(hero, destination)
@@ -1153,6 +1157,7 @@ function HeroService:PlaceWard(hero, aim: Vector3?): boolean
 	end
 	point = Abilities.Walkable(position, point)
 	hero.WardCharges -= 1
+	hero.WardsPlaced = (hero.WardsPlaced or 0) + 1
 	if not hero.WardReadyAt or hero.WardReadyAt <= now() then
 		hero.WardReadyAt = now() + Config.Ward.Recharge
 	end
@@ -1435,6 +1440,9 @@ function HeroService:OnDeath(hero, killer)
 		if shutdown > 0 then
 			self:Announce(`{killerHero.Name} shut down {hero.Name}!`, teamColor, "Kill")
 		end
+		if killerHero.Multi == 5 then
+			killerHero.Pentas = (killerHero.Pentas or 0) + 1
+		end
 		local multi = MULTI[math.min(killerHero.Multi, 5)]
 		if killerHero.Multi >= 2 and multi then
 			self:Announce(`{killerHero.Name}: {multi}`, teamColor, "Multi")
@@ -1453,6 +1461,9 @@ function HeroService:OnDeath(hero, killer)
 		Victim = hero.Name,
 		VictimHero = hero.HeroId,
 		VictimTeam = hero.Team,
+		-- UserIds statt Anzeigenamen: Bots und Spieler koennen gleich heissen
+		KillerUserId = if killerHero and killerHero.Player then killerHero.Player.UserId else 0,
+		VictimUserId = if hero.Player then hero.Player.UserId else 0,
 		Shutdown = shutdown > 0,
 	})
 	if teamAllDead(self, hero.Team) then

@@ -33,6 +33,25 @@ local function defaultData()
 		Receipts = {},
 		ReceiptOrder = {},
 		RobuxSpent = 0,
+		-- Fortschritt (ProgressService)
+		CS = 0,
+		Towers = 0,
+		Wards = 0,
+		Epics = 0,
+		Monsters = 0,
+		Pentas = 0,
+		MVPs = 0,
+		WinStreak = 0,
+		BestStreak = 0,
+		AccountLevel = 1,
+		AccountXP = 0,
+		Mastery = {}, -- [HeroId] = Punkte
+		Quests = { Day = 0, List = {} },
+		Achievements = {}, -- [Erfolgs-Id] = true
+		Title = "", -- ausgeruesteter Erfolg
+		Codes = {}, -- [Code] = true
+		Settings = { Sound = true, Numbers = true, Zoom = 1 },
+		Tutorial = false,
 	}
 end
 
@@ -108,6 +127,12 @@ function DataService:Get(player: Player)
 	return profile and profile.Data
 end
 
+-- Nur echte (geladene) Daten duerfen nach aussen, z.B. in die Bestenliste
+function DataService:CanSave(player: Player): boolean
+	local profile = profiles[player]
+	return profile ~= nil and profile.CanSave
+end
+
 function DataService:OwnsHero(player: Player, heroId: string): boolean
 	local data = self:Get(player)
 	local hero = Config.HeroesById[heroId]
@@ -155,6 +180,10 @@ function DataService:UpdateAttributes(player: Player)
 	if leaderstats then
 		(leaderstats :: any).Wins.Value = data.Wins;
 		(leaderstats :: any).Crystals.Value = data.Crystals
+	end
+	local progress = self.Services.ProgressService
+	if progress then
+		progress:Publish(player, data)
 	end
 end
 

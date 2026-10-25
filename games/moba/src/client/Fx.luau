@@ -1,10 +1,16 @@
 -- Alle sichtbaren Effekte laufen nur auf dem Client: Geschosse, Ringe, Explosionen, Schadenszahlen.
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+local Sounds = require(script.Parent.Sounds)
+local Vision = require(script.Parent.Vision)
+
 local Fx = {}
+
+local player = Players.LocalPlayer
 
 local folder: Folder
 
@@ -106,6 +112,9 @@ function Fx.Number(position: Vector3, amount: number, kind: string)
 	end
 	if kind == "Gold" then
 		Fx.FloatText(position, "+" .. value .. "g", Color3.fromRGB(255, 210, 70), 0.9)
+	elseif player:GetAttribute("Setting_Numbers") == false then
+		-- Schadenszahlen in den Einstellungen ausgeschaltet (Gold bleibt sichtbar)
+		return
 	elseif kind == "Heal" then
 		Fx.FloatText(position, "+" .. value, Color3.fromRGB(110, 231, 160), 0.9)
 	elseif kind == "Taken" then
@@ -326,6 +335,74 @@ handlers.LevelUp = function(data)
 	end
 	handlers.Ring({ At = root.Position, Radius = 6, Color = Color3.fromRGB(255, 220, 90) })
 	Fx.FloatText(root.Position + Vector3.new(0, 2, 0), "LEVEL " .. tostring(data.Level), Color3.fromRGB(255, 220, 90), 1.1)
+	if data.Model == player.Character then
+		Sounds.Play("LevelUp")
+	end
+end
+
+-- Emote ueber dem Helden (Gegner im Nebel sieht man nicht)
+handlers.Emote = function(data)
+	local root = rootOf(data.Model)
+	if not root or not Vision.Seen(data.Model) then
+		return
+	end
+	local old = root:FindFirstChild("EmoteBubble")
+	if old then
+		old:Destroy()
+	end
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "EmoteBubble"
+	billboard.Size = UDim2.fromOffset(64, 64)
+	billboard.StudsOffsetWorldSpace = Vector3.new(0, 8, 0)
+	billboard.AlwaysOnTop = true
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 140
+	billboard.Adornee = root
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = NUMBER_FONT
+	label.TextScaled = true
+	label.TextColor3 = WHITE
+	label.Text = if data.Text then data.Icon .. "\n" .. data.Text else data.Icon
+	label.Parent = billboard
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(20, 16, 30)
+	stroke.Parent = label
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.3
+	scale.Parent = label
+	billboard.Parent = root
+	tween(scale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+	task.delay(2, function()
+		tween(label, 0.4, { TextTransparency = 1 })
+		tween(stroke, 0.4, { Transparency = 1 })
+	end)
+	Debris:AddItem(billboard, 2.5)
+	Sounds.Play("Emote")
+end
+
+-- Ping-Markierung in der Welt (nur das eigene Team bekommt sie)
+function Fx.Ping(at: Vector3, icon: string, color: Color3)
+	local ring = flatRing(at, 1, color, 0.2)
+	tween(ring, 0.5, { Size = Vector3.new(0.2, 12, 12), Transparency = 0.6 })
+	Debris:AddItem(ring, 3)
+	local anchor = part({ Size = Vector3.one * 0.2, Transparency = 1, Position = ground(at, 6) })
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromOffset(56, 56)
+	billboard.AlwaysOnTop = true
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 400
+	billboard.Parent = anchor
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.TextScaled = true
+	label.Text = icon
+	label.Parent = billboard
+	tween(anchor, 0.4, { Position = ground(at, 4) }, Enum.EasingStyle.Bounce)
+	Debris:AddItem(anchor, 3)
 end
 
 handlers.Poof = function(data)

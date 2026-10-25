@@ -93,7 +93,7 @@ local function attach(model: Instance)
 	lock.Visible = false
 	lock.Parent = back
 
-	local nameLabel, levelLabel, manaFill, manaBack
+	local nameLabel, levelLabel, manaFill, manaBack, titleLabel
 	if isHero then
 		billboard.Size = UDim2.fromOffset(size.Width, size.Height + 32)
 		manaBack = Instance.new("Frame")
@@ -120,6 +120,19 @@ local function attach(model: Instance)
 		local nameStroke = Instance.new("UIStroke")
 		nameStroke.Thickness = 1.5
 		nameStroke.Parent = nameLabel
+		-- Titel aus Erfolgen ueber dem Namen
+		titleLabel = Instance.new("TextLabel")
+		titleLabel.BackgroundTransparency = 1
+		titleLabel.Size = UDim2.new(1, 0, 0, 12)
+		titleLabel.Position = UDim2.fromOffset(0, -10)
+		titleLabel.Font = Enum.Font.BuilderSansBold
+		titleLabel.TextScaled = true
+		titleLabel.TextColor3 = Color3.fromRGB(255, 205, 90)
+		titleLabel.Visible = false
+		titleLabel.Parent = billboard
+		local titleStroke = Instance.new("UIStroke")
+		titleStroke.Thickness = 1
+		titleStroke.Parent = titleLabel
 		levelLabel = Instance.new("TextLabel")
 		levelLabel.AnchorPoint = Vector2.new(1, 0.5)
 		levelLabel.Position = UDim2.new(0, -3, 0.5, 0)
@@ -163,6 +176,9 @@ local function attach(model: Instance)
 			manaBack.Visible = maxMana > 0
 			manaFill.Size = UDim2.fromScale(if maxMana > 0 then math.clamp((tonumber(model:GetAttribute("Mana")) or 0) / maxMana, 0, 1) else 0, 1)
 			levelLabel.Text = tostring(model:GetAttribute("Level") or 1)
+			local title = tostring(model:GetAttribute("Title") or "")
+			titleLabel.Visible = title ~= ""
+			titleLabel.Text = "«" .. title .. "»"
 			-- Striche
 			local count = math.floor(maxHp / 200)
 			for i = 1, math.max(count, #ticks) do
@@ -186,7 +202,7 @@ local function attach(model: Instance)
 		end
 	end
 	update()
-	for _, attribute in { "HP", "MaxHP", "Shield", "Protected", "Level", "Buffs", "Team", "HeroId", "UnitName", "Mana", "MaxMana" } do
+	for _, attribute in { "HP", "MaxHP", "Shield", "Protected", "Level", "Buffs", "Team", "HeroId", "UnitName", "Mana", "MaxMana", "Title" } do
 		model:GetAttributeChangedSignal(attribute):Connect(update)
 	end
 	bars[model] = update

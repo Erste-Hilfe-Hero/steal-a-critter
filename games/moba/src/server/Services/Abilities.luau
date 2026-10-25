@@ -903,6 +903,15 @@ function Abilities.Attach(hero)
 				source.SpellForceUntil = t + 6
 				Heroes:Recompute(source)
 			end
+			-- Ember: Faehigkeiten setzen Gegner in Brand (hoechstens einmal pro Sekunde und Ziel)
+			if passive(source) == "Kindling" and Combat.Alive(target) and t >= ((target.KindledAt or {})[source] or 0) then
+				target.KindledAt = target.KindledAt or setmetatable({}, { __mode = "k" })
+				target.KindledAt[source] = t + 1
+				Abilities.DamageOverTime(source, target, 12 + 4 * source.Level + 0.12 * source.AP, 3, "Magic")
+				if target.Model then
+					Net.SendFx("Burn", { Model = target.Model, Time = 3 })
+				end
+			end
 			if passive(source) == "Illumination" and Combat.Alive(target) then
 				target.LumiMark = { By = source, Until = t + 6 }
 				if target.Model then
@@ -972,7 +981,8 @@ function Abilities.Tick(hero, _dt: number, t: number)
 		local wanted = hero.MaxHP * 0.1
 		local current = if (hero.Status.ShieldUntil or 0) > t then hero.Status.Shield or 0 else 0
 		if current < wanted - 1 then
-			Combat:Shield(hero, wanted - current, 3600)
+			-- Kurze Dauer statt einer Stunde: jede Erneuerung startet sonst einen langen Hintergrund-Thread
+			Combat:Shield(hero, wanted - current, 20)
 		end
 	end
 	-- Volt W: Heilung waehrend des Kanalisierens
