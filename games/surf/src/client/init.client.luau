@@ -1,4 +1,4 @@
--- Startpunkt des Clients: eigene Surf-Steuerung und Kamera, danach das HUD.
+-- Startpunkt des Clients: eigene Surf-Steuerung und Kamera, danach das HUD und die Extras (Update 2).
 local LogService = game:GetService("LogService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25,6 +25,7 @@ end)
 
 local Movement = require(script.Movement)
 local UI = require(script.UI)
+local Extras = require(script.Extras)
 
 local ok, err = pcall(Movement.Start)
 if not ok then
@@ -33,6 +34,10 @@ end
 ok, err = pcall(UI.Start, Movement)
 if not ok then
 	report("ERROR UI.Start " .. tostring(err))
+end
+ok, err = pcall(Extras.Start, UI, Movement)
+if not ok then
+	report("ERROR Extras.Start " .. tostring(err))
 end
 
 -- Zustand der ersten Minute: wo ist der Spieler, laeuft die Steuerung?

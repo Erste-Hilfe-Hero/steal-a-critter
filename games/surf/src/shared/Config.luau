@@ -48,6 +48,7 @@ Config.StageSpacing = 900 -- Abstand der Bahnen (Z)
 Config.StageHeight = 900 -- Starthoehe jeder Bahn
 Config.MinStageSeconds = 2.5 -- schneller ist unmoeglich = Schummelversuch
 Config.FinishTolerance = 260 -- so weit darf die vom Server gesehene Position vom Ziel entfernt sein (Latenz)
+Config.StartTolerance = 60 -- "Startzone verlassen" nur so nah an der Startzone (Latenz + Anlauftempo)
 Config.LobbyCenter = Vector3.new(0, 600, -900)
 
 ---------------------------------------------------------------- Belohnungen (Schneeflocken)
@@ -132,6 +133,7 @@ Config.DevProducts = {
 	SkipStage = { Kind = "SkipStage", Name = "Skip Stage", Description = "Jump to the next stage (run becomes unranked)", PriceHint = 19, Order = 4 },
 	LowGravity = { Kind = "LowGravity", Seconds = 180, Name = "Moon Gravity Party", Description = "3 min low gravity for the WHOLE server", PriceHint = 99, Order = 5 },
 	StarterPack = { Kind = "StarterPack", Amount = 3_000, Name = "Starter Pack", Description = "One time: 3,000 Snowflakes + Ice Crystal trail", PriceHint = 79, Order = 0, Hidden = true },
+	FlakeBoost = { Kind = "Boost", Seconds = 1800, Name = "Flake Booster", Description = "2x Snowflakes for 30 minutes (stacks with everything)", PriceHint = 49, Order = 6 },
 	AdReward = { Kind = "Flakes", Amount = 300, Name = "Free Snowflakes", Description = "Watch a short video ad", PriceHint = 0, Hidden = true },
 }
 Config.LowGravityScale = 0.35

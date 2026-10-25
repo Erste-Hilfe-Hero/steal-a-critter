@@ -13,6 +13,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
+local Progression = require(ReplicatedStorage.Shared.Progression)
 local SurfPhysics = require(ReplicatedStorage.Shared.SurfPhysics)
 
 local player = Players.LocalPlayer
@@ -20,6 +21,8 @@ local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local T = Config.Theme
 
 local UI = {}
+UI.OpenMore = nil :: ((tab: string?) -> ())? -- setzt Extras.luau
+UI.ShowDaily = nil :: any
 
 local HEAVY = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
 local BOLD = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
@@ -137,11 +140,18 @@ function UI.Start(Movement)
 	local speedLabel = text({ Size = UDim2.new(1, 0, 0, 52), Text = "0", FontFace = MONO, Parent = speedPanel })
 	create("UIStroke", { Color = T.Navy, Thickness = 2.5, Transparency = 0.2, Parent = speedLabel })
 	local unitLabel = text({ Position = UDim2.fromOffset(0, 50), Size = UDim2.new(1, 0, 0, 14), Text = "U/S", TextColor3 = T.Muted, FontFace = HEAVY, Parent = speedPanel })
+	UI.SpeedPanel = speedPanel
 	local barBack = create("Frame", { Position = UDim2.new(0.1, 0, 0, 68), Size = UDim2.new(0.8, 0, 0, 6), BackgroundColor3 = T.Navy, BackgroundTransparency = 0.3, Parent = speedPanel })
 	corner(3).Parent = barBack
 	local bar = create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = T.Ice, Parent = barBack })
 	corner(3).Parent = bar
-	local _ = unitLabel
+	-- Update 2: persoenliches Hoechsttempo (vom Server gemessen) unter dem Tacho
+	local function refreshTop()
+		local top = player:GetAttribute("TopSpeed") or 0
+		unitLabel.Text = if top > 0 then `U/S   -   TOP {Format.Number(top)}` else "U/S"
+	end
+	player:GetAttributeChangedSignal("TopSpeed"):Connect(refreshTop)
+	refreshTop()
 
 	------------------------------------------------ Schneeflocken und Rang (oben links)
 
@@ -149,6 +159,37 @@ function UI.Start(Movement)
 	local flakesLabel = text({ Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 1, -12), Text = "0", TextXAlignment = Enum.TextXAlignment.Left, FontFace = HEAVY, Parent = flakesPill })
 	local rankPill = panel({ Position = UDim2.fromOffset(10, 56), Size = UDim2.fromOffset(120, 26), Radius = 13, Parent = gui })
 	local rankLabel = text({ Position = UDim2.fromOffset(10, 4), Size = UDim2.new(1, -20, 1, -8), Text = "NEWBIE", FontFace = HEAVY, Parent = rankPill })
+	-- Update 2: aktueller Schneeflocken-Multiplikator (Paesse, Premium, Booster, Schneesturm, Freunde)
+	local multPill = panel({ Position = UDim2.fromOffset(186, 10), Size = UDim2.fromOffset(64, 40), Radius = 20, BackgroundColor3 = T.Gold, BackgroundTransparency = 0.1, Visible = false, Parent = gui })
+	local multLabel = text({ Position = UDim2.fromOffset(6, 8), Size = UDim2.new(1, -12, 1, -16), Text = "x1", TextColor3 = T.Navy, FontFace = HEAVY, Parent = multPill })
+	local function multiplier(): number
+		local m = 1
+		if player:GetAttribute("Pass_VIP") then
+			m *= Config.VipMultiplier
+		end
+		if player:GetAttribute("Pass_DoubleFlakes") then
+			m *= Config.DoubleFlakesMultiplier
+		end
+		if player.MembershipType == Enum.MembershipType.Premium then
+			m *= Config.PremiumMultiplier
+		end
+		if (player:GetAttribute("BoostUntil") or 0) > os.time() then
+			m *= Progression.BoostMultiplier
+		end
+		if (workspace:GetAttribute("StormUntil") or 0) > os.time() then
+			m *= Progression.StormMultiplier
+		end
+		m *= 1 + (player:GetAttribute("FriendBonus") or 0)
+		return m
+	end
+	task.spawn(function()
+		while gui.Parent do
+			local m = multiplier()
+			multPill.Visible = m > 1.001
+			multLabel.Text = "x" .. (string.gsub(string.format("%.1f", m), "%.0$", ""))
+			task.wait(1)
+		end
+	end)
 
 	------------------------------------------------ Toasts und Ansagen
 
@@ -232,6 +273,27 @@ function UI.Start(Movement)
 		return frame
 	end
 
+	-- Bausteine fuer Extras.luau (Update 2)
+	UI.Kit = {
+		create = create,
+		text = text,
+		panel = panel,
+		button = button,
+		corner = corner,
+		stroke = stroke,
+		window = window,
+		open = open,
+		closeAll = closeAll,
+		scrollList = scrollList,
+		toast = toast,
+		gui = gui,
+		touch = touch,
+		HEAVY = HEAVY,
+		BOLD = BOLD,
+		MEDIUM = MEDIUM,
+		MONO = MONO,
+	}
+
 	------------------------------------------------ Shop
 
 	local shopWindow, shopBody = window("SKI SHOP", 760, 470)
@@ -246,8 +308,8 @@ function UI.Start(Movement)
 			tabButtons[key].TextColor3 = if key == name then T.Navy else T.Snow
 		end
 	end
-	for i, name in { "PASSES", "SNOWFLAKES", "TRAILS", "SKIS" } do
-		tabButtons[name] = button({ Size = UDim2.fromOffset(150, 34), Text = name, LayoutOrder = i, ZIndex = 8, Parent = tabsBar }, function()
+	for i, name in { "PASSES", "SNOWFLAKES", "TRAILS", "SKIS", "BUDDIES" } do
+		tabButtons[name] = button({ Size = UDim2.fromOffset(132, 34), Text = name, LayoutOrder = i, ZIndex = 8, Parent = tabsBar }, function()
 			showTab(name)
 		end)
 		local holder = create("Frame", { Position = UDim2.fromOffset(0, 48), Size = UDim2.new(1, 0, 1, -48), BackgroundTransparency = 1, Visible = false, ZIndex = 7, Parent = shopBody })
@@ -300,8 +362,11 @@ function UI.Start(Movement)
 	local function cosmeticCards(kind: string, list, pageName: string)
 		local page = pages[pageName]:FindFirstChildOfClass("ScrollingFrame")
 		for i, item in list do
-			local accent = if kind == "Trail" then item.Colors[#item.Colors] else item.Color
-			local priceText = if item.Pass then (if item.Pass == "StarterPack" then "Starter Pack" else Config.GamePasses[item.Pass].Name) else (if item.Price == 0 then "Free" else `{Format.Number(item.Price)} Snowflakes`)
+			local accent = if kind == "Trail" then item.Colors[#item.Colors] else (item.Color or T.Muted)
+			local priceText = if item.Pass
+				then (if item.Pass == "StarterPack" then "Starter Pack" else Config.GamePasses[item.Pass].Name)
+				elseif item.Spin then "Lucky Snowball only"
+				else (if item.Price == 0 then "Free" else `{Format.Number(item.Price)} Snowflakes`)
 			local c, swatch = card(page, i, item.Name, priceText, accent)
 			if kind == "Trail" and #item.Colors > 1 then
 				swatch.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -319,6 +384,7 @@ function UI.Start(Movement)
 	end
 	cosmeticCards("Trail", Config.Trails, "TRAILS")
 	cosmeticCards("Ski", Config.Skis, "SKIS")
+	cosmeticCards("Buddy", Progression.Buddies, "BUDDIES")
 
 	local function refreshShop()
 		for key, b in passButtons do
@@ -337,6 +403,8 @@ function UI.Start(Movement)
 				b.Text, b.BackgroundColor3, b.TextColor3 = "EQUIP", T.PanelLight, T.Snow
 			elseif entry.Item.Pass then
 				b.Text, b.BackgroundColor3, b.TextColor3 = "UNLOCK", T.Gold, T.Navy
+			elseif entry.Item.Spin then
+				b.Text, b.BackgroundColor3, b.TextColor3 = "SPIN ONLY", T.PanelLight, T.Muted
 			else
 				b.Text, b.BackgroundColor3, b.TextColor3 = "BUY", T.Mint, T.Navy
 			end
@@ -361,6 +429,8 @@ function UI.Start(Movement)
 		text({ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 26), Text = tostring(i), TextColor3 = def.Accent, FontFace = HEAVY, ZIndex = 9, Parent = c })
 		text({ Position = UDim2.fromOffset(8, 36), Size = UDim2.new(1, -16, 0, 16), Text = string.upper(def.Name), FontFace = BOLD, ZIndex = 9, Parent = c })
 		local pb = text({ Position = UDim2.fromOffset(8, 54), Size = UDim2.new(1, -16, 0, 16), Text = "", TextColor3 = T.Muted, FontFace = MONO, ZIndex = 9, Parent = c })
+		local medal = text({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -6, 0, 6), Size = UDim2.fromOffset(46, 16), Text = "", BackgroundTransparency = 0, BackgroundColor3 = T.Navy, FontFace = HEAVY, Visible = false, ZIndex = 9, Parent = c })
+		corner(5).Parent = medal
 		local b = button({ Position = UDim2.new(0, 8, 1, -38), Size = UDim2.new(1, -16, 0, 30), Text = "GO", Color = T.Ice, TextColor3 = T.Navy, ZIndex = 9, Parent = c }, function()
 			if i <= (player:GetAttribute("MaxStage") or 1) then
 				remotes.Run:FireServer("Goto", i)
@@ -369,19 +439,31 @@ function UI.Start(Movement)
 				remotes.Purchase:FireServer("Product", "SkipStage")
 			end
 		end)
-		stageButtons[i] = { Button = b, Best = pb }
+		stageButtons[i] = { Button = b, Best = pb, Medal = medal }
 	end
 	local function refreshStages()
 		local max = player:GetAttribute("MaxStage") or 1
 		for i, entry in stageButtons do
 			local best = player:GetAttribute("StageBest_" .. i)
 			entry.Best.Text = if best then "PB " .. Format.Run(best) else (if i <= max then "no time yet" else "locked")
-			entry.Button.Text = if i <= max then "GO" else "SKIP R$ 19"
+			entry.Button.Text = if i <= max then "GO" else `SKIP R$ {Config.DevProducts.SkipStage.PriceHint}`
 			entry.Button.BackgroundColor3 = if i <= max then T.Ice else T.Gold
 		end
 	end
 	player.AttributeChanged:Connect(refreshStages)
 	refreshStages()
+	-- Medaillen kommen ueber ProgressSync (Extras.luau ruft das auf)
+	function UI.SetStageMedals(medals)
+		for i, entry in stageButtons do
+			local tier = medals[tostring(i)] or 0
+			local def = Progression.Medals[tier]
+			entry.Medal.Visible = def ~= nil
+			if def then
+				entry.Medal.Text = string.upper(def.Name)
+				entry.Medal.TextColor3 = def.Color
+			end
+		end
+	end
 
 	------------------------------------------------ Bestenliste
 
@@ -423,6 +505,7 @@ function UI.Start(Movement)
 	------------------------------------------------ Knoepfe
 
 	local leftBar = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(84, 330), BackgroundTransparency = 1, Parent = gui })
+	UI.LeftBar = leftBar
 	create("UIListLayout", { Padding = UDim.new(0, 8), Parent = leftBar })
 	local function sideButton(label: string, color: Color3, order: number, onClick)
 		return button({ Size = UDim2.fromOffset(84, 46), Text = label, Color = color, TextColor3 = T.Navy, LayoutOrder = order, Parent = leftBar }, onClick)
@@ -445,6 +528,12 @@ function UI.Start(Movement)
 		UI.ShowDaily()
 	end)
 	dailyButton.Visible = false
+	-- Update 2: Menue fuer Aufgaben, Erfolge, Profil, Gluecks-Schneeball, Codes und Einstellungen (Extras.luau)
+	UI.MoreButton = sideButton("MORE", T.Mint, 6, function()
+		if UI.OpenMore then
+			UI.OpenMore()
+		end
+	end)
 
 	-- Freiwillige Video-Werbung: Knopf nur zeigen, wenn Roblox gerade eine Werbung bereit hat
 	task.spawn(function()
@@ -515,16 +604,17 @@ function UI.Start(Movement)
 
 	-- Tastatur-Hilfe am PC
 	if not touch then
-		text({ AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 12, 1, -10), Size = UDim2.fromOffset(460, 16), Text = "A/D + MOUSE: surf    SPACE: jump    R: restart stage    1/2: checkpoint    V: view    CTRL: cursor", TextColor3 = T.Muted, FontFace = MEDIUM, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 0.2, Parent = gui })
+		UI.Hints = text({ AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 12, 1, -10), Size = UDim2.fromOffset(460, 16), Text = "A/D + MOUSE: surf    SPACE: jump    R: restart stage    1/2: checkpoint    V: view    CTRL: cursor", TextColor3 = T.Muted, FontFace = MEDIUM, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 0.2, Parent = gui })
 	end
 
 	------------------------------------------------ Ergebnis nach Stage/Map
 
-	local resultCard = panel({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.38), Size = UDim2.fromOffset(440, 150), Visible = false, BackgroundTransparency = 0.05, Radius = 16, Parent = gui })
+	local resultCard = panel({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.38), Size = UDim2.fromOffset(440, 174), Visible = false, BackgroundTransparency = 0.05, Radius = 16, Parent = gui })
 	local resultTitle = text({ Position = UDim2.fromOffset(16, 12), Size = UDim2.new(1, -32, 0, 30), Text = "", FontFace = HEAVY, TextColor3 = T.Ice, Parent = resultCard })
 	local resultTime = text({ Position = UDim2.fromOffset(16, 46), Size = UDim2.new(1, -32, 0, 46), Text = "", FontFace = MONO, Parent = resultCard })
 	local resultSub = text({ Position = UDim2.fromOffset(16, 98), Size = UDim2.new(1, -32, 0, 20), Text = "", FontFace = MONO, TextColor3 = T.Muted, Parent = resultCard })
 	local resultFlakes = text({ Position = UDim2.fromOffset(16, 120), Size = UDim2.new(1, -32, 0, 20), Text = "", FontFace = HEAVY, TextColor3 = T.Gold, Parent = resultCard })
+	local resultMedal = text({ Position = UDim2.fromOffset(16, 144), Size = UDim2.new(1, -32, 0, 20), Text = "", FontFace = HEAVY, Parent = resultCard })
 	local resultToken = 0
 	local finishSound = create("Sound", { SoundId = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.8, PlaybackSpeed = 1.3, Parent = SoundService })
 	remotes.Result.OnClientEvent:Connect(function(result)
@@ -536,13 +626,28 @@ function UI.Start(Movement)
 			resultTitle.TextColor3 = if result.RunPB then T.Gold else T.Mint
 			resultTime.Text = if result.RunTime then Format.Run(result.RunTime) else "unranked run"
 			local delta = if result.RunTime and result.PreviousRunBest then result.RunTime - result.PreviousRunBest else nil
-			resultSub.Text = if delta then string.format("%s%.3f vs PB", if delta < 0 then "-" else "+", math.abs(delta)) else "Press RESTART for another run"
+			resultSub.Text = if delta then string.format("%s%.3f vs PB", if delta < 0 then "-" else "+", math.abs(delta)) else "Next run starts in a moment..."
 		else
 			resultTitle.Text = `STAGE {result.Stage} CLEAR` .. (if result.StagePB then "  -  PB!" else "")
 			resultTitle.TextColor3 = if result.StagePB then T.Gold else T.Ice
 			resultTime.Text = Format.Run(result.StageTime)
 			local delta = if result.PreviousBest then result.StageTime - result.PreviousBest else nil
 			resultSub.Text = if not result.Clean then "practice (not saved)" elseif delta then string.format("%s%.3f vs PB", if delta < 0 then "-" else "+", math.abs(delta)) else "first time!"
+		end
+		-- Zwischenzeit im Lauf gegen den Bestzeit-Lauf (Update 2)
+		if result.SplitDelta and not result.MapComplete then
+			resultSub.Text ..= string.format("   SPLIT %s%.3f", if result.SplitDelta < 0 then "-" else "+", math.abs(result.SplitDelta))
+		end
+		local medalDef = Progression.Medals[result.Medal or 0]
+		if medalDef then
+			local gold = Progression.GoldTimes[result.Stage]
+			resultMedal.Text = if result.NewMedal
+				then `NEW {string.upper(medalDef.Name)} MEDAL!`
+				else `{medalDef.Name} medal` .. (if result.Medal < 3 and gold then `   (Gold: {Format.Run(gold)})` else "")
+			resultMedal.TextColor3 = medalDef.Color
+		else
+			resultMedal.Text = if result.Clean == false then "Medals need a clean run" else ""
+			resultMedal.TextColor3 = T.Muted
 		end
 		resultFlakes.Text = `+{Format.Number(result.Flakes or 0)} Snowflakes`
 		resultCard.Visible = true
@@ -604,8 +709,8 @@ function UI.Start(Movement)
 	text({
 		Size = UDim2.new(1, 0, 0, 190),
 		Text = if touch
-			then "1. Walk through the DROP IN gate.\n2. Land on the SIDE of a ramp, never the top.\n3. Push the stick TOWARD the ramp to stick to it.\n4. Swipe the right side to steer. Faster = higher score!\n5. Fall? You restart the stage. The clock keeps going."
-			else "1. Walk through the DROP IN gate.\n2. Land on the SIDE of a ramp, never the top.\n3. Hold A or D TOWARD the ramp (not W!) and steer with the mouse.\n4. In the air: strafe + turn the mouse together to gain speed.\n5. Fall? You restart the stage. The clock keeps going.",
+			then "1. Leave the start hut and drop onto the first ramp.\n2. Land on the SIDE of a ramp, never the top.\n3. Push the stick TOWARD the ramp to stick to it.\n4. Swipe the right side to steer. Faster = higher score!\n5. Fall? You restart the stage. The clock keeps going."
+			else "1. Leave the start hut and drop onto the first ramp.\n2. Land on the SIDE of a ramp, never the top.\n3. Hold A or D TOWARD the ramp (not W!) and steer with the mouse.\n4. In the air: strafe + turn the mouse together to gain speed.\n5. Fall? You restart the stage. The clock keeps going.",
 		TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top,
@@ -649,7 +754,11 @@ function UI.Start(Movement)
 			end
 			local index = sender:GetAttribute("RankIndex") or 1
 			local rank = Config.Ranks[index]
-			if rank then
+			local title = sender:GetAttribute("Title")
+			if typeof(title) == "string" and title ~= "" then
+				-- Titel aus einem Erfolg statt des Rangs (Update 2)
+				tag ..= `<font color="#{T.Mint:ToHex()}">[{title}]</font> `
+			elseif rank then
 				tag ..= `<font color="#{rank.Color:ToHex()}">[{string.upper(rank.Name)}]</font> `
 			end
 			props.PrefixText = tag .. message.PrefixText
