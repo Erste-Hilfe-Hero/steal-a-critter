@@ -204,6 +204,22 @@ function Bodies.Dragon(s: number, c: Color3)
 	return list, 7.6 * s
 end
 
+-- Schatz-Kobold: kleiner Kerl mit grossem Goldsack auf dem Ruecken
+function Bodies.Imp(s: number, c: Color3)
+	local list = {}
+	local skin = Color3.fromRGB(150, 110, 200)
+	block(list, Vector3.new(1.4, 1.4, 1) * s, CFrame.new(0, 1.6 * s, 0), Color3.fromRGB(90, 70, 140))
+	ball(list, Vector3.new(1.8, 1.7, 1.7) * s, Vector3.new(0, 3, 0) * s, skin)
+	for _, side in { -1, 1 } do
+		block(list, Vector3.new(1.1, 0.25, 0.4) * s, CFrame.new(side * 1.1 * s, 3.3 * s, 0) * CFrame.Angles(0, 0, math.rad(side * 25)), skin)
+		block(list, Vector3.new(0.5, 1, 0.5) * s, CFrame.new(side * 0.4 * s, 0.5 * s, 0), shade(skin, 0.8))
+	end
+	ball(list, Vector3.new(2.2, 2.2, 1.8) * s, Vector3.new(0, 2.2, 1.3) * s, c, { Name = "Sack", Material = Enum.Material.Fabric })
+	ball(list, Vector3.one * 0.8 * s, Vector3.new(0, 3.4, 1.3) * s, c, { Material = Enum.Material.Neon, Glow = true })
+	eyes(list, s, 3.1, -0.8, 0.35, 0.5)
+	return list, 4 * s
+end
+
 MonsterFactory.Bodies = Bodies
 
 local function crown(list, s: number, top: number)

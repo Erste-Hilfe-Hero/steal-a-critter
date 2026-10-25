@@ -110,6 +110,8 @@ function MonsterService:Spawn(run, key: string, position: Vector3, spawnOptions:
 		SlowUntil = 0,
 		Enraged = false,
 		Reach = 4 + 2.2 * def.Size * scale,
+		Treasure = def.Treasure == true,
+		EscapeAt = if def.Treasure then os.clock() + Config.ImpEscape else math.huge,
 	}
 	model:SetAttribute("Health", hp)
 	model:SetAttribute("MaxHealth", hp)
@@ -166,6 +168,17 @@ function MonsterService:Kill(state, killer: Player?)
 	self.Services.Net.SendEffect(state.Run.Players, "Death", { Position = position, Color = state.Def.Color, Size = state.Def.Size, Boss = state.Boss })
 	state.Model:Destroy()
 	self.Services.DungeonService:OnMonsterKilled(state, killer, position)
+end
+
+-- Schatz-Kobold entkommt: verschwindet ohne Beute
+function MonsterService:Escape(state)
+	if not state.Alive then
+		return
+	end
+	state.Alive = false
+	monsters[state.Model] = nil
+	self.Services.Net.SendEffect(state.Run.Players, "ImpEscape", { Position = state.Root.Position })
+	state.Model:Destroy()
 end
 
 function MonsterService:Stun(state, seconds: number)
@@ -341,7 +354,21 @@ local function think(state, now: number)
 	end
 
 	local ai = state.Def.AI
-	if ai == "Ranged" then
+	if ai == "Flee" then
+		-- Weg vom naechsten Spieler, aber im Raum bleiben
+		local room = state.Run.Rooms[state.Run.Room]
+		local away = flat(root.Position - target.Root.Position)
+		away = if away.Magnitude > 0.1 then away.Unit else Vector3.xAxis
+		local goal = root.Position + away * 14
+		if room then
+			local limit = room.Half - 5
+			local offset = goal - room.Center
+			if math.abs(offset.X) > limit or math.abs(offset.Z) > limit then
+				goal = room.Center + Vector3.new(rng:NextNumber(-limit, limit), 0, rng:NextNumber(-limit, limit))
+			end
+		end
+		humanoid:MoveTo(goal)
+	elseif ai == "Ranged" then
 		if best > 30 then
 			humanoid:MoveTo(target.Root.Position)
 		elseif best < 13 then
@@ -384,7 +411,9 @@ function MonsterService:Start()
 				table.insert(list, state)
 			end
 			for _, state in list do
-				if state.Alive and state.Root.Parent then
+				if state.Alive and state.Treasure and now >= state.EscapeAt then
+					MonsterService:Escape(state)
+				elseif state.Alive and state.Root.Parent then
 					local ok, err = pcall(think, state, now)
 					if not ok then
 						warn("[Monster]", err)

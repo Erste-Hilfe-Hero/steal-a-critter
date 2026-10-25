@@ -15,6 +15,10 @@ local focus: Vector3? = nil
 local shake = 0
 
 function Camera.Shake(amount: number)
+	-- Einstellung "Screen shake"
+	if player:GetAttribute("Set_Shake") == false then
+		return
+	end
 	shake = math.max(shake, amount)
 end
 

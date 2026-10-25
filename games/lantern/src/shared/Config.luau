@@ -259,6 +259,8 @@ Config.Monsters = {
 	StarWisp = { Name = "Star Wisp", Body = "Wisp", Color = Color3.fromRGB(255, 220, 120), Size = 1, Hp = 0.8, Dmg = 1.2, Speed = 11, AI = "Ranged", Fly = true },
 	Sentinel = { Name = "Star Sentinel", Body = "Golem", Color = Color3.fromRGB(150, 130, 255), Size = 1.3, Hp = 1.8, Dmg = 1.5, Speed = 9, AI = "Brute" },
 	CrystalSpider = { Name = "Crystal Crawler", Body = "Spider", Color = Color3.fromRGB(255, 120, 255), Size = 1, Hp = 0.9, Dmg = 1.1, Speed = 16, AI = "Melee" },
+	-- Seltener Schatz-Kobold: greift nie an, rennt weg und verschwindet nach Config.ImpEscape Sekunden
+	TreasureImp = { Name = "Treasure Imp", Body = "Imp", Color = Color3.fromRGB(255, 205, 60), Size = 0.9, Hp = 2.4, Dmg = 0, Speed = 19, AI = "Flee", Treasure = true },
 }
 
 -- Bosse: Abilities in Reihenfolge abwechselnd, Summon = welche Monster gerufen werden
@@ -307,7 +309,7 @@ Config.StatCaps = { Crit = 60, AttackSpeed = 60, MoveSpeed = 30, Cooldown = 40 }
 -- Legendaere Kraefte (Legendary und Mythic haben genau eine)
 Config.Powers = {
 	ChainSpark = { Title = "Stormcaller", Text = "20% chance on hit to zap 2 nearby enemies for 50% damage" },
-	Vampiric = { Title = "Bloodmoon", Text = "Heal 4% of max health on every kill" },
+	Vampiric = { Title = "Lifebloom", Text = "Heal 4% of max health on every kill" },
 	TwinStrike = { Title = "Twinfang", Text = "15% chance to strike twice" },
 	EmberBurst = { Title = "Emberheart", Text = "Enemies explode on death for 40% damage" },
 	Giantslayer = { Title = "Giantslayer", Text = "+40% damage to bosses and elites" },
@@ -364,6 +366,8 @@ Config.DevProducts = {
 	StarterPack = { Kind = "Starter", Name = "Starter Pack", Description = "One time only: Epic Lantern weapon, 2,500 gold, 300 shards, 30 min 2x XP", PriceHint = 79, Order = 7, OneTime = true },
 	AdRevive = { Kind = "Revive", Name = "Free Revive (Video Ad)", Description = "Reward for watching a video ad: revive", PriceHint = 5, Hidden = true },
 	AdGold = { Kind = "Gold", Runs = 0.5, MinGold = 200, Name = "Free Gold (Video Ad)", Description = "Reward for watching a video ad: gold", PriceHint = 5, Hidden = true },
+	-- Kosmetik: wird im STYLE-Fenster angeboten (nicht im Shop, damit man es nicht doppelt kauft)
+	RoyalAura = { Kind = "Aura", Aura = "Royal", Name = "Royal Aura", Description = "An exclusive golden aura that sparkles around your hero", PriceHint = 149, Order = 8, Hidden = true },
 }
 Config.AdCooldown = 240
 Config.OfferCooldown = 240
@@ -389,6 +393,124 @@ Config.GuardianKickCooldown = 60
 
 Config.StudioFakePurchases = true
 
+---------------------------------------------------------------- Update: Quests, Erfolge, Titel, Auren, Codes, Einstellungen
+
+-- Taegliche Quests: jeden Tag 3 zufaellige aus dieser Liste. Max = Fortschritt ist ein Hoechstwert (z. B. Kombo).
+Config.QuestCount = 3
+Config.Quests = {
+	{ Key = "Slayer", Text = "Defeat %d monsters", Event = "Kill", Goal = 60 },
+	{ Key = "Champions", Text = "Defeat %d champions", Event = "EliteKill", Goal = 3 },
+	{ Key = "Bosses", Text = "Defeat %d bosses", Event = "BossKill", Goal = 2 },
+	{ Key = "Runs", Text = "Clear %d dungeons", Event = "Clear", Goal = 2 },
+	{ Key = "Salvager", Text = "Salvage %d items", Event = "Salvage", Goal = 15 },
+	{ Key = "Smith", Text = "Enhance your gear %d times", Event = "Enhance", Goal = 2 },
+	{ Key = "Chests", Text = "Open %d hidden chests", Event = "Chest", Goal = 3 },
+	{ Key = "Shrines", Text = "Use %d dungeon shrines", Event = "Shrine", Goal = 2 },
+	{ Key = "Treasure", Text = "Find %d Rare or better items", Event = "FindRare", Goal = 5 },
+	{ Key = "Combo", Text = "Reach a %d kill combo", Event = "Combo", Goal = 25, Max = true },
+}
+Config.QuestShards = 40
+
+function Config.QuestGold(level: number): number
+	return math.floor(250 * (1 + level / 4))
+end
+
+-- Erfolge: Stat = Feld in den Spielerdaten (DungeonsCleared wird gezaehlt), jeder Erfolg schaltet einen Titel frei
+Config.Achievements = {
+	{ Key = "FirstClear", Name = "First Steps", Text = "Clear your first dungeon", Stat = "Runs", Goal = 1, Title = "Adventurer", Gold = 500 },
+	{ Key = "Kills500", Name = "Monster Masher", Text = "Defeat 500 monsters", Stat = "Kills", Goal = 500, Title = "Monster Masher", Gold = 2_000 },
+	{ Key = "Kills5000", Name = "Lantern Warden", Text = "Defeat 5,000 monsters", Stat = "Kills", Goal = 5_000, Title = "Lantern Warden", Gold = 15_000 },
+	{ Key = "Bosses10", Name = "Boss Hunter", Text = "Defeat 10 bosses", Stat = "BossKills", Goal = 10, Title = "Boss Hunter", Gold = 3_000 },
+	{ Key = "Bosses100", Name = "Giant Toppler", Text = "Defeat 100 bosses", Stat = "BossKills", Goal = 100, Title = "Giant Toppler", Gold = 25_000 },
+	{ Key = "Imps5", Name = "Imp Catcher", Text = "Catch 5 Treasure Imps", Stat = "ImpKills", Goal = 5, Title = "Imp Catcher", Gold = 4_000 },
+	{ Key = "Legendary", Name = "Treasure Seeker", Text = "Find a Legendary item", Stat = "LegendaryFound", Goal = 1, Title = "Treasure Seeker", Gold = 2_500 },
+	{ Key = "Mythic", Name = "Starborn", Text = "Find a Mythic item", Stat = "MythicFound", Goal = 1, Title = "Starborn", Gold = 20_000 },
+	{ Key = "Nightmare", Name = "Nightmare Walker", Text = "Clear any dungeon on Nightmare", Stat = "NightmareClears", Goal = 1, Title = "Nightmare Walker", Gold = 10_000 },
+	{ Key = "AllDungeons", Name = "Lantern Hero", Text = "Clear all 6 dungeons", Stat = "DungeonsCleared", Goal = 6, Title = "Lantern Hero", Gold = 8_000 },
+	{ Key = "Plus10", Name = "Master Smith", Text = "Enhance an item to +10", Stat = "BestPlus", Goal = 10, Title = "Master Smith", Gold = 6_000 },
+	{ Key = "Combo100", Name = "Unstoppable", Text = "Reach a 100 kill combo", Stat = "BestCombo", Goal = 100, Title = "Unstoppable", Gold = 5_000 },
+	{ Key = "Level30", Name = "Veteran Hero", Text = "Reach level 30", Stat = "Level", Goal = 30, Title = "Veteran Hero", Gold = 8_000 },
+	{ Key = "Level60", Name = "Lantern Legend", Text = "Reach level 60", Stat = "Level", Goal = 60, Title = "Lantern Legend", Gold = 30_000 },
+}
+
+-- Auren: leuchtende Kosmetik um den Helden. Gold = mit Gold kaufen, Product = Robux, Achievement = freigespielt
+Config.Auras = {
+	{ Key = "Ember", Name = "Ember Aura", Color = Color3.fromRGB(255, 130, 50), Gold = 5_000 },
+	{ Key = "Frost", Name = "Frost Aura", Color = Color3.fromRGB(120, 220, 255), Gold = 15_000 },
+	{ Key = "Verdant", Name = "Verdant Aura", Color = Color3.fromRGB(110, 240, 120), Gold = 30_000 },
+	{ Key = "Starlight", Name = "Starlight Aura", Color = Color3.fromRGB(220, 160, 255), Gold = 75_000 },
+	{ Key = "Royal", Name = "Royal Aura", Color = Color3.fromRGB(255, 205, 60), Product = "RoyalAura" },
+	{ Key = "Legend", Name = "Legend Aura", Color = Color3.fromRGB(255, 70, 120), Achievement = "Level60" },
+}
+
+-- Codes (Grossschreibung egal). Neue Codes einfach hier eintragen.
+Config.Codes = {
+	LANTERN = { Gold = 1_000, Shards = 50 },
+	LOOT = { Item = 3 },
+	LIGHTUP = { Shards = 150 },
+	HEROES = { Gold = 2_500 },
+}
+
+-- Einstellungen (dauerhaft gespeichert); Standardwerte
+Config.Settings = {
+	{ Key = "Sound", Name = "Sound effects", Default = true },
+	{ Key = "Numbers", Name = "Damage numbers", Default = true },
+	{ Key = "Shake", Name = "Screen shake", Default = true },
+	{ Key = "AutoEquip", Name = "Auto-equip upgrades", Default = false },
+}
+
+-- Trank-Meisterschaft (Gold-Upgrade): mehr Heilung, kuerzere Abklingzeit
+Config.PotionMaxLevel = 5
+
+function Config.PotionUpgradeCost(level: number): number
+	return 1_500 * (level + 1) ^ 2
+end
+
+function Config.PotionHealFor(level: number): number
+	return Config.PotionHeal + 0.05 * level
+end
+
+function Config.PotionCooldownFor(level: number): number
+	return Config.PotionCooldown - level
+end
+
+-- Kill-Kombo: Kills in kurzer Folge, Bonusgold an den Meilensteinen
+Config.ComboWindow = 4
+Config.ComboMilestones = { 10, 25, 50, 100 }
+
+-- Dungeon des Tages: +50 % Gold und XP
+Config.FeaturedBonus = 0.5
+
+function Config.FeaturedDungeon(day: number): number
+	return day % #Config.Dungeons + 1
+end
+
+-- Schreine (Gruppen-Buff fuer Seconds) und versteckte Truhen in den Kampfraeumen
+Config.Shrines = {
+	Power = { Name = "Shrine of Power", Text = "+30% damage", Color = Color3.fromRGB(255, 110, 80), Seconds = 30 },
+	Fortune = { Name = "Shrine of Fortune", Text = "+50% gold", Color = Color3.fromRGB(255, 205, 60), Seconds = 30 },
+	Warding = { Name = "Shrine of Warding", Text = "-40% damage taken", Color = Color3.fromRGB(120, 200, 255), Seconds = 30 },
+}
+Config.ShrineOrder = { "Power", "Fortune", "Warding" }
+Config.ShrineChance = 0.5
+Config.ChestChance = 0.6
+Config.ImpChance = 0.07 -- pro Welle, hoechstens ein Kobold pro Lauf
+Config.ImpEscape = 20
+
+-- Kurze Gruppen-Signale (feste Texte, deshalb kein Filter noetig)
+Config.Pings = { "Help!", "Attack!", "Wait!", "Nice!" }
+Config.PingCooldown = 2
+
+-- Einsteiger-Anleitung: Schritt fuer Schritt mit kleiner Belohnung
+Config.Tutorial = {
+	{ Event = "SetClass", Text = "Pick a class: tap CLASS or visit the Class Shrine", Gold = 100 },
+	{ Event = "RunStart", Text = "Walk into the glowing Mossy Burrows portal", Gold = 150 },
+	{ Event = "Clear", Text = "Defeat the boss at the end of the dungeon", Gold = 300 },
+	{ Event = "Equip", Text = "Open your BAG and equip an item", Gold = 200 },
+	{ Event = "Enhance", Text = "Enhance an item at the FORGE", Gold = 300 },
+	{ Event = "QuestClaim", Text = "Claim a daily quest reward (QUESTS)", Gold = 400 },
+}
+
 ---------------------------------------------------------------- Ableitungen
 
 local idsModule = ReplicatedStorage.Shared:FindFirstChild("ProductIds")
@@ -413,6 +535,21 @@ end
 
 for index, dungeon in Config.Dungeons do
 	dungeon.Index = index
+end
+
+Config.QuestsByKey = {}
+for _, quest in Config.Quests do
+	Config.QuestsByKey[quest.Key] = quest
+end
+
+Config.AchievementsByKey = {}
+for _, achievement in Config.Achievements do
+	Config.AchievementsByKey[achievement.Key] = achievement
+end
+
+Config.AurasByKey = {}
+for _, aura in Config.Auras do
+	Config.AurasByKey[aura.Key] = aura
 end
 
 return Config

@@ -20,6 +20,7 @@ local lockedNotice = {} -- [Player] = os.clock()
 
 local GOLD = Color3.fromRGB(255, 200, 60)
 local RED = Color3.fromRGB(255, 90, 90)
+local stats: (any, Player) -> any -- weiter unten definiert
 
 local CORRIDOR = 22
 local WALL_HEIGHT = 6
@@ -59,6 +60,90 @@ function DungeonService:MaxDifficulty(player: Player, index: number): number
 end
 
 ---------------------------------------------------------------- Karte bauen
+
+local function makePrompt(parent: BasePart, action: string, object: string, hold: number): ProximityPrompt
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = action
+	prompt.ObjectText = object
+	prompt.HoldDuration = hold
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = parent
+	return prompt
+end
+
+-- Schrein: ein Spieler aktiviert ihn, die ganze Gruppe bekommt den Buff
+local function buildShrine(run, room, p)
+	local W = DungeonService.Services.WorldService
+	local key = Config.ShrineOrder[rng:NextInteger(1, #Config.ShrineOrder)]
+	local def = Config.Shrines[key]
+	local limit = room.Half - 9
+	local spot = room.Center + Vector3.new(rng:NextNumber(-limit, limit), 0, rng:NextNumber(-limit, limit))
+	p({ Name = "ShrineBase", Size = Vector3.new(4, 1.2, 4), Position = spot + Vector3.new(0, 0.6, 0), Color = Color3.fromRGB(80, 78, 96), Material = Enum.Material.Slate })
+	local orb = p({ Name = "ShrineOrb", Shape = Enum.PartType.Ball, Size = Vector3.one * 2.2, Position = spot + Vector3.new(0, 3, 0), Color = def.Color, Material = Enum.Material.Neon, CanCollide = false })
+	orb:AddTag("Bob")
+	local glow = W.Light(orb, def.Color, 16, 1.6)
+	local prompt = makePrompt(orb, "Activate", `{def.Name} ({def.Text})`, 0.3)
+	prompt.Triggered:Connect(function(player)
+		if runOf[player] ~= run or run.State ~= "Running" or not prompt.Enabled then
+			return
+		end
+		prompt.Enabled = false
+		local services = DungeonService.Services
+		local untilTime = workspace:GetServerTimeNow() + def.Seconds
+		for _, member in run.Players do
+			member:SetAttribute("Buff_" .. key, untilTime)
+			services.Net.SendNotify(member, `{player.DisplayName} activated the {def.Name}: {def.Text} for {def.Seconds}s!`, def.Color)
+		end
+		services.Net.SendEffect(run.Players, "Nova", { Position = orb.Position, Radius = 12, Color = def.Color })
+		orb.Material = Enum.Material.SmoothPlastic
+		orb.Transparency = 0.6
+		glow.Enabled = false
+		local data = services.DataService:Get(player)
+		if data then
+			data.ShrinesUsed += 1
+		end
+		services.ProgressService:Track(player, "Shrine")
+	end)
+end
+
+-- Versteckte Truhe an einer Seitenwand: jeder Spieler darf sie einmal oeffnen
+local function buildChest(run, room, p)
+	local side = if rng:NextNumber() < 0.5 then -1 else 1
+	local spot = room.Center + Vector3.new(side * (room.Half - 4), 0, rng:NextNumber(-room.Half + 7, room.Half - 7))
+	local cf = CFrame.lookAt(spot, Vector3.new(room.Center.X, spot.Y, spot.Z))
+	p({ Name = "ChestBody", Size = Vector3.new(3.4, 2, 2.2), CFrame = cf * CFrame.new(0, 1, 0), Color = Color3.fromRGB(140, 96, 56), Material = Enum.Material.WoodPlanks })
+	p({ Name = "ChestLid", Size = Vector3.new(3.6, 0.8, 2.4), CFrame = cf * CFrame.new(0, 2.4, 0), Color = Color3.fromRGB(200, 150, 60), Material = Enum.Material.Metal })
+	local lock = p({ Name = "ChestLock", Size = Vector3.new(0.6, 0.7, 0.3), CFrame = cf * CFrame.new(0, 1.9, -1.2), Color = Color3.fromRGB(255, 210, 80), Material = Enum.Material.Neon, CanCollide = false })
+	DungeonService.Services.WorldService.Light(lock, Color3.fromRGB(255, 210, 80), 10, 1)
+	local opened = {}
+	local prompt = makePrompt(lock, "Open", "Hidden Chest", 0.6)
+	prompt.Triggered:Connect(function(player)
+		if runOf[player] ~= run or run.State ~= "Running" then
+			return
+		end
+		local services = DungeonService.Services
+		if opened[player] then
+			services.Net.SendNotify(player, "You already looted this chest.", RED)
+			return
+		end
+		opened[player] = true
+		local difficulty = Config.Difficulties[run.Difficulty]
+		local mult = if run.Featured then 1 + Config.FeaturedBonus else 1
+		local gold = services.HeroService:GiveGold(player, Config.KillGold(run.Level) * 12 * difficulty.Loot * mult, lock.Position)
+		stats(run, player).Gold += gold
+		if rng:NextNumber() < 0.5 then
+			services.LootService:DropItem(player, run, { MinRarity = 2, Luck = difficulty.Loot }, lock.Position)
+		end
+		services.Net.Effect:FireClient(player, "Chest", { Position = lock.Position })
+		services.Net.SendNotify(player, `Hidden chest: +{gold} gold!`, GOLD)
+		local data = services.DataService:Get(player)
+		if data then
+			data.ChestsOpened += 1
+		end
+		services.ProgressService:Track(player, "Chest")
+	end)
+end
 
 local function buildRun(run)
 	local W = DungeonService.Services.WorldService
@@ -186,6 +271,15 @@ local function buildRun(run)
 			Light(gate, dungeon.Accent, 16, 1.5)
 			room.Gate = gate
 		end
+		-- Kampfraeume: manchmal ein Schrein, manchmal eine versteckte Truhe
+		if index > 1 and not room.Boss then
+			if rng:NextNumber() < Config.ShrineChance then
+				buildShrine(run, room, p)
+			end
+			if rng:NextNumber() < Config.ChestChance then
+				buildChest(run, room, p)
+			end
+		end
 	end
 
 	-- Dunkler Untergrund, damit man nicht in den Himmel schaut
@@ -237,13 +331,14 @@ local function syncRun(run)
 		Waves = Config.WavesPerRoom,
 		Boss = room and room.Boss or false,
 		Party = #run.Players,
+		Featured = run.Featured == true,
 	}
 	for _, player in run.Players do
 		DungeonService.Services.Net.Sync:FireClient(player, "Run", info)
 	end
 end
 
-local function stats(run, player: Player)
+stats = function(run, player: Player)
 	local entry = run.Stats[player]
 	if not entry then
 		entry = { Kills = 0, Gold = 0, XP = 0, Items = 0, Best = nil }
@@ -280,6 +375,12 @@ local function spawnWave(run, room)
 		if i % 3 == 0 then
 			task.wait(0.15)
 		end
+	end
+	-- Selten: ein Schatz-Kobold, der mit viel Gold wegrennt
+	if run.State == "Running" and not run.ImpSpawned and rng:NextNumber() < Config.ImpChance then
+		run.ImpSpawned = true
+		DungeonService.Services.MonsterService:Spawn(run, "TreasureImp", randomSpot(room, 8))
+		DungeonService.Services.Net.SendEffect(run.Players, "ImpAppear", {})
 	end
 	room.Spawning = false
 	syncRun(run)
@@ -323,17 +424,33 @@ local function finishRun(run, success: boolean)
 	local services = DungeonService.Services
 	local dungeon = run.Dungeon
 	local difficulty = Config.Difficulties[run.Difficulty]
+	local seconds = math.floor(os.clock() - run.Started)
+	local recordKey = dungeon.Id .. "_" .. run.Difficulty
+	-- Tote Spieler koennen nach dem Ende nicht mehr wiederbelebt werden
+	table.clear(run.Dead)
 	for _, player in run.Players do
 		local data = services.DataService:Get(player)
 		local entry = stats(run, player)
+		local firstClear, firstEver, newRecord = false, false, false
 		if success and data then
 			data.Runs += 1
-			local firstClear = (data.Cleared[dungeon.Id] or 0) < run.Difficulty
+			firstClear = (data.Cleared[dungeon.Id] or 0) < run.Difficulty
+			firstEver = (data.Cleared[dungeon.Id] or 0) == 0
 			data.Cleared[dungeon.Id] = math.max(data.Cleared[dungeon.Id] or 0, run.Difficulty)
+			if run.Difficulty >= #Config.Difficulties then
+				data.NightmareClears += 1
+			end
+			-- Persoenliche Bestzeit
+			local best = data.Records[recordKey]
+			if not best or seconds < best then
+				newRecord = best ~= nil
+				data.Records[recordKey] = seconds
+			end
 			-- Truhe: Gold + garantiert Rare oder besser, beim ersten Abschluss zusaetzlich Epic oder besser
 			local boss = run.Rooms[#run.Rooms]
 			local chest = boss.Center + Vector3.new(0, 0, -6)
-			local gold = services.HeroService:GiveGold(player, Config.KillGold(run.Level) * 40 * difficulty.Loot, chest)
+			local featuredMult = if run.Featured then 1 + Config.FeaturedBonus else 1
+			local gold = services.HeroService:GiveGold(player, Config.KillGold(run.Level) * 40 * difficulty.Loot * featuredMult, chest)
 			entry.Gold += gold
 			services.LootService:DropItem(player, run, { MinRarity = 3, Level = run.Level + 2, Luck = difficulty.Loot }, chest)
 			if firstClear then
@@ -341,6 +458,7 @@ local function finishRun(run, success: boolean)
 				services.Net.SendNotify(player, `First clear of {dungeon.Name} ({difficulty.Name})! Bonus Epic loot!`, GOLD)
 			end
 			services.LootService:SendInventory(player)
+			services.ProgressService:Track(player, "Clear")
 		end
 		local nextIndex = dungeon.Index + 1
 		services.Net.Sync:FireClient(player, "Summary", {
@@ -352,9 +470,12 @@ local function finishRun(run, success: boolean)
 			XP = entry.XP,
 			Items = entry.Items,
 			Best = entry.Best,
-			Time = math.floor(os.clock() - run.Started),
-			Unlocked = if success and nextIndex <= #Config.Dungeons and run.Difficulty == 1 then Config.Dungeons[nextIndex].Name else nil,
-			NextDifficulty = if success and run.Difficulty < #Config.Difficulties then Config.Difficulties[run.Difficulty + 1].Name else nil,
+			Time = seconds,
+			-- Nur beim ersten Abschluss melden, nicht bei jeder Wiederholung
+			Unlocked = if firstEver and nextIndex <= #Config.Dungeons then Config.Dungeons[nextIndex].Name else nil,
+			NextDifficulty = if firstClear and run.Difficulty < #Config.Difficulties then Config.Difficulties[run.Difficulty + 1].Name else nil,
+			NewRecord = newRecord,
+			Featured = run.Featured == true,
 		})
 		services.RewardService:UpdateLeaderboardEntry(player)
 	end
@@ -383,30 +504,50 @@ function DungeonService:OnMonsterKilled(state, killer: Player?, position: Vector
 	end
 	local services = self.Services
 	local xpBase = Config.KillXP(state.Level) * (if state.Boss then 25 elseif state.Elite then 3 else 1)
-	local goldBase = Config.KillGold(state.Level) * (if state.Boss then 25 elseif state.Elite then 4 else 1) * rng:NextNumber(0.7, 1.3)
+	local goldBase = Config.KillGold(state.Level) * (if state.Boss then 25 elseif state.Elite then 4 elseif state.Treasure then 15 else 1) * rng:NextNumber(0.7, 1.3)
 	if state.Minion then
 		xpBase *= 0.5
 		goldBase *= 0.5
+	end
+	if run.Featured then
+		xpBase *= 1 + Config.FeaturedBonus
+		goldBase *= 1 + Config.FeaturedBonus
 	end
 	for _, player in run.Players do
 		local entry = stats(run, player)
 		entry.XP += services.HeroService:AddXP(player, xpBase)
 		entry.Gold += services.HeroService:GiveGold(player, goldBase, position)
 		services.LootService:RollKillDrops(player, run, state, position)
-		if state.Boss then
-			local data = services.DataService:Get(player)
-			if data then
+		local data = services.DataService:Get(player)
+		if data then
+			if state.Boss then
 				data.BossKills += 1
 			end
+			if state.Elite then
+				data.EliteKills += 1
+			end
+			if state.Treasure then
+				data.ImpKills += 1
+				services.Net.SendNotify(player, "You caught the Treasure Imp!", GOLD)
+			end
+		end
+		-- Quests zaehlen fuer die ganze Gruppe (Koop lohnt sich)
+		services.ProgressService:Track(player, "Kill")
+		if state.Elite then
+			services.ProgressService:Track(player, "EliteKill")
+		end
+		if state.Boss then
+			services.ProgressService:Track(player, "BossKill")
 		end
 	end
-	if killer then
+	if killer and killer.Parent then
 		stats(run, killer).Kills += 1
 		local data = services.DataService:Get(killer)
 		if data then
 			data.Kills += 1
 		end
 		services.CombatService:OnKill(killer, state, position)
+		services.ProgressService:OnKill(killer, state.Level)
 	end
 	if state.Boss then
 		-- Restliche Diener verschwinden mit dem Boss
@@ -463,6 +604,8 @@ function DungeonService:StartRun(index: number, difficulty: number, members: { P
 		Dead = {}, -- [Player] = Frist
 		DeathPosition = {}, -- [Player] = Vector3
 		Started = os.clock(),
+		Featured = index == self.Services.ProgressService:FeaturedIndex(),
+		ImpSpawned = false,
 	}
 	slots[slot] = run
 	runs[run.Id] = run
@@ -487,7 +630,10 @@ function DungeonService:StartRun(index: number, difficulty: number, members: { P
 		return nil
 	end
 	syncRun(run)
-	self.Services.Net.SendEffect(run.Players, "RunStart", { Name = dungeon.Name, Difficulty = d.Name, Color = d.Color, Level = run.Level })
+	self.Services.Net.SendEffect(run.Players, "RunStart", { Name = dungeon.Name, Difficulty = d.Name, Color = d.Color, Level = run.Level, Featured = run.Featured })
+	for _, player in run.Players do
+		self.Services.ProgressService:Track(player, "RunStart")
+	end
 	task.delay(3, function()
 		if run.State == "Running" then
 			openGate(run, run.Rooms[1])
@@ -506,7 +652,8 @@ function DungeonService:Cleanup(run)
 	runs[run.Id] = nil
 end
 
-function DungeonService:Leave(player: Player)
+-- quitting = Spieler verlaesst das Spiel: keine Teleports, kein LoadCharacter, keine Remotes mehr
+function DungeonService:Leave(player: Player, quitting: boolean?)
 	local run = runOf[player]
 	if not run then
 		return
@@ -518,7 +665,7 @@ function DungeonService:Leave(player: Player)
 	end
 	run.Dead[player] = nil
 	run.DeathPosition[player] = nil
-	if player.Parent then
+	if player.Parent and not quitting then
 		player:SetAttribute("InRun", false)
 		player:SetAttribute("RunDungeon", nil)
 		self.Services.Net.Sync:FireClient(player, "Run", nil)
@@ -585,7 +732,7 @@ end
 -- Nach Kauf oder Werbung: an Ort und Stelle mit vollem Leben weiter
 function DungeonService:Revive(player: Player): boolean
 	local run = runOf[player]
-	if not run or not run.Dead[player] then
+	if not run or run.State ~= "Running" or not run.Dead[player] then
 		return false
 	end
 	run.Dead[player] = nil
@@ -603,7 +750,10 @@ local function syncLobby(index: number)
 	if not lobby then
 		return
 	end
+	local featuredIndex = DungeonService.Services.ProgressService:FeaturedIndex()
 	for i, player in lobby.Players do
+		local data = DungeonService.Services.DataService:Get(player)
+		local best = data and data.Records[Config.Dungeons[index].Id .. "_" .. lobby.Difficulty]
 		DungeonService.Services.Net.Sync:FireClient(player, "Lobby", {
 			Dungeon = index,
 			Count = #lobby.Players,
@@ -612,11 +762,13 @@ local function syncLobby(index: number)
 			MaxDifficulty = DungeonService:MaxDifficulty(player, index),
 			Seconds = math.max(0, lobby.StartsAt - os.clock()),
 			Leader = i == 1,
+			Best = best,
+			Featured = index == featuredIndex,
 		})
 	end
 end
 
-local function leaveLobby(player: Player)
+local function leaveLobby(player: Player, quitting: boolean?)
 	local index = lobbyOf[player]
 	if not index then
 		return
@@ -635,15 +787,15 @@ local function leaveLobby(player: Player)
 			syncLobby(index)
 		end
 	end
-	if player.Parent then
+	if player.Parent and not quitting then
 		DungeonService.Services.Net.Sync:FireClient(player, "Lobby", nil)
 	end
 end
 
-local function joinLobby(player: Player, index: number)
+local function joinLobby(player: Player, index: number): boolean
 	local lobby = lobbies[index]
 	if lobby and #lobby.Players >= Config.MaxPartySize then
-		return
+		return false
 	end
 	if not lobby then
 		lobby = { Players = {}, Difficulty = 1, StartsAt = os.clock() + Config.LobbyCountdown }
@@ -655,6 +807,7 @@ local function joinLobby(player: Player, index: number)
 		lobby.Difficulty = 1
 	end
 	syncLobby(index)
+	return true
 end
 
 local function updateLobbies()
@@ -680,7 +833,10 @@ local function updateLobbies()
 			for index, pad in portals do
 				if (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(pad.Position.X, 0, pad.Position.Z)).Magnitude <= 6.5 then
 					if DungeonService:IsUnlocked(player, index) then
-						joinLobby(player, index)
+						if not joinLobby(player, index) and os.clock() - (lockedNotice[player] or 0) > 4 then
+							lockedNotice[player] = os.clock()
+							DungeonService.Services.Net.SendNotify(player, "This party is full (4/4). Wait for the next group!", RED)
+						end
 					elseif os.clock() - (lockedNotice[player] or 0) > 4 then
 						lockedNotice[player] = os.clock()
 						DungeonService.Services.Net.SendNotify(player, `Locked! Defeat the boss of {Config.Dungeons[index - 1].Name} first.`, RED)
@@ -782,7 +938,7 @@ function DungeonService:Start()
 	Net.Handle("SetDifficulty", function(player, difficulty)
 		local index = lobbyOf[player]
 		local lobby = index and lobbies[index]
-		if not lobby or lobby.Players[1] ~= player or typeof(difficulty) ~= "number" then
+		if not lobby or lobby.Players[1] ~= player or typeof(difficulty) ~= "number" or difficulty ~= difficulty then
 			return false
 		end
 		difficulty = math.floor(difficulty)
@@ -848,8 +1004,8 @@ function DungeonService:Start()
 end
 
 function DungeonService:OnPlayerRemoving(player: Player)
-	leaveLobby(player)
-	self:Leave(player)
+	leaveLobby(player, true)
+	self:Leave(player, true)
 	lockedNotice[player] = nil
 end
 

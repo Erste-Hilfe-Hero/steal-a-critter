@@ -28,7 +28,8 @@ local SOUNDS = {
 
 function Effects.Sound(name: string, volume: number?, pitch: number?)
 	local id = SOUNDS[name]
-	if not id then
+	-- Einstellung "Sound effects"
+	if not id or player:GetAttribute("Set_Sound") == false then
 		return
 	end
 	local sound = Instance.new("Sound")
@@ -109,6 +110,10 @@ end
 
 -- Schwebende Zahl ueber einem Punkt
 local function number(position: Vector3, text: string, color: Color3, big: boolean?)
+	-- Einstellung "Damage numbers" (Stufenaufstieg wird immer gezeigt)
+	if not big and player:GetAttribute("Set_Numbers") == false then
+		return
+	end
 	local anchor = part({ Size = Vector3.one * 0.2, Position = position + Vector3.new(rng:NextNumber(-1, 1), 0, rng:NextNumber(-1, 1)), Transparency = 1 })
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(if big then 140 else 100, if big then 50 else 34)
@@ -415,6 +420,51 @@ function Handlers.Rain(data)
 			task.wait(0.12)
 		end
 	end)
+end
+
+function Handlers.ImpEscape(data)
+	burst(data.Position, Color3.fromRGB(255, 205, 60), 16, 0.6, 8)
+	ring(data.Position - Vector3.new(0, 2, 0), 6, Color3.fromRGB(180, 140, 255), 0.5)
+end
+
+function Handlers.Chest(data)
+	burst(data.Position, Color3.fromRGB(255, 210, 80), 18, 0.5, 6)
+	ring(data.Position - Vector3.new(0, 1.5, 0), 6, Color3.fromRGB(255, 210, 80), 0.5)
+	Effects.Sound("Loot", 0.6, 1.2)
+end
+
+-- Gruppen-Signal als Sprechblase ueber dem Kopf
+function Handlers.Ping(data)
+	local character = data.Player and data.Player.Character
+	local head = character and character:FindFirstChild("Head")
+	if not head then
+		return
+	end
+	local old = head:FindFirstChild("PingBubble")
+	if old then
+		old:Destroy()
+	end
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "PingBubble"
+	gui.Size = UDim2.fromOffset(120, 38)
+	gui.StudsOffset = Vector3.new(0, 5.5, 0)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundColor3 = Color3.fromRGB(32, 38, 66)
+	label.BackgroundTransparency = 0.1
+	label.Font = Enum.Font.LuckiestGuy
+	label.TextScaled = true
+	label.TextColor3 = Color3.fromRGB(255, 220, 120)
+	label.Text = data.Text
+	label.Parent = gui
+	local round = Instance.new("UICorner")
+	round.CornerRadius = UDim.new(0, 10)
+	round.Parent = label
+	gui.Parent = head
+	Effects.Sound("Click", 0.5, 1.4)
+	Debris:AddItem(gui, 2.5)
 end
 
 function Handlers.Enhance(data)
