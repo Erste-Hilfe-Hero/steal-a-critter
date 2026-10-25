@@ -55,6 +55,9 @@ jobs:
 
           LIST=$(call GET 'https://develop.roblox.com/v1/user/universes?limit=50&sortOrder=Desc')
           if ! echo "$LIST" | grep -q 'HTTP 200'; then echo "::error::Liste nicht lesbar: $(echo "$LIST" | tail -1)"; exit 1; fi
+          # Repo ist oeffentlich: nur ob verifiziert, kein Alter ausgeben
+          V=$(call GET 'https://apis.roblox.com/age-verification-service/v1/age-verification/verified-age')
+          note "account age verified" "$(body "$V" | jq -c '{isVerified}' 2>/dev/null) $(echo "$V" | tail -1)"
           body "$LIST" | jq -c '.data[]? | {id, name, isActive, privacyType}' | sed 's/^/before: /' | tee -a report.txt
 
           body "$LIST" | jq -r '.data[]? | "\(.id)\t\(.isActive)\t\(.name)"' | while IFS=$'\t' read -r U ACTIVE NAME; do
@@ -63,6 +66,11 @@ jobs:
             note "$NAME ($U) activate" "$(call POST "https://develop.roblox.com/v1/universes/$U/activate" -H 'Content-Length: 0')"
             AGE=$(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{visibility, ageRating}')
             note "$NAME ($U) now" "$AGE"
+            # Bei 403 nachsehen, woran es liegt (Rechte, Altersempfehlung)
+            if grep -q 'HTTP 403' <<<"$(tail -1 report.txt)$(grep -F "($U) activate" report.txt | tail -1)"; then
+              note "$NAME ($U) permissions" "$(call GET "https://develop.roblox.com/v1/universes/$U/permissions")"
+              note "$NAME ($U) age recommendation" "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H 'Content-Type: application/json' -d "{\"universeId\":\"$U\"}")"
+            fi
           done
 
           AFTER=$(call GET 'https://develop.roblox.com/v1/user/universes?limit=50&sortOrder=Desc')
