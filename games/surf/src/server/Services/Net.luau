@@ -23,6 +23,7 @@ Net.Shop = remote("Shop") -- Client -> Server ("Buy"/"Equip", "Trail"/"Ski", Id)
 Net.Purchase = remote("Purchase") -- Client -> Server ("Pass"/"Product", Key): Kauf starten
 Net.WatchAd = remote("WatchAd") -- Client -> Server
 Net.ClaimDaily = remote("ClaimDaily") -- Client -> Server
+Net.ClientLog = remote("ClientLog") -- Client -> Server (Fehler und Zustand fuer die Fehlersuche)
 
 folder.Parent = ReplicatedStorage
 

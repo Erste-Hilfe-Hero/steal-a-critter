@@ -436,6 +436,10 @@ function Movement.Start()
 	end)
 end
 
+function Movement.DebugPosition(): Vector3
+	return state.Position
+end
+
 function Movement.GetStageTime(): number?
 	return if Movement.StageStart then os.clock() - Movement.StageStart else nil
 end
