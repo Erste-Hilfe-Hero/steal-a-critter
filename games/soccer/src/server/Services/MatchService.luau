@@ -625,15 +625,31 @@ function MatchService:OnPlayerReady(player: Player)
 end
 
 function MatchService:OnCharacterAdded(player: Player, character: Model)
+	local diag = self.Services.DiagService
 	local teamName = player:GetAttribute("Team")
 	if not teamName then
+		self:AssignTeam(player)
+		teamName = player:GetAttribute("Team")
+		diag:Count("character.noTeam")
+	end
+	if actors[character] then
 		return
 	end
 	character:WaitForChild("HumanoidRootPart", 10)
-	if not character.Parent then
+	-- Der Charakter kann kurz vor dem Einfuegen in den Workspace gemeldet werden: warten statt aufgeben
+	local deadline = os.clock() + 10
+	while not character:IsDescendantOf(workspace) and os.clock() < deadline do
+		task.wait(0.1)
+	end
+	if not character:IsDescendantOf(workspace) or player.Character ~= character then
+		diag:Count("character.notInWorkspace")
 		return
 	end
-	self:AddActor(character, teamName, player, nil, player.DisplayName)
+	if not self:AddActor(character, teamName, player, nil, player.DisplayName) then
+		diag:Count("character.addFailed")
+		return
+	end
+	diag:Count("character.actorAdded")
 	character.AncestryChanged:Connect(function(_, parent)
 		if not parent then
 			self:RemoveActor(character)
@@ -642,6 +658,7 @@ function MatchService:OnCharacterAdded(player: Player, character: Model)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.Died:Connect(function()
+			diag:Count("character.died")
 			self:RemoveActor(character)
 		end)
 	end
