@@ -271,6 +271,11 @@ RunService.RenderStepped:Connect(function(dt)
 	if (workspace:GetAttribute("TeamBoostUntil_" .. (player:GetAttribute("Team") or "")) or 0) > serverNow() then
 		speed *= Config.TeamBoostFactor
 	end
+	-- Speed-Orb vom Feld und Spielmodus "Turbo"
+	if (player:GetAttribute("SpeedOrbUntil") or 0) > serverNow() then
+		speed *= Config.SpeedOrbFactor
+	end
+	speed *= workspace:GetAttribute("ModeSpeed") or 1
 	if wantsSprint then
 		speed *= Config.SprintFactor
 	end

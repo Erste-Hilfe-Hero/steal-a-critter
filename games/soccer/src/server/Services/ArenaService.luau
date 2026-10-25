@@ -567,13 +567,6 @@ function ArenaService:MascotStomp(teamName: string, target: Vector3)
 	end)
 end
 
--- Ist diese Position im Strafraum vor dem Tor von teamName?
-function ArenaService:InGoalZone(teamName: string, position: Vector3): boolean
-	local side = Config.Teams[teamName].Side
-	local depth = position.X * side
-	return depth > HALF_L - Config.MascotZoneDepth and depth < HALF_L + Config.GoalDepth and math.abs(position.Z) < Config.MascotZoneWidth / 2
-end
-
 -- Torlinien-Mitte des Tores, das dieses Team verteidigt
 function ArenaService:GoalCenter(teamName: string): Vector3
 	return Vector3.new(Config.Teams[teamName].Side * HALF_L, Config.GroundY, 0)

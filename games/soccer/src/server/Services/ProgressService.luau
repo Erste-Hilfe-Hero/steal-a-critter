@@ -197,6 +197,10 @@ function ProgressService:AddCoins(player: Player, amount: number, raw: boolean?)
 		if hasPass(player, "DoubleCoins") then
 			multiplier *= 2
 		end
+		-- Freunde-Bonus (FeaturesService setzt das Attribut)
+		if player:GetAttribute("FriendBonus") == true then
+			multiplier *= Config.FriendBonus
+		end
 		amount = math.floor(amount * multiplier)
 	end
 	d.Coins += amount

@@ -127,6 +127,8 @@ function ExtrasService:Progress(player: Player?, event: string, amount: number?)
 		return
 	end
 	rollQuests(player, d)
+	-- Wochen-Herausforderung und Erfolge laufen im FeaturesService mit
+	services().FeaturesService:OnEvent(player, event, amount or 1)
 	local changed = false
 	for _, item in d.Quests.Items do
 		local def = QUESTS_BY_ID[item.Id]
@@ -429,15 +431,24 @@ function ExtrasService:KickMultiplier(actor): number
 	local rockets = player and player:GetAttribute("RocketShots") or 0
 	if rockets > 0 then
 		player:SetAttribute("RocketShots", rockets - 1)
+		-- gekaufte Schuesse sind gespeichert, damit sie beim Verlassen nicht verloren gehen
+		local d = data(player)
+		if d then
+			d.RocketShots = rockets - 1
+		end
 		multiplier *= Config.RocketShotPower
 		notify(player, `ROCKET SHOT! ({rockets - 1} left)`, C.Orange)
 	end
+	-- Power-Orb und Spielmodus "Mega Kicks"
+	multiplier *= services().FeaturesService:KickBonus(actor)
 	return multiplier
 end
 
 function ExtrasService:OnKick(actor, speed: number)
 	if actor.Player then
-		send(actor.Player, "ShotSpeed", math.floor(speed * 0.28 * 3.6))
+		local kmh = math.floor(speed * 0.28 * 3.6)
+		send(actor.Player, "ShotSpeed", kmh)
+		services().FeaturesService:OnShot(actor.Player, kmh)
 	end
 end
 
@@ -768,6 +779,7 @@ function ExtrasService:OnPlayerReady(player: Player)
 	end
 	player:SetAttribute("SwordSkin", d.SwordSkin)
 	player:SetAttribute("RespawnTokens", d.RespawnTokens or 0)
+	player:SetAttribute("RocketShots", d.RocketShots or 0)
 	send(player, "Settings", d.Settings)
 	sendQuests(player)
 	send(player, "Skins", { Owned = d.SwordSkins, Equipped = d.SwordSkin })
@@ -844,9 +856,17 @@ function ExtrasService:Start()
 		elseif action == "Settings" and typeof(arg) == "table" then
 			local d = data(player)
 			if d then
+				-- NaN vom Client abfangen (wuerde gespeichert und die Kamera kaputt machen)
+				local function number(value: any, default: number, low: number, high: number): number
+					local n = tonumber(value)
+					if n == nil or n ~= n then
+						return default
+					end
+					return math.clamp(n, low, high)
+				end
 				d.Settings = {
-					Fov = math.clamp(tonumber(arg.Fov) or 70, 60, 100),
-					Crowd = math.clamp(tonumber(arg.Crowd) or 1, 0, 1),
+					Fov = number(arg.Fov, 70, 60, 100),
+					Crowd = number(arg.Crowd, 1, 0, 1),
 					FirstPerson = arg.FirstPerson ~= false,
 				}
 			end

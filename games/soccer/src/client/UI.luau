@@ -23,6 +23,7 @@ local PANEL = Color3.fromRGB(20, 28, 64)
 local GREEN = Color3.fromRGB(60, 200, 90)
 
 UI.IsTouch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+UI.ResultsBody = nil :: Frame?
 
 local function create(className: string, props, children: { Instance }?)
 	local instance = Instance.new(className)
@@ -296,9 +297,10 @@ local adButton: TextButton
 local menu: Frame
 
 local function buildMenu()
-	-- Zwei Spalten, damit auch Quests, Statistik, Schwerter und Einstellungen Platz haben
-	menu = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 20), Size = UDim2.fromOffset(156, 260), BackgroundTransparency = 1, Parent = root }, {
-		create("UIGridLayout", { CellSize = UDim2.fromOffset(74, 56), CellPadding = UDim2.fromOffset(8, 8), FillDirectionMaxCells = 2, SortOrder = Enum.SortOrder.LayoutOrder }),
+	-- Drei Spalten, damit auch Quests, Statistik, Schwerter, Einstellungen, Gluecksrad, Chat und "Mehr" Platz haben
+	-- (vier Reihen enden oberhalb der Bildschirmmitte + 144, die Minimap darueber bleibt frei)
+	menu = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 20), Size = UDim2.fromOffset(238, 248), BackgroundTransparency = 1, Parent = root }, {
+		create("UIGridLayout", { CellSize = UDim2.fromOffset(74, 56), CellPadding = UDim2.fromOffset(8, 8), FillDirectionMaxCells = 3, SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
 	local item = UI.AddMenuItem
 	local skills = item("UPGRADE", C.Lime, 1, function()
@@ -777,8 +779,10 @@ end
 local resultsFrame: Frame
 
 local function buildResults()
-	local frame, body = window("Results", "FULL TIME", Vector2.new(500, 440))
+	local frame, body = window("Results", "FULL TIME", Vector2.new(500, 480))
 	resultsFrame = frame
+	-- Platz unter den Auszeichnungen: dort zeigt Features die Abstimmung fuer den naechsten Modus
+	UI.ResultsBody = body
 	local title = label({ Name = "Title", Size = UDim2.new(1, 0, 0, 60), Text = "VICTORY", Parent = body })
 	local stats = label({ Name = "Stats", Position = UDim2.fromOffset(0, 66), Size = UDim2.new(1, 0, 0, 90), Text = "", Font = BODY, TextWrapped = true, Parent = body })
 	local earned = label({ Name = "Earned", Position = UDim2.fromOffset(0, 160), Size = UDim2.new(1, 0, 0, 34), Text = "", TextColor3 = C.Gold, Parent = body })
@@ -786,7 +790,7 @@ local function buildResults()
 	UI.FillResults = function(info)
 		title.Text = if info.Result == "Win" then "VICTORY!" elseif info.Result == "Loss" then "DEFEAT" else "DRAW"
 		title.TextColor3 = if info.Result == "Win" then C.Lime elseif info.Result == "Loss" then C.Orange else C.White
-		stats.Text = `Goals {info.Goals}   Assists {info.Assists}   Steals {info.Steals}\nSaves {info.Saves}   Smacks {info.Smacks or 0}   Match EXP {Format.Number(info.EXP or 0)}`
+		stats.Text = `Goals {info.Goals}   Assists {info.Assists}   Steals {info.Steals}\nSaves {info.Saves}   Smacks {info.Smacks or 0}   KOs {info.KOs or 0}   Match EXP {Format.Number(info.EXP or 0)}`
 		earned.Text = `+{Format.Number(info.XP)} ACCOUNT XP    +{Format.Number(info.Coins)} COINS`
 		awards.Text = table.concat(info.Awards or {}, "\n")
 	end

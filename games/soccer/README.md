@@ -43,6 +43,36 @@ Abendstadion mit Flutlicht, Tribünen, Publikum, Banden mit SOCCER-JAM-Slogans, 
 
 Im Upgrade-Fenster kann man auch 250 EXP für Coins kaufen. Angebote: Starter Pack nach 90 Sekunden (einmal), XP-Boost nach jeder zweiten Niederlage, Match-EXP wenn EXP fehlt. Keine Lootboxen. Die "Passes" sind Developer Products, die dauerhaft gespeichert werden.
 
+## Update: 15 neue Features und Fehlerbehebungen
+
+Neu (Server `FeaturesService.luau`, Client `Features.luau`, Werte in `Config.luau`). Im Menue links gibt es jetzt drei Spalten mit **SPIN**, **CHAT** und **MORE**:
+
+1. **Erfolge**: 14 Karriere-Ziele (erstes Tor, 100 Tore, 250 K.O.s, 100 Siege, Level 25, 10x MVP ...) mit einmaliger Coin-Belohnung, Fenster mit Fortschritt (MORE > ACHIEVEMENTS).
+2. **Wochen-Herausforderung**: eine grosse Aufgabe pro Woche fuer alle (z. B. 10 Tore), 1.200 bis 1.500 Coins, Countdown bis Montag.
+3. **Taegliches Gluecksrad** (SPIN): einmal am Tag gratis, weitere Drehungen 300 Coins (nur Spielwaehrung). Preise: Coins, Rocket Shot, 15 Minuten 2x XP. Rotes "!" am Knopf, wenn die Gratis-Drehung bereit ist.
+4. **Codes** (MORE > CODES): SOCCERJAM, WELCOME, GOAL, SAMURAI (Coins) und ROCKET (2 Rocket Shots), jeder einmal pro Spieler.
+5. **Rang-Punkte**: Sieg +25, Unentschieden +5, Niederlage -15; Raenge Bronze, Silver, Gold, Platinum, Diamond, Champion, Aufstieg wird angesagt.
+6. **Match-Verlauf**: die letzten 8 Matches mit Ergebnis, Tore, Vorlagen und K.O.s (MORE > PROFILE & RANK).
+7. **Persoenliche Rekorde**: haertester Schuss (km/h), weitestes Tor, meiste Tore und K.O.s in einem Match, mit "NEW RECORD!"-Meldung.
+8. **MVP des Matches**: Punkte aus Toren, Vorlagen, Paraden, Steals und K.O.s; steht ganz oben bei den Auszeichnungen, echte Spieler bekommen 150 Coins.
+9. **Muenzen auf dem Feld**: alle 20 Sekunden erscheint eine goldene Muenze (20 bis 50 Coins), nur Spieler koennen sie einsammeln.
+10. **Power-Orbs**: Speed (+20 % Tempo fuer 8 s), Power (naechster Schuss +40 %) und Heal (volle Leben).
+11. **Modus-Abstimmung**: im Ergebnis-Fenster fuer das naechste Match abstimmen: Classic, Low Gravity, Turbo (alle 20 % schneller, auch Bots) oder Mega Kicks (+25 % Schusskraft).
+12. **Schnell-Chat** (CHAT oder Taste C): 8 feste Sprueche als Sprechblase ueber dem Kopf, Mitspieler sehen sie auch als Meldung. Keine freie Eingabe.
+13. **Freunde-Bonus**: +20 % Coins, solange ein Roblox-Freund auf demselben Server spielt (Anzeige oben links).
+14. **Torjubel-Effekte** (MORE > CELEBRATIONS): Confetti, Stars, Flames, Lightning, Galaxy fuer 800 bis 3.500 Coins, platzen beim Tor rund um den Schuetzen.
+15. **Anleitung** (MORE > HOW TO PLAY): 5 Seiten Regeln und Steuerung, oeffnet sich beim ersten Besuch automatisch.
+
+Fehler behoben:
+
+- Kick-Remote nahm unendlich lange Richtungsvektoren an, der Ball bekam dann eine NaN-Geschwindigkeit.
+- Einstellungen: NaN-Werte vom Client (FOV, Publikum) wurden gespeichert und haetten die Kamera kaputt gemacht.
+- Gekaufte Rocket Shots gingen beim Verlassen des Servers verloren (nur Attribut), jetzt gespeichert.
+- Wer das Spiel verliess, bevor "sein" Tor zaehlte, wurde wieder in die Match-Statistik eingetragen (Speicherleck, Name in den Auszeichnungen).
+- `ArenaService:InGoalZone` griff auf nicht vorhandene Config-Werte zu (toter Code, entfernt).
+- Gespeicherte Unter-Tabellen (Einstellungen, Rekorde ...) bekommen neue Schluessel jetzt auch bei alten Spielstaenden.
+- Ergebnis-Fenster zeigte die K.O.s nicht, obwohl der Server sie schickt.
+
 ## Deploy
 
 `.github/workflows/publish-soccer.yml` läuft bei jedem Push nach `games/soccer/` auf `main`: Experience über den Namen finden (`roblox.json`, sonst Name passt zu "Soccer" oder "7"), Produkte anlegen und ihre IDs in `src/shared/ProductIds.json` schreiben, Name/Beschreibung setzen, mit Rojo bauen, veröffentlichen und Icon/Vorschaubild hochladen. Die Experience ist "7" (Universe 10772779542), fest eingetragen in `roblox.json`.

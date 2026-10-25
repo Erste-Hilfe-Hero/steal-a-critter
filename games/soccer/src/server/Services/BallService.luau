@@ -492,10 +492,11 @@ function BallService:Start()
 
 	local net = self.Services.Net
 	net.Kick.OnServerEvent:Connect(function(player, dir, power, spin)
-		if typeof(dir) ~= "Vector3" or typeof(power) ~= "number" or dir.Magnitude ~= dir.Magnitude or power ~= power then
+		-- NaN und unendliche Werte abweisen (sonst bekommt der Ball eine NaN-Geschwindigkeit)
+		if typeof(dir) ~= "Vector3" or typeof(power) ~= "number" or dir.Magnitude ~= dir.Magnitude or dir.Magnitude == math.huge or power ~= power then
 			return
 		end
-		if typeof(spin) ~= "number" or spin ~= spin then
+		if typeof(spin) ~= "number" or spin ~= spin or math.abs(spin) == math.huge then
 			spin = 0
 		end
 		local actor = self.Services.MatchService:ActorForPlayer(player)

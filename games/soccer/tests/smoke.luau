@@ -36,7 +36,7 @@ workspace:SetAttribute("SmokeTest", true)
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local Services = {}
-local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService", "ExtrasService", "DiagService" }
+local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService", "ExtrasService", "FeaturesService", "DiagService" }
 local ok, err = pcall(function()
 	Services.Net = require(folder.Services.Net)
 	for _, name in ORDER do
@@ -136,7 +136,61 @@ if blue and red then
 		Services.ExtrasService:OnMatchStart()
 		Services.ExtrasService:OnMatchEnd("Blue")
 	end)
+
+	-- Neue Features
+	local features = Services.FeaturesService
+	try("features remote", function()
+		assert(ReplicatedStorage.Remotes:FindFirstChild("Features"), "no Features remote")
+	end)
+	try("mvp tracking", function()
+		features:Track(blue, "Goal")
+		features:Track(blue, "KO")
+		features:Track(red, "Save")
+		features:Track(nil, "KO")
+		local line = features:OnMatchEnd("Blue", 2, 1)
+		assert(type(line) == "string" and string.find(line, "MVP"), "no MVP line: " .. tostring(line))
+	end)
+	try("mode vote pick", function()
+		assert(features:PickMode({}) == "Classic", "no votes should be Classic")
+		assert(features:PickMode({ Turbo = 2, Classic = 1 }) == "Turbo", "majority should win")
+	end)
+	try("mode apply", function()
+		features:ApplyMode("LowGravity")
+		assert(workspace.Gravity < 150, "gravity not lowered")
+		features:ApplyMode("Turbo")
+		assert(workspace:GetAttribute("ModeSpeed") == Config.ModesById.Turbo.Speed, "turbo speed missing")
+		local m = features:KickBonus(blue)
+		assert(m == 1, "turbo should not change kicks")
+		features:ApplyMode("MegaKicks")
+		assert(features:KickBonus(blue) > 1, "mega kicks missing")
+		features:OnMatchStart()
+		assert(features:GetMode() == "Classic" and math.abs(workspace.Gravity - 196.2) < 1, "classic not restored")
+	end)
+	try("spin roll", function()
+		local random = Random.new(1)
+		for _ = 1, 200 do
+			local index = features:RollSpin(random)
+			assert(Config.SpinPrizes[index], "bad spin index " .. tostring(index))
+		end
+	end)
+	try("ranks", function()
+		assert(Config.RankFor(0).Name == "Bronze" and Config.RankFor(1260).Name == "Gold" and Config.RankFor(5000).Name == "Champion", "rank table broken")
+	end)
+	try("goal hook features", function()
+		features:OnGoal(blue, red, 90)
+	end)
 end
+
+-- Muenzen erscheinen waehrend des Spiels auf dem Feld (Bots sammeln sie nicht ein)
+local pickupFolder = workspace:FindFirstChild("Pickups")
+check("pickups folder", pickupFolder ~= nil)
+local sawCoin = false
+local pickupDeadline = os.clock() + 25
+while os.clock() < pickupDeadline and not sawCoin do
+	sawCoin = pickupFolder ~= nil and pickupFolder:FindFirstChild("CoinDrop") ~= nil
+	task.wait(0.5)
+end
+check("coin drop spawned", sawCoin or match:GetState() == "Ended" or match:GetState() == "Waiting", match:GetState())
 
 -- Eigene Sounds (SoundIds.json) muessen laden, sonst ist es im Spiel still
 local SoundIds = require(ReplicatedStorage.Shared.SoundIds)

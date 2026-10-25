@@ -39,6 +39,20 @@ local function defaultData()
 		SwordSkins = { classic = true },
 		Quests = { Day = 0, Items = {} }, -- taegliche Quests: { Id, Progress, Done }
 		Settings = { Fov = 70, Crowd = 1, FirstPerson = true },
+		RocketShots = 0, -- gekaufte Rocket Shots (bleiben ueber das Verlassen hinaus)
+		RespawnTokens = 0,
+		-- Features
+		Achievements = {}, -- [Id] = true
+		Codes = {}, -- [CODE] = true
+		LastSpin = 0, -- Tag der letzten Gratis-Drehung
+		Rating = Config.RatingStart,
+		MVPs = 0,
+		History = {}, -- letzte Matches { R, S, G, A, K }
+		Records = { ShotSpeed = 0, GoalDistance = 0, MatchGoals = 0, MatchKOs = 0 },
+		Weekly = { Week = 0, Progress = 0, Done = false },
+		Celebration = "none",
+		Celebrations = { none = true },
+		TutorialDone = false,
 	}
 end
 
@@ -46,6 +60,13 @@ local function reconcile(data)
 	for key, value in defaultData() do
 		if data[key] == nil then
 			data[key] = value
+		elseif type(value) == "table" and type(data[key]) == "table" and next(value) ~= nil and #value == 0 then
+			-- Unter-Tabellen mit festen Schluesseln (Settings, Records ...) ebenfalls ergaenzen
+			for subKey, subValue in value do
+				if data[key][subKey] == nil then
+					data[key][subKey] = subValue
+				end
+			end
 		end
 	end
 	return data
