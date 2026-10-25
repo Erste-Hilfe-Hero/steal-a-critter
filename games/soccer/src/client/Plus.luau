@@ -191,7 +191,8 @@ local padCooldown = 0
 
 local function checkPads()
 	local _, root = myCharacter()
-	if not root or os.clock() < padCooldown then
+	-- nur im laufenden Match (nicht beim Beitreten, Anstoss oder Respawn)
+	if not root or os.clock() < padCooldown or not playing() or not myTeam() then
 		return
 	end
 	local p = root.Position

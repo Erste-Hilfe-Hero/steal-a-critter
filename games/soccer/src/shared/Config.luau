@@ -542,7 +542,7 @@ Config.SkillDash = 55
 Config.HeaderSpeed = 75
 Config.WeekendCoins = 2
 Config.SpeedPads = { Vector3.new(-80, 0, -55), Vector3.new(-80, 0, 55), Vector3.new(80, 0, -55), Vector3.new(80, 0, 55) }
-Config.JumpPads = { Vector3.new(0, 0, -88), Vector3.new(0, 0, 88), Vector3.new(-125, 0, -85), Vector3.new(125, 0, 85) }
+Config.JumpPads = { Vector3.new(-45, 0, -82), Vector3.new(45, 0, 82), Vector3.new(-125, 0, -82), Vector3.new(125, 0, 82) } -- weit weg vom Beitritts-Spawn (0, -92)
 
 -- Wochenende (Sa/So, UTC): doppelte Coins
 function Config.IsWeekend(t: number?): boolean
