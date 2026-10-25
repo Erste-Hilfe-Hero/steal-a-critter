@@ -46,6 +46,49 @@ local function onPlayerAdded(player: Player)
 	end
 end
 
+-- Fehlersuche: Client-Fehler und Zustand der ersten Minute pro Spieler im DataStore "SurfDiag" ablegen
+-- (lesbar per Luau Execution, siehe tests/readlog.luau)
+do
+	local DataStoreService = game:GetService("DataStoreService")
+	local diagStore = DataStoreService:GetDataStore("SurfDiag")
+	local logs = {}
+	local function flush(player: Player)
+		local lines = logs[player]
+		if lines and lines.Dirty then
+			lines.Dirty = false
+			local text = table.concat(lines, "\n")
+			task.spawn(pcall, diagStore.SetAsync, diagStore, "u_" .. player.UserId, string.sub(text, -60000))
+		end
+	end
+	Services.Net.ClientLog.OnServerEvent:Connect(function(player, message)
+		local lines = logs[player]
+		if not lines then
+			lines = { Count = 0 }
+			logs[player] = lines
+		end
+		if typeof(message) ~= "string" or lines.Count >= 200 then
+			return
+		end
+		lines.Count += 1
+		table.insert(lines, os.date("!%H:%M:%S") .. " " .. string.sub(message, 1, 400))
+		lines.Dirty = true
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(8)
+			for player in logs do
+				if player.Parent then
+					flush(player)
+				end
+			end
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		flush(player)
+		logs[player] = nil
+	end)
+end
+
 Players.PlayerAdded:Connect(onPlayerAdded)
 for _, player in Players:GetPlayers() do
 	task.spawn(onPlayerAdded, player)
