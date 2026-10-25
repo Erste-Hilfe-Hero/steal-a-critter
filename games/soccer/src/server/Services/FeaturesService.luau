@@ -355,6 +355,7 @@ function FeaturesService:ApplyMode(id: string)
 	currentMode = mode.Id
 	workspace.Gravity = mode.Gravity or baseGravity
 	workspace:SetAttribute("ModeSpeed", mode.Speed or 1)
+	workspace:SetAttribute("ScoreLimit", mode.ScoreLimit or Config.ScoreLimit)
 	workspace:SetAttribute("Mode", mode.Id)
 	if mode.Id ~= "Classic" then
 		services().Net.SendAnnounce(`{mode.Name} MATCH! {mode.Text}`, C.Cyan)

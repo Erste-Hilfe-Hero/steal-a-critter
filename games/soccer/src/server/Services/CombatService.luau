@@ -260,6 +260,9 @@ function CombatService:Damage(victim, amount: number, attacker, kind: string, ba
 		amount = math.floor(self.Services.ExtrasService:ModifyDamage(attacker, victim, amount, kind) + 0.5)
 	end
 	victim.LastHurt = now()
+	if attacker then
+		self.Services.PlusService:AddSuper(attacker, Config.SuperGain.Hit)
+	end
 	local dealt = math.min(victim.HP, amount)
 	local hp = math.max(0, victim.HP - amount)
 	setHP(victim, hp)

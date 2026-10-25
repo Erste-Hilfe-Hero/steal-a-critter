@@ -69,7 +69,7 @@ Config.MaxTeamSize = 10
 
 Config.PickupCooldown = 0.45 -- so lange kann der Schuetze den Ball nicht wieder annehmen
 Config.BallFriction = 0.7 -- Bremsung pro Sekunde auf dem Boden
-Config.ChargeTime = 1.1 -- Sekunden bis voller Schuss
+Config.ChargeTime = 0.6 -- Sekunden bis voller Schuss (kurz: schon Antippen gibt einen brauchbaren Schuss)
 Config.CurveRate = 1.4 -- Kurvenball: Drehung der Flugbahn in rad/s bei vollem Effet
 Config.CurveTime = 1.1
 Config.SmackSpeed = 75 -- schnellere gegnerische Schuesse hauen Spieler um (wie im Original, nur ohne Schaden)
@@ -400,6 +400,9 @@ Config.Modes = {
 	{ Id = "LowGravity", Name = "LOW GRAVITY", Text = "Floaty jumps and long high balls", Gravity = 110 },
 	{ Id = "Turbo", Name = "TURBO", Text = "Everyone runs 20% faster", Speed = 1.2 },
 	{ Id = "MegaKicks", Name = "MEGA KICKS", Text = "All kicks are 25% harder", Kick = 1.25 },
+	{ Id = "QuickMatch", Name = "QUICK MATCH", Text = "First team to 3 goals wins", ScoreLimit = 3 },
+	{ Id = "Bouncy", Name = "BOUNCY BALL", Text = "The ball bounces like crazy", Bouncy = true },
+	{ Id = "SuperShots", Name = "SUPER SHOTS", Text = "Super meter fills 3x faster", SuperRate = 3 },
 }
 Config.ModesById = {}
 for _, mode in Config.Modes do
@@ -482,6 +485,69 @@ for key, pass in Config.GamePasses do
 end
 for key, product in Config.DevProducts do
 	product.Id = tonumber(ids[key]) or 0
+end
+
+---------------------------------------------------------------- Einfacher schiessen
+
+-- Spieler (nicht Bots): Schuss Richtung Tor fliegt automatisch aufs Tor, in die Ecke weg vom Torwart
+Config.ShotAssistRange = 200 -- Studs bis zum Tor
+Config.ShotAssistAngle = math.cos(math.rad(50)) -- so weit darf man daneben zielen
+Config.MinShotPower = 0.6 -- schwaechster Spieler-Schuss in Anteilen des vollen Schusses
+
+-- Zielpunkt im Tor fuer einen Schuss von from in Richtung forward (nil = nicht aufs Tor gezielt)
+function Config.ShotTarget(from: Vector3, forward: Vector3, goal: Vector3, keeperZ: number?): Vector3?
+	local toGoal = Vector3.new(goal.X - from.X, 0, goal.Z - from.Z)
+	local distance = toGoal.Magnitude
+	local f = Vector3.new(forward.X, 0, forward.Z)
+	if distance > Config.ShotAssistRange or distance < 3 or f.Magnitude < 0.01 or f.Unit:Dot(toGoal.Unit) < Config.ShotAssistAngle then
+		return nil
+	end
+	f = f.Unit
+	local z = if math.abs(f.X) > 0.05 then from.Z + f.Z * (goal.X - from.X) / f.X else goal.Z
+	local edge = Config.GoalWidth * 0.32
+	z = math.clamp(z, -edge, edge)
+	if keeperZ and math.abs(z - keeperZ) < 9 then
+		z = if keeperZ > 0.5 then -edge elseif keeperZ < -0.5 then edge elseif z >= 0 then edge else -edge
+	end
+	local side = if goal.X >= 0 then 1 else -1
+	return Vector3.new(goal.X + side * 2, Config.GroundY + Config.GoalHeight * 0.35, z)
+end
+
+-- Flacher Abschusswinkel, der (distance, height) trifft; zu schwache Schuesse werden so weit verstaerkt, dass sie ankommen
+function Config.ShotArc(distance: number, height: number, speed: number, gravity: number): (number, number)
+	local v2 = speed * speed
+	local need = gravity * (height + math.sqrt(height * height + distance * distance)) * 1.08
+	if v2 < need then
+		v2 = need
+		speed = math.sqrt(v2)
+	end
+	local disc = math.max(0, v2 * v2 - gravity * (gravity * distance * distance + 2 * height * v2))
+	return math.atan((v2 - math.sqrt(disc)) / (gravity * math.max(distance, 1))), speed
+end
+
+---------------------------------------------------------------- Plus-Features (PlusService / client Plus)
+
+Config.SuperMax = 100
+Config.SuperGain = { Touch = 6, Pass = 15, Steal = 25, Save = 35, Hit = 8 }
+Config.SuperPower = 1.5
+Config.OneTouchWindow = 1.2 -- Sekunden nach einer Pass-Annahme
+Config.OneTouchPower = 1.25
+Config.ComebackDeficit = 3 -- so weit hinten: Super-Leiste fuellt sich doppelt
+Config.PadBoostSeconds = 2.5
+Config.PadBoostFactor = 1.35
+Config.JumpPadVelocity = 75
+Config.SkillCooldown = 4
+Config.SkillSeconds = 0.7 -- so lange kann man nach dem Trick nicht vom Ball getrennt werden
+Config.SkillDash = 55
+Config.HeaderSpeed = 75
+Config.WeekendCoins = 2
+Config.SpeedPads = { Vector3.new(-80, 0, -55), Vector3.new(-80, 0, 55), Vector3.new(80, 0, -55), Vector3.new(80, 0, 55) }
+Config.JumpPads = { Vector3.new(0, 0, -88), Vector3.new(0, 0, 88), Vector3.new(-125, 0, -85), Vector3.new(125, 0, 85) }
+
+-- Wochenende (Sa/So, UTC): doppelte Coins
+function Config.IsWeekend(t: number?): boolean
+	local day = os.date("!*t", t or os.time()).wday
+	return day == 1 or day == 7
 end
 
 -- Spieler sind fest (kein Durchlaufen), duerfen aber nicht auf anderen stehen: steht jemand auf einem

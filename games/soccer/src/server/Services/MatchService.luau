@@ -308,7 +308,7 @@ function MatchService:OnGoal(scoringTeam: string, scorer, assist, distance: numb
 		OwnGoal = scorer == nil,
 		Distance = if distance then math.floor(distance) else nil,
 	})
-	if score[scoringTeam] >= Config.ScoreLimit then
+	if score[scoringTeam] >= (workspace:GetAttribute("ScoreLimit") or Config.ScoreLimit) then
 		self.ScoreLimitReached = true
 	end
 	self.GoalScored = true
@@ -407,6 +407,7 @@ function MatchService:OnSave(actor)
 	end
 	self.Services.ExtrasService:OnSave(actor)
 	self.Services.FeaturesService:Track(actor, "Save")
+	self.Services.PlusService:AddSuper(actor, Config.SuperGain.Save)
 end
 
 ---------------------------------------------------------------- Ablauf
@@ -459,6 +460,7 @@ local function finishMatch()
 	end
 	MatchService.Services.Net.MatchEvent:FireAllClients("Ended", { Winner = winner, Blue = score.Blue, Red = score.Red })
 	MatchService.Services.ExtrasService:OnMatchEnd(winner)
+	MatchService.Services.PlusService:OnMatchEnd()
 	for _, player in Players:GetPlayers() do
 		local teamName = player:GetAttribute("Team")
 		if teamName then
@@ -506,6 +508,7 @@ local function runMatch()
 	updateScore()
 	MatchService.Services.ExtrasService:OnMatchStart()
 	MatchService.Services.FeaturesService:OnMatchStart()
+	MatchService.Services.PlusService:OnMatchStart()
 	kickoff()
 	local lastTick = os.clock()
 	while true do

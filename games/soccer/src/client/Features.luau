@@ -469,8 +469,9 @@ local function buildVote()
 	end
 	voteFrame = Kit.create("Frame", { Position = UDim2.fromOffset(0, 314), Size = UDim2.new(1, 0, 0, 84), BackgroundTransparency = 1, Visible = false, Parent = body })
 	Kit.label({ Size = UDim2.new(1, 0, 0, 20), Text = "VOTE: NEXT MATCH MODE", Font = BODY, TextColor3 = C.Gold, Parent = voteFrame })
-	local row = Kit.create("Frame", { Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 48), BackgroundTransparency = 1, Parent = voteFrame }, {
-		Kit.create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
+	-- 4 Spalten, 2 Reihen (7 Modi)
+	local row = Kit.create("Frame", { Position = UDim2.fromOffset(0, 24), Size = UDim2.new(1, 0, 0, 58), BackgroundTransparency = 1, Parent = voteFrame }, {
+		Kit.create("UIGridLayout", { CellSize = UDim2.new(0.25, -5, 0, 27), CellPadding = UDim2.fromOffset(6, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
 	for index, mode in Config.Modes do
 		local b = Kit.button({ Size = UDim2.new(0.25, -5, 1, 0), Text = mode.Name, LayoutOrder = index, Parent = row }, C.NavyLight)

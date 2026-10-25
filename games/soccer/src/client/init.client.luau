@@ -9,6 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Extras = require(script.Extras)
+local Plus = require(script.Plus)
 local Sounds = require(script.Sounds)
 local UI = require(script.UI)
 local Viewmodel = require(script.Viewmodel)
@@ -610,5 +611,18 @@ task.spawn(function()
 	if not ok then
 		warn("[Extras] start failed:", err)
 		UI.Toast("Extras error: " .. string.sub(tostring(err), 1, 120), Config.Colors.Red)
+	end
+end)
+task.spawn(function()
+	local ok, err = pcall(Plus.Start, {
+		IsCharging = function(): boolean
+			return charging
+		end,
+		AimDirection = aimDirection,
+		Carrying = carrying,
+	})
+	if not ok then
+		warn("[Plus] start failed:", err)
+		UI.Toast("Plus error: " .. string.sub(tostring(err), 1, 120), Config.Colors.Red)
 	end
 end)
