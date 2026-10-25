@@ -35,21 +35,31 @@ local function onPlayerAdded(player: Player)
 	if not data then
 		return
 	end
-	Services.MonetizationService:LoadPasses(player)
-	Services.ProgressService:OnPlayerReady(player)
-	Services.MatchService:OnPlayerReady(player)
-	Services.MonetizationService:OnPlayerReady(player)
-	Services.ExtrasService:OnPlayerReady(player)
-	Services.FeaturesService:OnPlayerReady(player)
-
-	player.CharacterAdded:Connect(function(character)
-		task.spawn(Services.MatchService.OnCharacterAdded, Services.MatchService, player, character)
-		task.spawn(Services.ProgressService.OnCharacterAdded, Services.ProgressService, player, character)
-	end)
-	if player.Character then
-		task.spawn(Services.MatchService.OnCharacterAdded, Services.MatchService, player, player.Character)
-		task.spawn(Services.ProgressService.OnCharacterAdded, Services.ProgressService, player, player.Character)
+	-- Jeder Schritt einzeln abgesichert: ein Fehler in einem Service darf nicht verhindern, dass der
+	-- Spieler mitspielt (sonst ist er kein Akteur und kann z. B. nicht angreifen)
+	local function step(name: string, fn, ...)
+		local ok, err = pcall(fn, ...)
+		if not ok then
+			warn(`[Join] {name} failed:`, err)
+			Services.DiagService:Count("joinError." .. name, tostring(err))
+		end
 	end
+	step("LoadPasses", Services.MonetizationService.LoadPasses, Services.MonetizationService, player)
+	step("ProgressReady", Services.ProgressService.OnPlayerReady, Services.ProgressService, player)
+	step("MatchReady", Services.MatchService.OnPlayerReady, Services.MatchService, player)
+
+	local function onCharacter(character: Model)
+		task.spawn(step, "MatchCharacter", Services.MatchService.OnCharacterAdded, Services.MatchService, player, character)
+		task.spawn(step, "ProgressCharacter", Services.ProgressService.OnCharacterAdded, Services.ProgressService, player, character)
+	end
+	player.CharacterAdded:Connect(onCharacter)
+	if player.Character then
+		onCharacter(player.Character)
+	end
+
+	task.spawn(step, "MonetizationReady", Services.MonetizationService.OnPlayerReady, Services.MonetizationService, player)
+	task.spawn(step, "ExtrasReady", Services.ExtrasService.OnPlayerReady, Services.ExtrasService, player)
+	task.spawn(step, "FeaturesReady", Services.FeaturesService.OnPlayerReady, Services.FeaturesService, player)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)

@@ -10,6 +10,7 @@ local DiagService = { Services = nil :: any }
 local counts = {} -- [Ereignis] = Anzahl
 local samples = {} -- Beispiele (Text), hoechstens 40
 local clientErrors = {} -- [Fehlertext] = Anzahl
+local serverErrors = {} -- [Fehlertext] = Anzahl
 local dirty = false
 
 function DiagService:Count(event: string, sample: string?)
@@ -41,6 +42,14 @@ function DiagService:Init(services)
 end
 
 function DiagService:Start()
+	-- Alle Server-Fehler mitschreiben
+	game:GetService("LogService").MessageOut:Connect(function(message, kind)
+		if kind == Enum.MessageType.MessageError or (kind == Enum.MessageType.MessageWarning and string.sub(message, 1, 1) == "[") then
+			local text = string.sub(message, 1, 300)
+			serverErrors[text] = (serverErrors[text] or 0) + 1
+			dirty = true
+		end
+	end)
 	local ok, store = pcall(DataStoreService.GetDataStore, DataStoreService, "SoccerDiag_v1")
 	if not ok then
 		return
@@ -57,6 +66,7 @@ function DiagService:Start()
 					Counts = counts,
 					Samples = samples,
 					ClientErrors = clientErrors,
+					ServerErrors = serverErrors,
 				})
 				pcall(function()
 					store:SetAsync(key, payload)

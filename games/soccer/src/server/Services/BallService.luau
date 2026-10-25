@@ -516,6 +516,9 @@ function BallService:Start()
 			self.Services.CombatService:Swing(actor, "Slash", aim)
 		else
 			self.Services.DiagService:Count("tackleNoActor")
+			if player.Character then
+				task.spawn(self.Services.MatchService.OnCharacterAdded, self.Services.MatchService, player, player.Character)
+			end
 		end
 	end)
 end

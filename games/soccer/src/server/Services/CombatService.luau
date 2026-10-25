@@ -446,6 +446,9 @@ function CombatService:Start()
 			self:Swing(actor, "Stab", aim)
 		else
 			self.Services.DiagService:Count("stabNoActor")
+			if player.Character then
+				task.spawn(self.Services.MatchService.OnCharacterAdded, self.Services.MatchService, player, player.Character)
+			end
 		end
 	end)
 	-- Pass fordern wie im Original (ALT): ein "!" ueber dem Kopf fuer 2 Sekunden
