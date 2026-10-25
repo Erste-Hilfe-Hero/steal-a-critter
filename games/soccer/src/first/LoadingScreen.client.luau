@@ -808,7 +808,7 @@ local kit = Kit.new({
 		"Hold KICK for a harder shot - run sideways while kicking to CURVE the ball!",
 		"First person with your samurai sword - press V (or VIEW) to switch to third person.",
 		"SLASH hits every enemy in front of you - hit the ball carrier to knock the ball loose!",
-		"THRUST reaches far. From BEHIND it does triple damage! No hunting: the sword only hurts near the ball.",
+		"THRUST reaches far. From BEHIND it does triple damage!",
 		"Pass to new teammates to build a POWERPLAY - up to x5 kick power!",
 		"Jump while strafing for a LONG JUMP. Press T (or !) to call for a pass.",
 		"STAB is slow but strong - a backstab knocks anyone out instantly!",
