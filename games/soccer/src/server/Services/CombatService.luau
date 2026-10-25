@@ -224,7 +224,13 @@ end
 -- kind: "Slash", "Stab" oder "Smack"
 function CombatService:Damage(victim, amount: number, attacker, kind: string, backstab: boolean?)
 	if not playing() or self:IsKO(victim) or (victim.SpawnProtectUntil or 0) > now() then
+		if attacker and attacker.Player then
+			self.Services.DiagService:Count("damageBlocked." .. (if not playing() then "notPlaying" elseif self:IsKO(victim) then "victimKO" else "spawnProtect"))
+		end
 		return
+	end
+	if attacker and attacker.Player then
+		self.Services.DiagService:Count("damage." .. kind)
 	end
 	-- Bubble Shield (Produkt): kein Schaden
 	if Config.Active(victim.Player, "ShieldUntil") then
@@ -293,14 +299,18 @@ end
 -- Startet einen Messerangriff; der Treffer wird im naechsten Moment gesucht (Heartbeat)
 function CombatService:Swing(actor, kind: string, aim: Vector3?): boolean
 	local def = Config.Knife[kind]
-	if not def or not playing() or self:IsKO(actor) then
+	local diag = if actor.Player then self.Services.DiagService else nil
+	local reason = if not def then "badKind" elseif not playing() then "notPlaying" elseif self:IsKO(actor) then "attackerKO"
+		elseif (actor.StunnedUntil or 0) > now() then "stunned" elseif self.Services.BallService.Carrier == actor then "carrier"
+		elseif (actor.KnifeReadyAt or 0) > now() then "cooldown" else nil
+	if reason then
+		if diag then
+			diag:Count("swingRefused." .. reason)
+		end
 		return false
 	end
-	if (actor.StunnedUntil or 0) > now() or self.Services.BallService.Carrier == actor then
-		return false
-	end
-	if actor.KnifeReadyAt > now() then
-		return false
+	if diag then
+		diag:Count("swingStarted." .. kind)
 	end
 	actor.KnifeReadyAt = now() + def.Cooldown * (if kind == "Stab" and hasPass(actor, "Ninja") then Config.NinjaStabCooldown else 1)
 	if actor.Player then
@@ -365,6 +375,22 @@ local function resolveSwings()
 	for actor, swing in swings do
 		if t > swing.Ends or not match:IsActor(actor) or CombatService:IsKO(actor) then
 			swings[actor] = nil
+			if actor.Player and not (swing.Hit and next(swing.Hit)) then
+				-- Fehlersuche: wo stand der naechste Gegner, als der Schwung ins Leere ging?
+				local look = swing.Aim or flat(actor.Root.CFrame.LookVector)
+				local nearest, info = math.huge, "no enemy"
+				for _, other in match:GetActors() do
+					if other.Team ~= actor.Team then
+						local offset = other.Root.Position - actor.Root.Position
+						local distance = Vector3.new(offset.X, 0, offset.Z).Magnitude
+						if distance < nearest then
+							nearest = distance
+							info = string.format("dist %.1f dot %.2f dy %.1f ko %s aim %s", distance, look:Dot(flat(offset)), offset.Y, tostring(CombatService:IsKO(other)), tostring(swing.Aim ~= nil))
+						end
+					end
+				end
+				CombatService.Services.DiagService:Count("swingMissed." .. swing.Kind, if nearest < 30 then info else nil)
+			end
 		elseif t >= swing.Starts then
 			local def = Config.Knife[swing.Kind]
 			-- Spieler zielen mit der Kamera (Ego-Sicht): Blickrichtung vom Client, sonst die des Koerpers
@@ -418,6 +444,8 @@ function CombatService:Start()
 		local actor = self.Services.MatchService:ActorForPlayer(player)
 		if actor then
 			self:Swing(actor, "Stab", aim)
+		else
+			self.Services.DiagService:Count("stabNoActor")
 		end
 	end)
 	-- Pass fordern wie im Original (ALT): ein "!" ueber dem Kopf fuer 2 Sekunden

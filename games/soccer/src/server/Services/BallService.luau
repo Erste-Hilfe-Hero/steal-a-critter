@@ -513,6 +513,8 @@ function BallService:Start()
 		local actor = self.Services.MatchService:ActorForPlayer(player)
 		if actor then
 			self.Services.CombatService:Swing(actor, "Slash", aim)
+		else
+			self.Services.DiagService:Count("tackleNoActor")
 		end
 	end)
 end

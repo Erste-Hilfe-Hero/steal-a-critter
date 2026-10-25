@@ -1,0 +1,24 @@
+name: Read Soccer Jam diagnostics
+
+# Liest den DataStore "SoccerDiag_v1" (Schwert-Statistik und Client-Fehler aus dem Live-Spiel)
+on:
+  workflow_dispatch:
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - name: Read
+        run: |
+          U=10772779542
+          BASE="https://apis.roblox.com/datastores/v1/universes/$U/standard-datastores/datastore/entries"
+          curl -sS "$BASE?datastoreName=SoccerDiag_v1&limit=20" -H "x-api-key: $ROBLOX_API_KEY" -o keys.json
+          echo "::notice::keys: $(head -c 300 keys.json)"
+          for K in $(jq -r '.keys[]?.key' keys.json); do
+            curl -sS -G "$BASE/entry" --data-urlencode "datastoreName=SoccerDiag_v1" --data-urlencode "entryKey=$K" \
+              -H "x-api-key: $ROBLOX_API_KEY" -o entry.json
+            # Rohtext in Zeilen fuer das Log (jede Zeile ein ::notice::)
+            jq -r 'fromjson? // . | tostring' entry.json | fold -w 900 | while IFS= read -r line; do echo "::notice::$K: $line"; done
+          done
