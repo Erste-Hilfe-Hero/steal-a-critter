@@ -12,9 +12,11 @@ local Services = {
 	CosmeticService = require(script.Services.CosmeticService),
 	MonetizationService = require(script.Services.MonetizationService),
 	CommunityService = require(script.Services.CommunityService),
+	RewardService = require(script.Services.RewardService),
+	LeaderboardService = require(script.Services.LeaderboardService),
 }
 
-local ORDER = { "DataService", "WorldService", "StageService", "CosmeticService", "MonetizationService", "CommunityService" }
+local ORDER = { "DataService", "WorldService", "StageService", "CosmeticService", "MonetizationService", "CommunityService", "RewardService", "LeaderboardService" }
 
 for _, name in ORDER do
 	Services[name]:Init(Services)
@@ -46,6 +48,7 @@ local function onPlayerAdded(player: Player)
 	end
 	Services.MonetizationService:LoadPasses(player)
 	Services.CommunityService:OnPlayerReady(player)
+	Services.RewardService:OnPlayerReady(player)
 
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
@@ -64,5 +67,7 @@ Players.PlayerRemoving:Connect(function(player)
 	Services.CommunityService:OnPlayerRemoving(player)
 	Services.StageService:OnPlayerRemoving(player)
 	Services.CosmeticService:OnPlayerRemoving(player)
+	Services.RewardService:OnPlayerRemoving(player)
+	Services.LeaderboardService:OnPlayerRemoving(player) -- liest die Daten sofort, also vor Release
 	Services.DataService:Release(player)
 end)

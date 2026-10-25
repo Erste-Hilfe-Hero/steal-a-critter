@@ -1,4 +1,5 @@
--- Client: HUD, Kill-Erkennung, Hindernis-Animationen, Double Jump, Welt-Stimmung und Chat-Tags.
+-- Client: HUD, Kill-Erkennung, Sprungpads, Hindernis-Animationen, Double Jump, Welt-Stimmung,
+-- Edelsteine, "Spieler ausblenden" und Chat-Tags.
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -16,18 +17,48 @@ local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local obby = workspace:WaitForChild("Obby")
 local killFolder = obby:WaitForChild("Kill")
 local checkpoints = obby:WaitForChild("Checkpoints")
+local bounceFolder = obby:WaitForChild("Bounce")
+local gemFolder = obby:WaitForChild("Gems")
 
 UI.Start()
 
----------------------------------------------------------------- Sterben
+-- Eingebaute Roblox-Sounds (keine fremden Assets noetig)
+local CHECKPOINT_SOUND = "rbxasset://sounds/electronicpingshort.wav"
+local WIN_SOUND = "rbxasset://sounds/victory.wav"
+local BOUNCE_SOUND = "rbxasset://sounds/action_jump.mp3"
+
+-- Sound abspielen, ausser der Spieler hat Soundeffekte ausgeschaltet
+local function playSound(id: string, volume: number)
+	if not UI.GetSetting("Sounds") then
+		return
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = volume
+	sound.Parent = workspace.CurrentCamera
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	task.delay(5, function()
+		sound:Destroy()
+	end)
+end
+
+---------------------------------------------------------------- Sterben und Sprungpads
 
 local overlap = OverlapParams.new()
 overlap.FilterType = Enum.RaycastFilterType.Include
 overlap.FilterDescendantsInstances = { killFolder }
 
+local bounceOverlap = OverlapParams.new()
+bounceOverlap.FilterType = Enum.RaycastFilterType.Include
+bounceOverlap.FilterDescendantsInstances = { bounceFolder }
+
 local dead = false
 local deathsOnStage = 0
 local deathStage = 0
+local lastBounce = 0
 
 local function die()
 	if dead then
@@ -69,6 +100,17 @@ RunService.Heartbeat:Connect(function()
 	if #hits > 0 then
 		die()
 		return
+	end
+	-- Auf einem Sprungpad? Kleine Box direkt unter den Fuessen schleudert nach oben
+	if os.clock() - lastBounce > 0.25 then
+		local feet = workspace:GetPartBoundsInBox(rootPart.CFrame * CFrame.new(0, -3, 0), Vector3.new(1.8, 1, 1.2), bounceOverlap)
+		if #feet > 0 then
+			lastBounce = os.clock()
+			local velocity = rootPart.AssemblyLinearVelocity
+			rootPart.AssemblyLinearVelocity = Vector3.new(velocity.X, Config.BounceVelocity, velocity.Z)
+			humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+			playSound(BOUNCE_SOUND, 0.5)
+		end
 	end
 	-- Heruntergefallen?
 	local pad = checkpoints:FindFirstChild(tostring(player:GetAttribute("Stage") or 1)) :: BasePart?
@@ -114,6 +156,7 @@ end)
 ---------------------------------------------------------------- Double Jump
 
 local usedDoubleJump = false
+local jumpStartedAt = 0
 UserInputService.JumpRequest:Connect(function()
 	if not player:GetAttribute("Pass_DoubleJump") then
 		return
@@ -123,6 +166,10 @@ UserInputService.JumpRequest:Connect(function()
 		return
 	end
 	local state = humanoid:GetState()
+	-- JumpRequest feuert beim Gedrueckthalten mehrmals: erst kurz nach dem Absprung zaehlt es als zweiter Sprung
+	if os.clock() - jumpStartedAt < 0.2 then
+		return
+	end
 	if not usedDoubleJump and (state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping) then
 		usedDoubleJump = true
 		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -134,6 +181,8 @@ local function watchLanding(character: Model)
 	humanoid.StateChanged:Connect(function(_, new)
 		if new == Enum.HumanoidStateType.Landed or new == Enum.HumanoidStateType.Running then
 			usedDoubleJump = false
+		elseif new == Enum.HumanoidStateType.Jumping and not usedDoubleJump then
+			jumpStartedAt = os.clock()
 		end
 	end)
 end
@@ -145,24 +194,6 @@ end
 ---------------------------------------------------------------- Welt-Stimmung und Checkpoint-Effekt
 
 local lastStage = player:GetAttribute("Stage") or 1
-
--- Eingebaute Roblox-Sounds (keine fremden Assets noetig)
-local CHECKPOINT_SOUND = "rbxasset://sounds/electronicpingshort.wav"
-local WIN_SOUND = "rbxasset://sounds/victory.wav"
-
-local function playSound(id: string, volume: number)
-	local sound = Instance.new("Sound")
-	sound.SoundId = id
-	sound.Volume = volume
-	sound.Parent = workspace.CurrentCamera
-	sound:Play()
-	sound.Ended:Once(function()
-		sound:Destroy()
-	end)
-	task.delay(5, function()
-		sound:Destroy()
-	end)
-end
 
 -- Kurzer Partikel-Ausbruch (z. B. Checkpoint, Ziel)
 local function burst(parent: BasePart, color: Color3, amount: number)
@@ -228,6 +259,69 @@ applyWorld(true)
 player:GetAttributeChangedSignal("Stage"):Connect(function()
 	applyWorld(false)
 end)
+
+---------------------------------------------------------------- Regenbogen-Edelsteine
+
+-- Gefundene Edelsteine werden fuer diesen Spieler fast unsichtbar
+local function refreshGems()
+	local mask = player:GetAttribute("GemMask") or 0
+	for _, gem in gemFolder:GetChildren() do
+		local world = gem:GetAttribute("GemWorld")
+		if gem:IsA("BasePart") and world then
+			local found = Config.HasGem(mask, world)
+			gem.LocalTransparencyModifier = if found then 0.85 else 0
+			local sparkles = gem:FindFirstChildOfClass("Sparkles")
+			if sparkles then
+				sparkles.Enabled = not found
+			end
+		end
+	end
+end
+local lastGemMask = player:GetAttribute("GemMask") or 0
+refreshGems()
+player:GetAttributeChangedSignal("GemMask"):Connect(function()
+	local mask = player:GetAttribute("GemMask") or 0
+	if mask ~= lastGemMask then
+		lastGemMask = mask
+		playSound(CHECKPOINT_SOUND, 0.8)
+		local rootPart = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if rootPart then
+			burst(rootPart, Color3.fromHSV(math.random(), 0.7, 1), 40)
+		end
+	end
+	refreshGems()
+end)
+
+---------------------------------------------------------------- Andere Spieler ausblenden (Einstellung)
+
+local hiddenState = false
+local function setCharacterHidden(character: Model, hidden: boolean)
+	for _, descendant in character:GetDescendants() do
+		if descendant:IsA("BasePart") or descendant:IsA("Decal") then
+			descendant.LocalTransparencyModifier = if hidden then 1 else 0
+		elseif descendant:IsA("BillboardGui") or descendant:IsA("Trail") then
+			descendant.Enabled = not hidden
+		end
+	end
+end
+
+task.spawn(function()
+	while true do
+		local hide = UI.GetSetting("HidePlayers")
+		-- Nur arbeiten, wenn ausgeblendet ist oder gerade wieder eingeblendet werden muss
+		if hide or hiddenState then
+			for _, other in Players:GetPlayers() do
+				if other ~= player and other.Character then
+					setCharacterHidden(other.Character, hide)
+				end
+			end
+			hiddenState = hide
+		end
+		task.wait(0.5)
+	end
+end)
+
+---------------------------------------------------------------- Namensschilder und Lobby-Schild animieren
 
 -- Namensschilder von Owner/VIP: Farbverlauf langsam drehen
 task.spawn(function()

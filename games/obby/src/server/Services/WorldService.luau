@@ -7,11 +7,22 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 
-local WorldService = { Services = nil :: any, Checkpoints = {} :: { [number]: BasePart }, Finish = nil :: BasePart? }
+local WorldService = {
+	Services = nil :: any,
+	Checkpoints = {} :: { [number]: BasePart },
+	Finish = nil :: BasePart?,
+	Gems = {} :: { [number]: BasePart }, -- [Welt] = Edelstein
+	Boards = {} :: { [string]: BasePart }, -- Bestenlisten in der Lobby ("Wins", "Time")
+}
 
 local root: Folder
 local killFolder: Folder
 local checkpointFolder: Folder
+local bounceFolder: Folder
+local gemFolder: Folder
+
+local BOUNCE_COLOR = Color3.fromRGB(120, 255, 90)
+local BOUNCE_RISE = 9 -- Hoehe pro Sprungpad (Sprungpad-Gipfel ca. 16 Studs, normaler Sprung nur ca. 7)
 
 function WorldService:Init(services)
 	self.Services = services
@@ -111,8 +122,10 @@ function Patterns.Lava(ctx: Ctx, from: Vector3): Vector3
 	local length = 36 + ctx.D * 16
 	local y = from.Y
 	platform(ctx, 12, length, 0, y, from.Z + length / 2)
-	local strips = 3 + math.round(ctx.D * 3)
-	local width = 2 + ctx.D * 3
+	-- Hoechstens 5 Streifen mit max. 4,5 Studs: zwischen zwei Streifen bleiben immer >= 4 Studs zum Landen,
+	-- so klappt auch ein voller Sprung (ca. 8,7 Studs weit) ohne im naechsten Streifen zu landen
+	local strips = 3 + math.round(ctx.D * 2)
+	local width = 2 + ctx.D * 2.5
 	for i = 1, strips do
 		local z = from.Z + i * length / (strips + 1)
 		kill(ctx, Vector3.new(12, 0.4, width), CFrame.new(0, y + 0.2, z))
@@ -125,7 +138,8 @@ function Patterns.Truss(ctx: Ctx, from: Vector3): Vector3
 	local y = from.Y
 	local z = from.Z + 6
 	platform(ctx, 8, 8, 0, y, z + 4)
-	local height = 12 + ctx.D * 10
+	-- TrussParts gibt es nur in 2-Stud-Schritten: Hoehe gerade runden, sonst endet die Leiter unter der Plattform
+	local height = 2 * math.round((12 + ctx.D * 10) / 2)
 	local truss = Instance.new("TrussPart")
 	truss.Anchored = true
 	truss.Size = Vector3.new(2, height, 2)
@@ -267,7 +281,46 @@ function Patterns.Gauntlet(ctx: Ctx, from: Vector3): Vector3
 	return Vector3.new(0, y + Config.RisePerStage, from.Z + length + 3 + PAD_HALF)
 end
 
-local ORDER = { "Jumps", "Lava", "ZigZag", "Spinner", "Fade", "Stairs", "Tightrope", "Sliders", "Pillars", "Gauntlet", "Truss" }
+-- Sprungpads: Wer darauf landet, wird hoch geschleudert (der Client gibt den Schwung).
+-- Jedes Pad liegt 9 Studs hoeher als das vorige - ohne Pad unerreichbar, mit Pad (Gipfel ~16) sicher.
+-- Abstand + Groesse <= 9 Studs: auch vom vorderen Rand aus erreicht man das naechste Pad (Flugweite ~10,9).
+function Patterns.Bounce(ctx: Ctx, from: Vector3): Vector3
+	local count = 3 + math.round(ctx.D * 2)
+	local size = 6 - ctx.D * 1.5
+	local gap = 3 + ctx.D * 1.5
+	local z, y = from.Z, from.Y
+	for _ = 1, count do
+		z += gap + size / 2
+		local pad = platform(ctx, size, size, 0, y, z)
+		pad.Color = BOUNCE_COLOR
+		pad.Material = Enum.Material.Neon
+		pad.Parent = bounceFolder
+		local surface = Instance.new("SurfaceGui")
+		surface.Face = Enum.NormalId.Top
+		surface.LightInfluence = 0
+		surface.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		surface.PixelsPerStud = 20
+		local arrow = Instance.new("TextLabel")
+		arrow.BackgroundTransparency = 1
+		arrow.Size = UDim2.fromScale(1, 1)
+		arrow.Font = Enum.Font.FredokaOne
+		arrow.TextScaled = true
+		arrow.Text = "▲"
+		arrow.TextColor3 = Color3.fromRGB(30, 90, 20)
+		arrow.TextTransparency = 0.3
+		arrow.Parent = surface
+		surface.Parent = pad
+		y += BOUNCE_RISE
+		z += size / 2
+	end
+	-- Normale Landeplattform oben
+	z += gap + 4
+	platform(ctx, 8, 8, 0, y, z)
+	z += 4
+	return Vector3.new(0, y + Config.RisePerStage, z + 4 + PAD_HALF)
+end
+
+local ORDER = { "Jumps", "Lava", "ZigZag", "Spinner", "Fade", "Stairs", "Bounce", "Tightrope", "Sliders", "Pillars", "Gauntlet", "Truss" }
 
 ---------------------------------------------------------------- Checkpoints und Schilder
 
@@ -397,6 +450,46 @@ local function makeFinish(position: Vector3): BasePart
 	return finish
 end
 
+-- Versteckter Regenbogen-Edelstein auf einer kleinen Insel neben einem Checkpoint (normaler Sprung, 4,5 Studs)
+local function makeGem(worldIndex: number, pad: BasePart)
+	local world = Config.Worlds[worldIndex]
+	local side = if worldIndex % 2 == 0 then 1 else -1
+	local top = pad.Position.Y + pad.Size.Y / 2
+	local x = side * (Config.PadSize.X / 2 + 4.5 + 2)
+	local ctx = { Folder = gemFolder, World = world, WorldIndex = worldIndex, Stage = 0, D = 0, Rng = Random.new(worldIndex) } :: Ctx
+	local island = platform(ctx, 4, 4, x, top, pad.Position.Z, world.Accent)
+	island.Name = "GemIsland" .. worldIndex
+	local gem = Instance.new("Part")
+	gem.Name = "Gem" .. worldIndex
+	gem.Anchored = true
+	gem.CanCollide = false
+	gem.CanQuery = false
+	gem.Size = Vector3.new(1.6, 1.6, 1.6)
+	gem.CFrame = CFrame.new(x, top + 2.5, pad.Position.Z) * CFrame.Angles(math.rad(45), 0, math.rad(45))
+	gem.Color = Color3.fromHSV((worldIndex - 1) / #Config.Worlds, 0.7, 1)
+	gem.Material = Enum.Material.Neon
+	gem:SetAttribute("GemWorld", worldIndex)
+	local sparkles = Instance.new("Sparkles")
+	sparkles.SparkleColor = gem.Color
+	sparkles.Parent = gem
+	gem.Parent = gemFolder
+	spin(gem, 90)
+	return gem
+end
+
+-- Bestenliste als Tafel in der Lobby (Inhalt fuellt der LeaderboardService)
+local function makeBoard(name: string, position: Vector3, facing: Vector3): BasePart
+	local board = Instance.new("Part")
+	board.Name = name .. "Board"
+	board.Anchored = true
+	board.Size = Vector3.new(12, 14, 1)
+	board.CFrame = CFrame.lookAt(position, position + facing)
+	board.Color = Color3.fromRGB(40, 36, 64)
+	board.Material = Enum.Material.SmoothPlastic
+	board.Parent = root
+	return board
+end
+
 local function makeLobby(start: Vector3)
 	local ctx = { Folder = root, World = Config.Worlds[1], WorldIndex = 1, Stage = 0, D = 0, Rng = Random.new(1) } :: Ctx
 	-- Grosse Startinsel hinter dem ersten Checkpoint
@@ -414,6 +507,11 @@ local function makeLobby(start: Vector3)
 	})
 	gradient.Parent = gui:FindFirstChildOfClass("TextLabel")
 	sign(board, `{Config.StageCount} stages - 10 worlds - can you beat them all?`, Color3.fromRGB(255, 230, 120), Vector2.new(36, 3), Vector3.new(0, -3, 0))
+	-- Zwei Bestenlisten links und rechts, zur Mitte gedreht
+	local floorTop = start.Y - Config.PadSize.Y + 0.01
+	local z = start.Z - PAD_HALF - 20
+	WorldService.Boards.Wins = makeBoard("Wins", Vector3.new(-24, floorTop + 7, z), Vector3.new(1, 0, 0))
+	WorldService.Boards.Time = makeBoard("Time", Vector3.new(24, floorTop + 7, z), Vector3.new(-1, 0, 0))
 end
 
 ---------------------------------------------------------------- Aufbau
@@ -427,6 +525,12 @@ function WorldService:Build()
 	checkpointFolder = Instance.new("Folder")
 	checkpointFolder.Name = "Checkpoints"
 	checkpointFolder.Parent = root
+	bounceFolder = Instance.new("Folder")
+	bounceFolder.Name = "Bounce"
+	bounceFolder.Parent = root
+	gemFolder = Instance.new("Folder")
+	gemFolder.Name = "Gems"
+	gemFolder.Parent = root
 
 	local position = Vector3.new(0, 20, 0)
 	for stage = 1, Config.StageCount do
@@ -453,6 +557,10 @@ function WorldService:Build()
 		position = Patterns[pattern](ctx, from)
 	end
 	self.Finish = makeFinish(position + Vector3.new(0, 0, 6))
+	for worldIndex = 1, #Config.Worlds do
+		local stage = (worldIndex - 1) * Config.StagesPerWorld + Config.GemStageInWorld
+		self.Gems[worldIndex] = makeGem(worldIndex, self.Checkpoints[stage])
+	end
 	makeLobby(self.Checkpoints[1].Position + Vector3.new(0, Config.PadSize.Y / 2, 0))
 
 	root.Parent = workspace
