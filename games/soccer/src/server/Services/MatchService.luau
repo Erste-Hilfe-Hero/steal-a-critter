@@ -199,11 +199,41 @@ function MatchService:RemoveActor(model: Model)
 	self:AssignSlots()
 end
 
-function MatchService:PlaceActor(actor)
+-- Naechster Platz ohne anderen Actor: Spieler sind fest, und wer in einen anderen gesetzt wird,
+-- den schleudert die Physik in den Himmel
+function MatchService:FreeSpot(actor, position: Vector3): Vector3
+	for _, dz in { 0, 6, -6, 12, -12, 18, -18 } do
+		for _, dx in { 0, 6, -6 } do
+			local candidate = position + Vector3.new(dx, 0, dz)
+			local free = true
+			for _, other in actorList do
+				if other ~= actor and other.Root.Parent then
+					local offset = other.Root.Position - candidate
+					if Vector3.new(offset.X, 0, offset.Z).Magnitude < 4.5 and math.abs(offset.Y) < 10 then
+						free = false
+						break
+					end
+				end
+			end
+			if free then
+				return candidate
+			end
+		end
+	end
+	return position
+end
+
+-- exact: alle werden im selben Moment umgestellt (Anstoss), dann sind die Slot-Plaetze ohnehin frei
+function MatchService:PlaceActor(actor, exact: boolean?)
 	local position = self.Services.ArenaService:FormationPosition(actor.Team, math.max(actor.Slot, 1))
+	if not exact then
+		position = self:FreeSpot(actor, position)
+	end
 	local target = Vector3.new(-Config.Teams[actor.Team].Side * 50, position.Y, position.Z)
 	actor.Model:PivotTo(CFrame.lookAt(position, target))
 	actor.Root.AssemblyLinearVelocity = Vector3.zero
+	actor.Root.AssemblyAngularVelocity = Vector3.zero
+	actor.PlacedAt = os.clock()
 end
 
 -- Slots je Team: Bots bekommen zuerst den Torwart-Platz (Spieler wollen lieber stuermen)
@@ -414,7 +444,7 @@ end
 
 local function placeAll()
 	for _, actor in actorList do
-		MatchService:PlaceActor(actor)
+		MatchService:PlaceActor(actor, true)
 		actor.StunnedUntil = 0
 		actor.Model:SetAttribute("StunnedUntil", 0)
 		MatchService.Services.CombatService:Reset(actor)
@@ -608,6 +638,17 @@ function MatchService:Start()
 		for _, actor in actorList do
 			if not actor.Player then
 				Config.SlideOffHeads(actor.Model, actor.Root)
+			end
+			-- Sicherheitsnetz: wer hoch in der Luft haengt (weit ueber jedem Sprung), kommt zurueck aufs Feld
+			local p = actor.Root.Position
+			if p.Y > Config.GroundY + 45 and os.clock() - (actor.SkyFixAt or 0) > 1 then
+				actor.SkyFixAt = os.clock()
+				local v = actor.Root.AssemblyLinearVelocity
+				self.Services.DiagService:Count("sky", string.format("%s y %.0f v %.0f/%.0f/%.0f placed %.1fs ago", if actor.Player then "player" else "bot", p.Y, v.X, v.Y, v.Z, os.clock() - (actor.PlacedAt or 0)))
+				local ground = Vector3.new(math.clamp(p.X, -Config.FieldLength / 2 + 10, Config.FieldLength / 2 - 10), Config.GroundY + 3, math.clamp(p.Z, -Config.FieldWidth / 2 + 10, Config.FieldWidth / 2 - 10))
+				ground = self:FreeSpot(actor, ground)
+				actor.Model:PivotTo(CFrame.new(ground) * actor.Root.CFrame.Rotation)
+				actor.Root.AssemblyLinearVelocity = Vector3.zero
 			end
 		end
 	end)

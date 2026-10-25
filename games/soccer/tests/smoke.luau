@@ -122,6 +122,34 @@ if blue and red then
 		assert(started, "swing refused")
 		assert(red.HP < before or Services.CombatService:IsKO(red), `no damage (hp {before} -> {red.HP})`)
 	end)
+	try("place never overlaps", function()
+		local mate
+		for _, actor in match:GetActors() do
+			if actor ~= blue and actor.Team == blue.Team then
+				mate = actor
+				break
+			end
+		end
+		assert(mate, "no teammate")
+		local spot = Services.ArenaService:FormationPosition(blue.Team, math.max(blue.Slot, 1))
+		mate.Root.CFrame = CFrame.new(spot)
+		match:PlaceActor(blue)
+		local offset = blue.Root.Position - mate.Root.Position
+		assert(Vector3.new(offset.X, 0, offset.Z).Magnitude >= 4.5, "placed inside a teammate")
+	end)
+	try("sky safety net", function()
+		red.Root.CFrame = CFrame.new(0, 300, 0)
+		red.Root.AssemblyLinearVelocity = Vector3.zero
+		task.wait(0.5)
+		assert(red.Root.Position.Y < Config.GroundY + 20, "still in the sky at " .. tostring(red.Root.Position.Y))
+	end)
+	try("players solid", function()
+		for _, part in blue.Model:GetDescendants() do
+			if part:IsA("BasePart") then
+				assert(part.CollisionGroup == "Default", "part in group " .. part.CollisionGroup)
+			end
+		end
+	end)
 	try("kick multiplier", function()
 		local m = Services.ExtrasService:KickMultiplier(blue)
 		assert(type(m) == "number" and m >= 1, "bad multiplier " .. tostring(m))
