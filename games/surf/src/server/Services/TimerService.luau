@@ -233,7 +233,10 @@ function TimerService:Start()
 			return
 		end
 		if action == "Start" then
-			if run.Stage == 0 then
+			-- Auch wenn der Spieler laut Server schon in Stage 1 ist, aber in der Lobby am Tor steht
+			local zones = workspace:FindFirstChild("Zones")
+			local portal = zones and zones:FindFirstChild("StartPortal") :: BasePart?
+			if run.Stage == 0 or (portal and nearZone(player, portal, 12)) then
 				self:Begin(player, 1, true)
 			end
 		elseif action == "Restart" then
