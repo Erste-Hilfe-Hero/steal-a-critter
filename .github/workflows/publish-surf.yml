@@ -121,6 +121,7 @@ jobs:
           unzip -q luau.zip -d luau-bin && chmod +x luau-bin/luau
           LUAU=$PWD/luau-bin/luau sh tests/run_physics.sh
           LUAU=$PWD/luau-bin/luau sh tests/run_stages.sh
+          LUAU=$PWD/luau-bin/luau sh tests/run_progression.sh
 
       - name: Build place file
         run: |
