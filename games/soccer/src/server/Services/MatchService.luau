@@ -1,6 +1,5 @@
 -- Teams, Spielablauf (Anstoss -> Spiel -> Tor -> ... -> Ergebnis), Spielstand und Belohnungen.
 -- Bots fuellen jedes Team auf, damit man auch allein sofort spielen kann.
-local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -180,15 +179,6 @@ function MatchService:AddActor(model: Model, team: string, player: Player?, skil
 	actors[model] = actor
 	rebuildList()
 	model:SetAttribute("Team", team)
-	local function group(part: Instance)
-		if part:IsA("BasePart") then
-			part.CollisionGroup = "Actors"
-		end
-	end
-	for _, part in model:GetDescendants() do
-		group(part)
-	end
-	model.DescendantAdded:Connect(group)
 	addRing(actor)
 	self.Services.CombatService:Setup(actor)
 	self:AssignSlots()
@@ -564,11 +554,6 @@ end
 
 function MatchService:Init(services)
 	self.Services = services
-	-- Spieler laufen durcheinander hindurch statt auf Koepfe zu klettern (wie im Original)
-	pcall(function()
-		PhysicsService:RegisterCollisionGroup("Actors")
-		PhysicsService:CollisionGroupSetCollidable("Actors", "Actors", false)
-	end)
 	for _, teamName in Config.TeamOrder do
 		local def = Config.Teams[teamName]
 		local team = Instance.new("Team")
@@ -614,6 +599,12 @@ function MatchService:Start()
 				if not actor.Player then
 					actor.Humanoid:Move(Vector3.zero)
 				end
+			end
+		end
+		-- Bots stehen nie auf Koepfen (Spieler erledigt das ihr eigener Client)
+		for _, actor in actorList do
+			if not actor.Player then
+				Config.SlideOffHeads(actor.Model, actor.Root)
 			end
 		end
 	end)

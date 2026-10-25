@@ -244,6 +244,10 @@ RunService.RenderStepped:Connect(function(dt)
 	if not character or not humanoid then
 		return
 	end
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		Config.SlideOffHeads(character, root)
+	end
 	local state = workspace:GetAttribute("MatchState")
 	local moving = humanoid.MoveDirection.Magnitude > 0.1
 	local wantsSprint = (sprintHeld or sprintToggle) and moving and not exhausted
