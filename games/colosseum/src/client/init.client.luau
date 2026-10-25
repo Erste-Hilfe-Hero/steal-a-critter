@@ -6,6 +6,7 @@ local UI = require(script.UI)
 local Battle = require(script.Battle)
 local Dialog = require(script.Dialog)
 local World = require(script.World)
+local Extras = require(script.Extras)
 
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -13,6 +14,7 @@ UI.Init()
 Battle.Init()
 Dialog.Init()
 World.Init()
+Extras.Init()
 
 -- Standard-Bestenliste ausblenden spart Platz auf dem Handy (Werte stehen oben in der Anzeige)
 pcall(StarterGui.SetCoreGuiEnabled, StarterGui, Enum.CoreGuiType.PlayerList, false)

@@ -720,6 +720,20 @@ function StoryService:Whiteout(player: Player)
 end
 
 function StoryService:OnPlayerReady(player: Player)
+	-- Wer nach der Starter-Wahl vor dem ersten Rivalenkampf gegangen ist, haette sonst Kai fuer immer
+	-- im Labor stehen, keine weiteren Rivalenkaempfe und keine 5 Catch Orbs: Intro hier abschliessen.
+	local data = dataOf(player)
+	if data and data.Started and not data.Flags.rival1 then
+		data.Flags.starter = true
+		data.Flags.rival1 = true
+		data.Beaten.rival1 = true
+		self.Services.BeastService:AddItem(player, "Orb", 5)
+		task.delay(6, function()
+			if player.Parent then
+				self.Services.Net.SendNotify(player, "Professor Sol left you 5 Catch Orbs. Your goal: the arena in Pebbleton!", GOLD)
+			end
+		end)
+	end
 	local function place(character: Model)
 		local data = dataOf(player)
 		if not data then

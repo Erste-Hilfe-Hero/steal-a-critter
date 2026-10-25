@@ -30,3 +30,35 @@ Alle Bestien, Namen und Grafiken sind eigene Entwuerfe.
   setzt Name und Beschreibung aus `experience.json` und veroeffentlicht in Universe `10772779368`.
 - Icon und Thumbnail: `assets/icon.png`, `assets/thumbnail.png` (erzeugt mit `assets/make_art.py`).
   Diese muessen einmal von Hand im Creator Hub hochgeladen werden.
+
+## Update
+
+### Behobene Fehler
+1. `MonetizationService.ApplyPassEffects` rief das entfernte `BeastService:TeamSize` auf: jeder Beitritt brach in `LoadPasses` ab, Pass-Kaeufe scheiterten im `ProcessReceipt`.
+2. Wer nach der Starterwahl, aber vor dem ersten Rivalenkampf ging, blieb ohne Rivalen-Flags haengen (Kai im Labor, 5 Baelle fehlten) - wird beim Beitritt repariert.
+3. `BuyItem` mit NaN-Menge loeschte die Muenzen und speicherte NaN; `SetMove` mit NaN-Platz warf einen Fehler.
+4. Verzoegertes Ende einer Rauswurf-Abstimmung konnte eine neuere Abstimmung vorzeitig beenden.
+5. Tagesbelohnung vor der Starterwahl gab keine Rueckmeldung.
+6. Starter-Auswahl konnte doppelt geoeffnet werden.
+7. HUD lag unter den Roblox-Topbar-Knoepfen (jetzt GuiInset beruecksichtigt; Menue 3-spaltig, passt aufs Handy).
+8. `experience.json` beschrieb einen veralteten Stand (24 Bestien, 7 Elemente).
+
+### 15 neue Funktionen
+1. Taegliche Aufgaben (3 pro Tag, Belohnungen, Bonus fuer alle drei).
+2. 17 Erfolge mit Muenzbelohnung und Banner.
+3. Titel aus Erfolgen, sichtbar im Namensschild.
+4. Bestiarium-Meilensteine (5-50 gefangene Arten) mit Belohnungen.
+5. Kostenloses Gluecksrad alle 6 Stunden (keine bezahlten Zufallsgegenstaende).
+6. Spielzeit-Geschenke nach 5/15/30/60 Minuten.
+7. Bestien-Hort: eine Bestie trainiert offline (bis 8 h) und sammelt EP.
+8. Begleiter: die fuehrende Bestie laeuft hinter jedem Spieler her.
+9. Schwarm-Ereignisse: zeitweise erscheint eine Bestie gehaeuft auf einer Route.
+10. Bestenliste "TOP COLLECTORS" (gefangene Arten).
+11. Trainerkarten anderer Spieler (Team, Abzeichen, Siege, Titel).
+12. Zielkompass im HUD (naechstes Story-Ziel, oeffnet die Karte).
+13. Bestien als Favorit schuetzen (nicht freilassbar, zuerst sortiert).
+14. Sortierung der Box (Staerke, Level, Neueste, Typ, Name).
+15. Einstellungen (Sounds, Begleiter, fremde Begleiter, Effekte, Kompass) und UI-Sounds.
+
+### Neues Produkt
+- `QuestFinish` ("Quest Finisher", R$ 39): erledigt alle offenen Tagesaufgaben sofort.

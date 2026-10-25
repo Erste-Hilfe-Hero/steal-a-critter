@@ -131,6 +131,7 @@ Config.DevProducts = {
 	GauntletContinue = { Id = 0, Kind = "Continue", Name = "Gauntlet Second Chance", Description = "Revive your team and keep your gauntlet streak", PriceHint = 29, Order = 12, Hidden = true },
 	ServerShiny = { Id = 0, Kind = "ServerShiny", Seconds = 900, Name = "Prismatic Storm", Description = "15 min: PRISMATIC beasts x2 for EVERYONE", PriceHint = 199, Order = 13, AffectsRandom = true },
 	Storage = { Id = 0, Kind = "Storage", Amount = 50, Name = "+50 Beast Storage", Description = "Keep 50 more beasts in your box", PriceHint = 99, Order = 14 },
+	QuestFinish = { Id = 0, Kind = "Quests", Name = "Quest Finisher", Description = "Instantly complete all of today's daily quests", PriceHint = 39, Order = 15 },
 	AdReward = { Id = 0, Kind = "Item", Item = "GreatOrb", Amount = 3, Name = "Free Great Orbs (Video Ad)", Description = "Reward for watching a video ad: 3 Great Orbs", PriceHint = 5, Order = 99, Hidden = true },
 }
 Config.AdCooldown = 300

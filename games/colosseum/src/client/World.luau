@@ -410,7 +410,8 @@ function World.Init()
 			end
 			local root = rootPart()
 			local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-			if root and humanoid and humanoid.MoveDirection.Magnitude > 0.1 and os.clock() - lastRustle > 0.25 then
+			local effects = player:GetAttribute("Set_Effects") ~= false
+			if effects and root and humanoid and humanoid.MoveDirection.Magnitude > 0.1 and os.clock() - lastRustle > 0.25 then
 				local area = Story.AreaAt(root.Position)
 				if Story.InGrass(area, root.Position) then
 					lastRustle = os.clock()
@@ -422,6 +423,9 @@ function World.Init()
 
 	-- Prismatische Bestien schimmern in allen Farben
 	RunService.RenderStepped:Connect(function()
+		if player:GetAttribute("Set_Effects") == false then
+			return
+		end
 		local hue = (os.clock() * 0.25) % 1
 		for _, part in CollectionService:GetTagged("Prismatic") do
 			if part:IsA("BasePart") then

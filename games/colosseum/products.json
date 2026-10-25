@@ -21,5 +21,6 @@
   {"key": "GauntletContinue", "name": "Gauntlet Second Chance", "description": "Revive your team and keep your gauntlet streak", "price": 29},
   {"key": "ServerShiny", "name": "Prismatic Storm", "description": "15 min: PRISMATIC beasts x2 for EVERYONE", "price": 199},
   {"key": "Storage", "name": "+50 Beast Storage", "description": "Keep 50 more beasts in your box", "price": 99},
+  {"key": "QuestFinish", "name": "Quest Finisher", "description": "Instantly complete all of today's daily quests", "price": 39},
   {"key": "AdReward", "name": "Free Great Orbs (Video Ad)", "description": "Reward for watching a video ad: 3 Great Orbs", "price": 5}
 ]

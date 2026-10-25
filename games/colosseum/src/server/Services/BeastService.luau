@@ -115,10 +115,15 @@ function BeastService:Sync(player: Player)
 		ObjectiveArea = Story.ObjectiveArea(data.Flags, data.Crests),
 		Started = data.Started,
 		GotStarter = data.GotStarter,
+		Favorites = data.Favorites or {},
+		DaycareUid = data.Daycare and data.Daycare.Uid,
 	})
 	player:SetAttribute("BeastCount", count(data.Beasts))
 	local lead = data.Beasts[data.Team[1]]
 	player:SetAttribute("LeadLevel", if lead then lead.L else 1)
+	-- Begleiter in der Welt (alle Clients zeigen die fuehrende Bestie hinter dem Spieler)
+	player:SetAttribute("FollowerBeast", if lead then lead.S else "")
+	player:SetAttribute("FollowerShiny", lead ~= nil and lead.Sh == true)
 end
 
 -- Neue Bestie: ins Team, wenn Platz ist, sonst in die Box. Gibt die uid zurueck (nil, wenn alles voll ist).
@@ -284,6 +289,9 @@ function BeastService:GiveXp(player: Player, uid: string, amount: number): { any
 			entry.Hp = math.min(after, entry.Hp + (after - before))
 		end
 		table.insert(events, { T = "Level", Uid = uid, S = entry.S, L = entry.L })
+		if self.Services.ProgressService then
+			self.Services.ProgressService:Bump(player, "Level", 1)
+		end
 		for _, key in Beasts.MovesAtLevel(entry.S, entry.L) do
 			learn(entry, uid, key, events)
 		end
@@ -477,6 +485,10 @@ function BeastService:Start()
 			end
 			table.remove(data.Team, index)
 		elseif where == "Team" and not index then
+			if data.Daycare and data.Daycare.Uid == uid then
+				net.SendNotify(player, "This beast is at the daycare. Pick it up first.", RED)
+				return
+			end
 			if #data.Team >= Config.TeamSize then
 				net.SendNotify(player, "Your team is full (6). Move a beast to the box first.", RED)
 				return
@@ -493,7 +505,7 @@ function BeastService:Start()
 			return
 		end
 		slot = math.floor(slot)
-		if slot < 1 or slot > math.min(Config.MaxMoves, #entry.M + 1) or table.find(entry.M, key) or not Beasts.CanLearn(entry.S, key, entry.L) then
+		if slot ~= slot or slot < 1 or slot > math.min(Config.MaxMoves, #entry.M + 1) or table.find(entry.M, key) or not Beasts.CanLearn(entry.S, key, entry.L) then
 			return
 		end
 		entry.M[slot] = key
@@ -531,9 +543,20 @@ function BeastService:Start()
 			net.SendNotify(player, "You can't release your last team member.", RED)
 			return
 		end
+		if data.Favorites and data.Favorites[uid] then
+			net.SendNotify(player, "This beast is a favorite. Remove the star first.", RED)
+			return
+		end
+		if data.Daycare and data.Daycare.Uid == uid then
+			net.SendNotify(player, "This beast is at the daycare. Pick it up first.", RED)
+			return
+		end
 		local entry = data.Beasts[uid]
 		local coins = 30 * entry.L * Config.RaritiesByName[Config.BeastsById[entry.S].Rarity].Index
 		data.Beasts[uid] = nil
+		if data.Favorites then
+			data.Favorites[uid] = nil
+		end
 		local index = table.find(data.Team, uid)
 		if index then
 			table.remove(data.Team, index)
@@ -546,7 +569,8 @@ function BeastService:Start()
 	net.BuyItem.OnServerEvent:Connect(function(player, key, amount)
 		local data = services.DataService:Get(player)
 		local item = typeof(key) == "string" and Config.Items[key]
-		if not data or not item or item.Price <= 0 or typeof(amount) ~= "number" or data.Crests < item.Badges then
+		-- amount ~= amount: NaN wuerde Muenzen und Spielstand zerstoeren
+		if not data or not item or item.Price <= 0 or typeof(amount) ~= "number" or amount ~= amount or data.Crests < item.Badges then
 			return
 		end
 		amount = math.clamp(math.floor(amount), 1, 99)
@@ -559,6 +583,7 @@ function BeastService:Start()
 		services.DataService:AddCoins(player, -cost)
 		self:AddItem(player, key, amount)
 		net.SendNotify(player, `Bought {amount}x {item.Name}`, GREEN)
+		services.ProgressService:Bump(player, "Shop", amount)
 	end)
 end
 

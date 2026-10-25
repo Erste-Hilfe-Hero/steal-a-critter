@@ -21,7 +21,11 @@ function RewardService:Start()
 
 	services.Net.ClaimDaily.OnServerEvent:Connect(function(player)
 		local data = services.DataService:Get(player)
-		if not data or not data.Started then
+		if not data then
+			return
+		end
+		if not data.Started then
+			services.Net.SendNotify(player, "Choose your first beast at Professor Sol's lab first!", RED)
 			return
 		end
 		local day = today()

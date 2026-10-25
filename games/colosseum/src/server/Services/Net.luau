@@ -24,6 +24,7 @@ Net.DuelInvite = remote("DuelInvite") -- (fromPlayer)
 Net.Dialog = remote("Dialog") -- (token, { Speaker, Lines, Choices }) Gespraech anzeigen
 Net.OpenMenu = remote("OpenMenu") -- (name) Fenster oeffnen, z. B. "Mart"
 Net.Story = remote("Story") -- (kind, payload) Ereignisse wie Orden, Hall of Fame
+Net.Progress = remote("Progress") -- (kind, payload) Aufgaben, Erfolge, Rad, Hort, Trainerkarte
 
 -- Client -> Server
 Net.DialogAnswer = remote("DialogAnswer") -- (token, choiceIndex)
@@ -45,6 +46,7 @@ Net.RedeemCode = remote("RedeemCode") -- (code)
 Net.WatchAd = remote("WatchAd")
 Net.PromptProduct = remote("PromptProduct") -- (kind, key) Kauf ueber den Server starten
 Net.FakePurchase = remote("FakePurchase") -- nur Studio
+Net.ProgressAction = remote("ProgressAction") -- (kind, arg, value) Aufgabe abholen, Rad drehen, Hort ...
 
 folder.Parent = ReplicatedStorage
 

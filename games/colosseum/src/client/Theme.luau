@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local BeastModel = require(ReplicatedStorage.Shared.BeastModel)
+local Sounds = require(script.Parent.Sounds)
 
 local Theme = {}
 
@@ -113,6 +114,10 @@ function Theme.button(props): TextButton
 		defaults[key] = value
 	end
 	local button = create("TextButton", defaults)
+	-- Klick-Geraeusch fuer jeden Knopf (abschaltbar)
+	button.Activated:Connect(function()
+		Sounds.Play("Click")
+	end)
 	Theme.corner(button, 10)
 	Theme.stroke(button, C.Gold, 2)
 	Theme.gradient(button, Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 190))
