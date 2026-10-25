@@ -1,0 +1,158 @@
+-- Smoke-Test, der per Open Cloud Luau Execution im echten Place laeuft.
+-- Server-Scripts starten dort nicht automatisch: der Test startet alle Services selbst, laesst Bots
+-- (ohne echte Spieler, Attribut SmokeTest) ein verkuerztes Match spielen und sammelt jeden Fehler
+-- aus dem Log. Danach werden Tor, K.O., Schwert, Combo, Respawn und goldener Ball direkt ausgeloest.
+local LogService = game:GetService("LogService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local results = {}
+local failed = 0
+local function check(name, ok, detail)
+	if not ok then
+		failed += 1
+	end
+	table.insert(results, (if ok then "PASS " else "FAIL ") .. name .. (if detail ~= nil then " (" .. tostring(detail) .. ")" else ""))
+end
+
+local errors = {}
+LogService.MessageOut:Connect(function(message, kind)
+	if kind == Enum.MessageType.MessageError or (kind == Enum.MessageType.MessageWarning and string.find(message, "%[")) then
+		if #errors < 25 then
+			table.insert(errors, string.sub(message, 1, 300))
+		end
+	end
+end)
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+-- Verkuerztes Match
+Config.MatchSeconds = 45
+Config.KickoffSeconds = 1
+Config.GoalCelebrationSeconds = 1
+Config.ResultsSeconds = 1
+workspace:SetAttribute("SmokeTest", true)
+
+local folder = ServerScriptService:FindFirstChild("Server")
+check("server script present", folder ~= nil)
+local Services = {}
+local ORDER = { "DataService", "ArenaService", "ProgressService", "BallService", "CombatService", "BotService", "MatchService", "MonetizationService", "ExtrasService" }
+local ok, err = pcall(function()
+	Services.Net = require(folder.Services.Net)
+	for _, name in ORDER do
+		Services[name] = require(folder.Services[name])
+	end
+	for _, name in ORDER do
+		Services[name]:Init(Services)
+	end
+	Services.ArenaService:Build()
+	for _, name in ORDER do
+		if Services[name].Start then
+			Services[name]:Start()
+		end
+	end
+end)
+check("start services", ok, err)
+if not ok then
+	table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)
+	return table.concat(results, "\n")
+end
+
+-- Bots fuellen die Teams auf und das Match laeuft an
+local match = Services.MatchService
+local deadline = os.clock() + 20
+while os.clock() < deadline and (match:GetState() ~= "Playing" or #match:GetActors() < 2) do
+	task.wait(0.5)
+end
+check("match playing", match:GetState() == "Playing", match:GetState())
+check("bots spawned", #match:GetActors() >= 2, #match:GetActors())
+
+task.wait(20)
+check("still running", match:GetState() ~= "Waiting", match:GetState())
+
+-- Ereignisse direkt ausloesen
+local actors = match:GetActors()
+local blue, red
+for _, actor in actors do
+	if actor.Team == "Blue" and not blue then
+		blue = actor
+	elseif actor.Team == "Red" and not red then
+		red = actor
+	end
+end
+check("actors per team", blue ~= nil and red ~= nil)
+if blue and red then
+	local function try(name, fn)
+		local good, problem = pcall(fn)
+		check(name, good, problem)
+	end
+	try("knife model", function()
+		assert(blue.Model:FindFirstChild("Knife"), "no Knife model")
+	end)
+	try("refresh sword", function()
+		Services.CombatService:RefreshSword(blue)
+		assert(blue.Model:FindFirstChild("Knife"), "no Knife after refresh")
+	end)
+	try("combo damage", function()
+		red.SpawnProtectUntil = 0
+		for _ = 1, 3 do
+			Services.CombatService:Damage(red, 5, blue, "Slash", false)
+		end
+	end)
+	try("knock out + revive", function()
+		red.SpawnProtectUntil = 0
+		Services.CombatService:Damage(red, 10000, blue, "Stab", true)
+		assert(Services.CombatService:IsKO(red), "not KO after big damage")
+		task.wait(1.5)
+		Services.CombatService:Revive(red)
+		assert(not Services.CombatService:IsKO(red), "still KO after revive")
+	end)
+	try("kick multiplier", function()
+		local m = Services.ExtrasService:KickMultiplier(blue)
+		assert(type(m) == "number" and m >= 1, "bad multiplier " .. tostring(m))
+	end)
+	try("goal events", function()
+		match:OnGoal("Blue", blue, nil, 95)
+	end)
+	try("golden ball value", function()
+		assert(Services.ExtrasService:GoalValue() >= 1)
+	end)
+	try("match start/end hooks", function()
+		Services.ExtrasService:OnMatchStart()
+		Services.ExtrasService:OnMatchEnd("Blue")
+	end)
+end
+
+-- Eigene Sounds (SoundIds.json) muessen laden, sonst ist es im Spiel still
+local SoundIds = require(ReplicatedStorage.Shared.SoundIds)
+local sounds = {}
+for file, id in SoundIds do
+	if id ~= 0 then
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxassetid://" .. id
+		sound.Parent = workspace
+		sounds[file] = sound
+	end
+end
+pcall(function()
+	local list = {}
+	for _, sound in sounds do
+		table.insert(list, sound)
+	end
+	game:GetService("ContentProvider"):PreloadAsync(list)
+end)
+task.wait(3)
+for file, sound in sounds do
+	check("sound loads " .. file, sound.IsLoaded and sound.TimeLength > 0, `{sound.SoundId} len {sound.TimeLength}`)
+end
+
+task.wait(20)
+check("match loop alive", match:GetState() ~= "Waiting", match:GetState())
+
+for _, message in errors do
+	check("log error", false, message)
+end
+check("no log errors", #errors == 0, #errors)
+
+table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)
+return table.concat(results, "\n")
