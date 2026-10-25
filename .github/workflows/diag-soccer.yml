@@ -3,22 +3,39 @@ name: Read Soccer Jam diagnostics
 # Liest den DataStore "SoccerDiag_v1" (Schwert-Statistik und Client-Fehler aus dem Live-Spiel)
 on:
   workflow_dispatch:
+    inputs:
+      hours:
+        description: "Nur Server der letzten N Stunden"
+        required: false
+        default: "6"
 
 jobs:
   read:
     runs-on: ubuntu-latest
     env:
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      HOURS: ${{ github.event.inputs.hours }}
     steps:
       - name: Read
         run: |
           U=10772779542
           BASE="https://apis.roblox.com/datastores/v1/universes/$U/standard-datastores/datastore/entries"
-          curl -sS "$BASE?datastoreName=SoccerDiag_v1&limit=20" -H "x-api-key: $ROBLOX_API_KEY" -o keys.json
-          echo "::notice::keys: $(head -c 300 keys.json)"
-          for K in $(jq -r '.keys[]?.key' keys.json); do
+          # Alle Seiten lesen, nur Eintraege der letzten Stunden ausgeben (neueste Server zuerst)
+          SINCE=$(( $(date +%s) - ${HOURS:-6} * 3600 ))
+          CURSOR=""; : > all.txt
+          for PAGE in $(seq 1 50); do
+            curl -sS -G "$BASE" --data-urlencode "datastoreName=SoccerDiag_v1" --data-urlencode "limit=100" \
+              ${CURSOR:+--data-urlencode "cursor=$CURSOR"} -H "x-api-key: $ROBLOX_API_KEY" -o keys.json
+            jq -r '.keys[]?.key' keys.json >> all.txt
+            CURSOR=$(jq -r '.nextPageCursor // empty' keys.json)
+            [ -z "$CURSOR" ] && break
+          done
+          echo "::notice::keys total: $(wc -l < all.txt)"
+          for K in $(cat all.txt); do
             curl -sS -G "$BASE/entry" --data-urlencode "datastoreName=SoccerDiag_v1" --data-urlencode "entryKey=$K" \
               -H "x-api-key: $ROBLOX_API_KEY" -o entry.json
+            T=$(jq -r '(fromjson? // .) | .Time? // 0' entry.json 2>/dev/null || echo 0)
+            [ "${T%.*}" -lt "$SINCE" ] 2>/dev/null && continue
             # Rohtext in Zeilen fuer das Log (jede Zeile ein ::notice::)
             jq -r 'fromjson? // . | tostring' entry.json | fold -w 900 | while IFS= read -r line; do echo "::notice::$K: $line"; done
           done
