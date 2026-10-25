@@ -4,6 +4,8 @@
   {"key": "Pass_AutoHarvest", "name": "Auto Harvest", "description": "Ripe plants harvest themselves forever", "price": 349},
   {"key": "Pass_FastGrow", "name": "Fast Grow", "description": "All plants grow 2x faster forever", "price": 299},
   {"key": "Pass_BigGarden", "name": "Big Garden", "description": "+12 extra garden tiles forever", "price": 299},
+  {"key": "Pass_SuperBag", "name": "Super Backpack", "description": "+100 backpack slots forever", "price": 149},
+  {"key": "Pass_Unicorn", "name": "Rainbow Unicorn Pet", "description": "Pet forever: +50% fruit value, +30% growth, +30% mutation chance", "price": 399},
   {"key": "CoinsSmall", "name": "Coin Pouch", "description": "10 minutes of earnings", "price": 49},
   {"key": "CoinsMedium", "name": "Coin Chest", "description": "1 hour of earnings", "price": 199},
   {"key": "CoinsLarge", "name": "Coin Vault", "description": "6 hours of earnings", "price": 699},

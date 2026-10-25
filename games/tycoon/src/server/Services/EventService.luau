@@ -14,7 +14,7 @@ local GOLD = Color3.fromRGB(255, 200, 40)
 
 local currentRestock = -1
 local stock = {} -- [SeedId] = Anzahl im aktuellen Angebot
-local bought = {} -- [Player] = { [SeedId] = gekauft in diesem Angebot }
+local bought = {} -- [UserId] = { [SeedId] = gekauft in diesem Angebot } (UserId, damit Neu-Beitreten den Vorrat nicht auffuellt)
 local weather = "Clear"
 local weatherUntil = 0
 local goldenUntil = 0
@@ -38,7 +38,7 @@ local function rollStock(restockIndex: number)
 end
 
 local function updatePlayerStock(player: Player)
-	local mine = bought[player] or {}
+	local mine = bought[player.UserId] or {}
 	for _, seed in Config.Seeds do
 		local left = (stock[seed.Id] or 0) - (mine[seed.Id] or 0)
 		player:SetAttribute("Stock_" .. seed.Id, math.max(0, left))
@@ -72,8 +72,8 @@ function EventService:BuySeed(player: Player, seedId: string)
 	if not seed or not data then
 		return
 	end
-	local mine = bought[player] or {}
-	bought[player] = mine
+	local mine = bought[player.UserId] or {}
+	bought[player.UserId] = mine
 	if (stock[seedId] or 0) - (mine[seedId] or 0) <= 0 then
 		self.Services.Net.SendNotify(player, `{seed.Name} is sold out. Next restock soon!`, RED)
 		return
@@ -86,9 +86,16 @@ function EventService:BuySeed(player: Player, seedId: string)
 	data.Seeds[seedId] = (data.Seeds[seedId] or 0) + 1
 	self.Services.DataService:AddCoins(player, -seed.Price)
 	player:SetAttribute("SelectedSeed", seedId)
+	player:SetAttribute("Tool", nil)
 	updatePlayerStock(player)
+	local progress = self.Services.ProgressService
+	if progress then
+		progress:AddStat(player, "BuySeed", 1)
+	end
 	if Config.RaritiesByName[seed.Rarity].Announce then
 		self.Services.Net.SendAnnounce(`{player.DisplayName} bought a {seed.Rarity} {seed.Name} seed!`, Config.RaritiesByName[seed.Rarity].Color)
+	else
+		self.Services.Net.SendNotify(player, `Bought 1 {seed.Name} seed! Tap your soil to plant it.`, GREEN)
 	end
 end
 
@@ -107,15 +114,45 @@ function EventService:GetGoldenMultiplier(): number
 	return if workspace:GetServerTimeNow() < goldenUntil then Config.GoldenHourMultiplier else 1
 end
 
+---------------------------------------------------------------- Tag und Nacht
+
+-- Sekunden seit Beginn des aktuellen Zyklus (in allen Servern gleich)
+local function cycleTime(): number
+	return workspace:GetServerTimeNow() % Config.DayLength
+end
+
+function EventService:IsNight(): boolean
+	local t = cycleTime()
+	return t >= Config.NightStart and t < Config.NightEnd
+end
+
+-- Uhrzeit fuer Lighting: Tag 9 -> 17 Uhr, Abend bis 20 Uhr, Nacht bis 5 Uhr, Morgen bis 9 Uhr
+local function clockTimeFor(t: number): number
+	local dusk = Config.NightStart - 30
+	if t < dusk then
+		return 9 + 8 * t / dusk
+	elseif t < Config.NightStart then
+		return 17 + 3 * (t - dusk) / 30
+	elseif t < Config.NightEnd then
+		return (20 + 9 * (t - Config.NightStart) / (Config.NightEnd - Config.NightStart)) % 24
+	end
+	return 5 + 4 * (t - Config.NightEnd) / (Config.DayLength - Config.NightEnd)
+end
+
 local function applyWeatherVisuals()
 	local current = EventService:GetWeather()
+	local night = EventService:IsNight()
 	local world = EventService.Services.WorldService
 	world.RainEmitter.Enabled = current ~= "Clear"
 	world.RainEmitter.Rate = if current == "Thunderstorm" then 1200 else 600
 	Lighting.Brightness = if current == "Clear" then 2.5 elseif current == "Rain" then 1.4 else 0.8
-	Lighting.OutdoorAmbient = if current == "Clear" then Color3.fromRGB(150, 150, 150) else Color3.fromRGB(90, 95, 120)
+	Lighting.OutdoorAmbient = if night then Color3.fromRGB(70, 75, 120) elseif current == "Clear" then Color3.fromRGB(150, 150, 150) else Color3.fromRGB(90, 95, 120)
 	workspace:SetAttribute("Weather", current)
 	workspace:SetAttribute("WeatherUntil", weatherUntil)
+	workspace:SetAttribute("Night", night)
+	local t = cycleTime()
+	local nextChange = if night then Config.NightEnd - t elseif t < Config.NightStart then Config.NightStart - t else Config.DayLength - t + Config.NightStart
+	workspace:SetAttribute("NightChangeAt", workspace:GetServerTimeNow() + nextChange)
 end
 
 -- byPlayer: gekauft (wird verlaengert und gross angesagt = Werbung fuer das Produkt)
@@ -152,8 +189,8 @@ function EventService:OnPlayerReady(player: Player)
 	updatePlayerStock(player)
 end
 
-function EventService:OnPlayerRemoving(player: Player)
-	bought[player] = nil
+function EventService:OnPlayerRemoving(_player: Player)
+	-- Kaeufe bleiben bis zum naechsten Auffuellen gespeichert (nach UserId)
 end
 
 function EventService:Start()
@@ -169,6 +206,7 @@ function EventService:Start()
 	task.spawn(function()
 		local nextWeather = os.clock() + math.random(Config.WeatherInterval[1], Config.WeatherInterval[2])
 		local wasWeather = "Clear"
+		local wasNight = self:IsNight()
 		local lightningAt = 0
 		while true do
 			task.wait(1)
@@ -187,6 +225,17 @@ function EventService:Start()
 					self.Services.Net.SendAnnounce("The weather cleared up.", Color3.fromRGB(220, 220, 220))
 				end
 			end
+			Lighting.ClockTime = clockTimeFor(cycleTime())
+			local night = self:IsNight()
+			if night ~= wasNight then
+				wasNight = night
+				applyWeatherVisuals()
+				if night then
+					self.Services.Net.SendAnnounce("Night has fallen! Fruits can turn Moonlit (x3) until sunrise.", Color3.fromRGB(190, 170, 255))
+				else
+					self.Services.Net.SendAnnounce("The sun is rising. Good morning, gardeners!", Color3.fromRGB(255, 220, 120))
+				end
+			end
 			-- Blitze waehrend des Gewitters
 			if current == "Thunderstorm" and os.clock() > lightningAt then
 				lightningAt = os.clock() + math.random(4, 9)
@@ -196,7 +245,8 @@ function EventService:Start()
 					applyWeatherVisuals()
 				end)
 			end
-			if os.clock() > nextWeather then
+			-- Natuerliches Wetter nur bei klarem Himmel (ueberschreibt kein gekauftes Gewitter)
+			if os.clock() > nextWeather and current == "Clear" then
 				nextWeather = os.clock() + math.random(Config.WeatherInterval[1], Config.WeatherInterval[2])
 				local roll = math.random()
 				if roll < Config.Weather.Thunderstorm.Chance then

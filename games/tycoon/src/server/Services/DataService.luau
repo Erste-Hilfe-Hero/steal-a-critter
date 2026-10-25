@@ -20,7 +20,7 @@ local function defaultData()
 		Plants = {}, -- ["Feld"] = { Id, Start (os.time), Need (Sekunden bei Tempo 1) }
 		Fruits = {}, -- { { Id, Value, Mutation } }
 		Tiles = Config.StartTiles,
-		Upgrades = { Sprinkler = 0, Fertilizer = 0 },
+		Upgrades = { Sprinkler = 0, Fertilizer = 0, Backpack = 0 },
 		Passes = {}, -- [PassKey] = true (dauerhaft gekaufte Vorteile)
 		Receipts = {}, -- [PurchaseId] = true
 		ReceiptOrder = {},
@@ -33,6 +33,24 @@ local function defaultData()
 		DailyDay = 0, -- letzter Tag mit Tagesbelohnung
 		DailyStreak = 0,
 		LastTick = 0, -- os.time() des letzten Wachstums (fuer Offline-Wachstum)
+		-- Update 2
+		Stats = {}, -- [Stat] = Zaehler (Harvest, Plant, Sell, Mutation, Golden, ...)
+		Level = 1,
+		Xp = 0,
+		Quests = { Day = 0, List = {} }, -- Tagesaufgaben
+		Achievements = {}, -- [Id] = true
+		Title = "", -- ausgeruestete Erfolgs-Id
+		Index = {}, -- [SeedId] = true (entdeckte Pflanzen)
+		MutationIndex = {}, -- [Mutation] = true
+		Codes = {}, -- [Code] = true
+		Settings = { Sfx = true, Announce = true, Pets = true },
+		LastSpin = 0, -- os.time() der letzten Gluecksrad-Drehung
+		BoostUntil = 0, -- os.time(): bis dahin 2x Verkaufswert
+		Pets = {}, -- [PetId] = true
+		Pet = "", -- ausgeruesteter Begleiter
+		Skins = { classic = true },
+		Skin = "classic",
+		Tutorial = 0, -- Schritt der Einfuehrung (99 = fertig)
 	}
 end
 
@@ -97,6 +115,10 @@ function DataService:Load(player: Player)
 	rebirths.Name = "Rebirths"
 	rebirths.Value = profile.Data.Rebirths
 	rebirths.Parent = leaderstats
+	local level = Instance.new("IntValue")
+	level.Name = "Level"
+	level.Value = profile.Data.Level
+	level.Parent = leaderstats
 	leaderstats.Parent = player
 
 	self:UpdateAttributes(player)
@@ -133,10 +155,20 @@ function DataService:UpdateAttributes(player: Player)
 	end
 	player:SetAttribute("FruitCount", #data.Fruits)
 	player:SetAttribute("FruitValue", fruitValue)
+	local plantCount = 0
+	for _ in data.Plants do
+		plantCount += 1
+	end
+	player:SetAttribute("PlantCount", plantCount)
+	local garden = self.Services and self.Services.GardenService
+	if garden then
+		player:SetAttribute("BackpackSize", garden:BackpackSize(player))
+	end
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
 		(leaderstats :: any).Coins.Value = math.floor(data.Coins);
-		(leaderstats :: any).Rebirths.Value = data.Rebirths
+		(leaderstats :: any).Rebirths.Value = data.Rebirths;
+		(leaderstats :: any).Level.Value = data.Level or 1
 	end
 end
 
@@ -150,6 +182,12 @@ function DataService:AddCoins(player: Player, amount: number)
 		data.TotalEarned += amount
 	end
 	self:UpdateAttributes(player)
+end
+
+-- false, wenn das Laden fehlgeschlagen ist (dann wird in dieser Sitzung nichts gespeichert)
+function DataService:CanSave(player: Player): boolean
+	local profile = profiles[player]
+	return profile ~= nil and (profile.CanSave or RunService:IsStudio())
 end
 
 function DataService:HasReceipt(player: Player, purchaseId: string): boolean
