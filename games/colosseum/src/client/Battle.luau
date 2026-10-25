@@ -763,7 +763,7 @@ end
 
 ---------------------------------------------------------------- Start und Ende
 
-local function setCamera()
+local function setCamera(intro: boolean?)
 	local camera = workspace.CurrentCamera
 	local a = current.Sides[current.You].Anchor.Position
 	local b = current.Sides[3 - current.You].Anchor.Position
@@ -771,10 +771,18 @@ local function setCamera()
 	dir = if dir.Magnitude > 0.1 then dir.Unit else Vector3.new(0, 0, -1)
 	local right = dir:Cross(Vector3.yAxis).Unit
 	local distance = (b - a).Magnitude
-	local position = a - dir * 10 + right * 7 + Vector3.new(0, 6.5, 0)
+	-- Klassische Kampfansicht: schraeg hinter der eigenen Bestie, Gegner oben rechts im Bild
+	local position = a - dir * 11 + right * 7.5 + Vector3.new(0, 6.5, 0)
 	local focus = a + dir * distance * 0.6 + Vector3.new(0, 2.5, 0)
 	camera.CameraType = Enum.CameraType.Scriptable
-	TweenService:Create(camera, TweenInfo.new(0.9, Enum.EasingStyle.Quad), { CFrame = CFrame.lookAt(position, focus), FieldOfView = 58 }):Play()
+	if intro then
+		-- Auftakt: nah am Gegner, dann faehrt die Kamera in die Kampfansicht zurueck
+		camera.FieldOfView = 45
+		camera.CFrame = CFrame.lookAt(b - dir * 9 + right * 2 + Vector3.new(0, 3, 0), b + Vector3.new(0, 2.2, 0))
+		TweenService:Create(camera, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { CFrame = CFrame.lookAt(position, focus), FieldOfView = 58 }):Play()
+	else
+		TweenService:Create(camera, TweenInfo.new(0.9, Enum.EasingStyle.Quad), { CFrame = CFrame.lookAt(position, focus), FieldOfView = 58 }):Play()
+	end
 end
 
 local function restoreCamera()
@@ -784,7 +792,7 @@ local function restoreCamera()
 end
 
 -- Uebergang: Streifen schliessen sich, danach oeffnet sich die Kampfszene
-local function transition(color: Color3)
+local function transition(color: Color3, covered: (() -> ())?)
 	wipe:ClearAllChildren()
 	wipe.Visible = true
 	local bars = {}
@@ -795,6 +803,11 @@ local function transition(color: Color3)
 		TweenService:Create(bar, TweenInfo.new(0.32, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, i * 0.03), { Position = UDim2.new(if fromLeft then 1 else 0, 0, i / 8, 0) }):Play()
 	end
 	task.wait(0.6)
+	-- Hinter den Streifen in die Kampf-Szene wechseln
+	if covered then
+		covered()
+	end
+	task.wait(0.15)
 	for _, item in bars do
 		TweenService:Create(item.Bar, TweenInfo.new(0.3, Enum.EasingStyle.Quad), { BackgroundTransparency = 1 }):Play()
 	end
@@ -817,9 +830,10 @@ local function onStart(payload)
 	local enemySide = payload.Sides[3 - payload.You]
 	local enemy = fighterOf(3 - payload.You)
 	local def = Config.BeastsById[enemy.Id]
-	transition(if payload.Kind == "Legend" then Config.Types[def.Type].Color elseif payload.Kind == "Wild" then C.Green else C.Crimson)
+	transition(if payload.Kind == "Legend" then Config.Types[def.Type].Color elseif payload.Kind == "Wild" then C.Green else C.Crimson, function()
+		setCamera(true)
+	end)
 	drawBoxes()
-	setCamera()
 	-- Eigene Bestie erst nach dem Ruf zeigen
 	local myModel = modelOf(payload.You)
 	setModelTransparency(myModel, 1, 0)
@@ -886,10 +900,13 @@ local function onEnd(report)
 			return
 		end
 		closed = true
-		resultPanel.Visible = false
+		-- Zurueck in die Welt hinter einem kurzen Uebergang
+		transition(C.Ink, function()
+			resultPanel.Visible = false
+			restoreCamera()
+		end)
 		gui.Enabled = false
 		current = nil
-		restoreCamera()
 		UI.SetHudVisible(true)
 		-- Nach dem Kampf: Entwicklungen und neue Attacken
 		UI.ShowPostBattle(report.Events or {})
