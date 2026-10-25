@@ -32,7 +32,8 @@ jobs:
         run: |
           set +e
           if [ -z "$COOKIE" ]; then echo "::error::Secret ROBLOSECURITY fehlt"; exit 1; fi
-          note() { echo "::notice::$1: $(echo "$2" | tr -d '\n' | head -c 400)"; }
+          # Annotations sind auf 10 pro Schritt begrenzt -> alles in eine Zeilensammlung, am Ende eine Notiz
+          note() { echo "$1: $(echo "$2" | tr -d '\n' | head -c 300)" | tee -a report.txt; }
           CSRF=""
           # Roblox-Aufruf mit Cookie; holt bei 403 einmal das CSRF-Token und wiederholt
           call() { # method url [curl args...]
@@ -51,7 +52,7 @@ jobs:
 
           LIST=$(call GET 'https://develop.roblox.com/v1/user/universes?limit=50&sortOrder=Desc')
           if ! echo "$LIST" | grep -q 'HTTP 200'; then echo "::error::Liste nicht lesbar: $(echo "$LIST" | tail -1)"; exit 1; fi
-          body "$LIST" | jq -c '.data[]? | {id, name, isActive, privacyType}' | sed 's/^/before: /'
+          body "$LIST" | jq -c '.data[]? | {id, name, isActive, privacyType}' | sed 's/^/before: /' | tee -a report.txt
 
           body "$LIST" | jq -r '.data[]? | "\(.id)\t\(.isActive)\t\(.name)"' | while IFS=$'\t' read -r U ACTIVE NAME; do
             if [ -n "$ONLY" ] && ! echo "$NAME" | grep -qiF "$ONLY"; then continue; fi
@@ -62,4 +63,5 @@ jobs:
           done
 
           AFTER=$(call GET 'https://develop.roblox.com/v1/user/universes?limit=50&sortOrder=Desc')
-          body "$AFTER" | jq -r '.data[]? | "\(.name) | \(.id) | public=\(.isActive)"' | while read -r L; do echo "::notice::after: $L"; done
+          body "$AFTER" | jq -r '.data[]? | "after: \(.name) | \(.id) | public=\(.isActive)"' >> report.txt
+          echo "::notice::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' report.txt)"
