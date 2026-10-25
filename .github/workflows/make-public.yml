@@ -64,4 +64,5 @@ jobs:
 
           AFTER=$(call GET 'https://develop.roblox.com/v1/user/universes?limit=50&sortOrder=Desc')
           body "$AFTER" | jq -r '.data[]? | "after: \(.name) | \(.id) | public=\(.isActive)"' >> report.txt
-          echo "::notice::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' report.txt)"
+          # Emojis aus den Namen entfernen: der Runner bricht sonst beim Hochladen der Notiz ab
+          echo "::notice::$(LC_ALL=C tr -cd '\12\40-\176' < report.txt | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
