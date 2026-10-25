@@ -147,6 +147,7 @@ local function onReceive(actor)
 		setPowerPlay(actor.Team, 0)
 	end
 	lastHolder = actor
+	BallService.Services.PlusService:OnReceive(actor, previous)
 	BallService.Services.Net.PlaySound("GotBall", ball.Position)
 end
 
@@ -199,7 +200,9 @@ function BallService:Kick(actor, dir: Vector3, power: number, spin: number?)
 	local forward = flat(dir)
 	local lift = math.clamp(dir.Y, 0, 0.5) * 0.6
 	local angle = math.rad(5 + 18 * power) + lift
-	local speed = Config.KickSpeed(self.Services.MatchService:Skill(actor, "Strength")) * (0.35 + 0.65 * power)
+	-- Spieler: auch ein kurzer Schuss hat Wumms (Bots behalten die alte Kurve)
+	local factor = if actor.Player then Config.MinShotPower + (1 - Config.MinShotPower) * power else 0.35 + 0.65 * power
+	local speed = Config.KickSpeed(self.Services.MatchService:Skill(actor, "Strength")) * factor
 	if powerPlay.Team == actor.Team then
 		speed *= 1 + Config.PowerPlayBonus * powerPlay.Count
 	end
@@ -207,9 +210,18 @@ function BallService:Kick(actor, dir: Vector3, power: number, spin: number?)
 		speed *= Config.CannonShotPower
 	end
 	speed *= self.Services.ExtrasService:KickMultiplier(actor)
+	speed *= self.Services.PlusService:ShotBonus(actor)
+	local position = actor.Root.Position + forward * 3 + Vector3.new(0, -3 + RADIUS + 0.3, 0)
+	-- Schuss-Hilfe: Richtung Tor gezielt -> fliegt aufs Tor, in die Ecke weg vom Torwart
+	local target = if actor.Player then self:AssistTarget(actor, forward) else nil
+	if target then
+		local offset = Vector3.new(target.X - position.X, 0, target.Z - position.Z)
+		forward = flat(offset)
+		angle, speed = Config.ShotArc(offset.Magnitude, target.Y - position.Y, speed, workspace.Gravity)
+		spin = 0
+	end
 	self.Services.ExtrasService:OnKick(actor, speed)
 	local velocity = (forward * math.cos(angle) + Vector3.yAxis * math.sin(angle)) * speed
-	local position = actor.Root.Position + forward * 3 + Vector3.new(0, -3 + RADIUS + 0.3, 0)
 	immune[actor] = now() + Config.PickupCooldown
 	lastKick.Actor = actor
 	lastKick.Time = now()
@@ -220,7 +232,44 @@ function BallService:Kick(actor, dir: Vector3, power: number, spin: number?)
 	curve.Until = if math.abs(curve.Value) > 0.15 then now() + Config.CurveTime else 0
 	lastActivity = now()
 	self.Services.MatchService:OnShot(actor)
+	self.Services.PlusService:OnKick(actor, speed, target ~= nil)
 	self.Services.Net.PlaySound("Kick", position, 0.9 + power * 0.25, 0.5 + power * 0.5)
+end
+
+-- Zielpunkt im gegnerischen Tor (nil, wenn nicht Richtung Tor gezielt); weicht dem Torwart aus
+function BallService:AssistTarget(actor, forward: Vector3): Vector3?
+	local enemy = if actor.Team == "Blue" then "Red" else "Blue"
+	local goal = self.Services.ArenaService:GoalCenter(enemy)
+	local keeperZ, best = nil, 25
+	for _, other in self.Services.MatchService:GetActors() do
+		if other.Team == enemy and other.Humanoid.Health > 0 then
+			local offset = other.Root.Position - goal
+			local distance = Vector3.new(offset.X, 0, offset.Z).Magnitude
+			if distance < best then
+				keeperZ, best = other.Root.Position.Z, distance
+			end
+		end
+	end
+	return Config.ShotTarget(actor.Root.Position, forward, goal, keeperZ)
+end
+
+-- Kopfball: freier Ball in der Luft prallt vom Kopf eines springenden Actors ab
+function BallService:Header(actor, velocity: Vector3)
+	if self.Carrier ~= nil or ball.Anchored then
+		return
+	end
+	immune[actor] = now() + 0.4
+	lastKick.Actor = actor
+	lastKick.Time = now()
+	lastKick.Position = actor.Root.Position
+	addTouch(actor)
+	setTrail(trailFor(actor))
+	launch(ball.Position, velocity)
+	self.Services.Net.PlaySound("Kick", ball.Position, 1.25, 0.6)
+end
+
+function BallService:LastKick()
+	return lastKick.Actor, lastKick.Time
 end
 
 -- Pass zum besten Mitspieler in Blickrichtung (sonst flach nach vorne)
@@ -282,6 +331,10 @@ end
 -- Disarm wie im Original: ein Messertreffer am Ballfuehrer laesst ihn den Ball verlieren (er rollt nach vorne weg)
 function BallService:Disarm(attacker, victim): boolean
 	if self.Carrier ~= victim then
+		return false
+	end
+	-- Trick (SKILL) macht kurz unantastbar
+	if (victim.Model:GetAttribute("SkillUntil") or 0) > now() then
 		return false
 	end
 	local push = flat(victim.Root.Position - attacker.Root.Position)

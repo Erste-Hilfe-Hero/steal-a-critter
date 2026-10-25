@@ -201,6 +201,10 @@ function ProgressService:AddCoins(player: Player, amount: number, raw: boolean?)
 		if player:GetAttribute("FriendBonus") == true then
 			multiplier *= Config.FriendBonus
 		end
+		-- Wochenende: doppelte Coins
+		if Config.IsWeekend() then
+			multiplier *= Config.WeekendCoins
+		end
 		amount = math.floor(amount * multiplier)
 	end
 	d.Coins += amount
