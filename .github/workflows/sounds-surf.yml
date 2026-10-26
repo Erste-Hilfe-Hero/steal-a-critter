@@ -1,0 +1,44 @@
+name: Upload surf_ski music and sounds
+
+# Laedt die selbst erzeugten Sounds (games/surf/assets/sounds/*.ogg) als Audio-Assets hoch,
+# aber nur die, deren ID in src/shared/SoundIds.json noch 0 ist. Die neuen IDs stehen danach
+# als Notice im Log und werden in SoundIds.json eingetragen.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["games/surf/assets/sounds/**", ".github/workflows/sounds-surf.yml"]
+
+jobs:
+  sounds:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    defaults:
+      run:
+        working-directory: games/surf
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload sounds
+        run: |
+          USER_ID=$(jq -r '.ownerUserId' roblox.json)
+          MAP="{}"
+          for F in assets/sounds/*.ogg; do
+            N=$(basename "$F" .ogg)
+            [ "$(jq -r --arg n "$N" '.[$n] // 0' src/shared/SoundIds.json)" != "0" ] && continue
+            REQ=$(jq -nc --arg u "$USER_ID" --arg n "surf_ski $N" '{assetType:"Audio", displayName:$n, description:"surf_ski original music and sound effects (self-made)", creationContext:{creator:{userId:$u}}}')
+            curl -sS -X POST https://apis.roblox.com/assets/v1/assets -H "x-api-key: $ROBLOX_API_KEY" \
+              -F "request=$REQ" -F "fileContent=@$F;type=audio/ogg" -o op.json
+            OP=$(jq -r '.path // empty' op.json)
+            [ -z "$OP" ] && echo "::warning::$N upload: $(head -c 300 op.json)" && continue
+            for i in $(seq 1 20); do
+              curl -sS "https://apis.roblox.com/assets/v1/$OP" -H "x-api-key: $ROBLOX_API_KEY" -o opr.json
+              [ "$(jq -r '.done // false' opr.json)" = "true" ] && break
+              sleep 3
+            done
+            ID=$(jq -r '.response.assetId // empty' opr.json)
+            echo "::notice::$N -> '$ID' $(head -c 200 opr.json)"
+            [ -n "$ID" ] && MAP=$(echo "$MAP" | jq -c --arg k "$N" --arg v "$ID" '. + {($k): ($v | tonumber)}')
+          done
+          echo "::notice::SoundIds: $MAP"
