@@ -109,7 +109,7 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	if thief == owner then
 		return
 	end
-	if carrying[thief] then
+	if carrying[thief] or services.RivalService:IsCarrying(thief) then
 		notify(thief, "You are already carrying a critter!", RED)
 		return
 	end
@@ -281,6 +281,10 @@ function UnitService:PlaceBaseUnit(player: Player, slotKey: string)
 	if services.FeatureService then
 		services.FeatureService:UpdateVault(player)
 	end
+end
+
+function UnitService:IsCarrying(player: Player): boolean
+	return carrying[player] ~= nil
 end
 
 function UnitService:GetBaseModels(player: Player)

@@ -54,13 +54,13 @@ local services = {}
 local ok, err = pcall(function()
 	local s = folder.Services
 	services.Net = require(s.Net)
-	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService", "ExtraService" } do
+	for _, name in { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService", "ExtraService", "RivalService" } do
 		services[name] = require(s[name])
 	end
 end)
 check("require services", ok, err)
 
-local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService", "ExtraService" }
+local ORDER = { "DataService", "WorldService", "PlotService", "UnitService", "MonetizationService", "CommunityService", "EventService", "SocialService", "LeaderboardService", "ProgressService", "RewardService", "FeatureService", "ExtraService", "RivalService" }
 if ok then
 	ok, err = pcall(function()
 		for _, name in ORDER do
@@ -215,6 +215,49 @@ if ok then
 	if moonOk then
 		moonModel:Destroy()
 	end
+end
+
+-- Rivalen-Basen: allein auf dem Server gibt es trotzdem etwas zu klauen
+if ok and services.RivalService then
+	local function rivalPlots()
+		local list = {}
+		for _, plot in services.WorldService.Plots do
+			if services.RivalService:IsRival(plot) then
+				table.insert(list, plot)
+			end
+		end
+		return list
+	end
+	local balanced, balanceErr = pcall(services.RivalService.Balance, services.RivalService, 1)
+	local list = rivalPlots()
+	check("rivals fill for 1 player", balanced and #list == Config.Rivals.MaxBases, balanceErr or #list)
+	if #list > 0 then
+		local prompts = 0
+		for _, model in list[1].Model:GetChildren() do
+			if model:IsA("Model") and model:GetAttribute("Rival") and (model:GetAttribute("OwnerUserId") or 0) < 0 and model:FindFirstChild("StealPrompt", true) then
+				prompts += 1
+			end
+		end
+		check("rival critters stealable", prompts == Config.Rivals.Critters, prompts)
+		check("rival sign", list[1].SignLabel.Text:find("Base") ~= nil, list[1].SignLabel.Text)
+	end
+	pcall(services.RivalService.Balance, services.RivalService, Config.Rivals.FillUntilPlayers)
+	check("rivals leave when full", #rivalPlots() == 0, #rivalPlots())
+	pcall(services.RivalService.Balance, services.RivalService, 1)
+	local fakePlayer = { DisplayName = "Test", SetAttribute = function() end, Name = "Test" }
+	local free = 0
+	for _, plot in services.WorldService.Plots do
+		if plot.Owner == nil and not services.RivalService:IsRival(plot) then
+			free += 1
+		end
+	end
+	-- Ist nur noch eine Rivalen-Basis frei, bekommt der Spieler sie und der Rivale geht
+	local assignOk, plot = pcall(services.PlotService.Assign, services.PlotService, fakePlayer)
+	check("assign prefers non-rival plot", assignOk and plot ~= nil and not services.RivalService:IsRival(plot) and free > 0, if assignOk then nil else plot)
+	if assignOk and plot then
+		services.PlotService:Release(fakePlayer)
+	end
+	pcall(services.RivalService.Balance, services.RivalService, Config.Rivals.FillUntilPlayers)
 end
 
 table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)
