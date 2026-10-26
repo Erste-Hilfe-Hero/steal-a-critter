@@ -109,6 +109,9 @@ local function grantProduct(player: Player, key: string): boolean
 				services.StageService:Kill(other)
 			end
 		end
+		if services.RunnerService then
+			services.RunnerService:KillAll()
+		end
 		services.Net.SendAnnounce(`💀 {player.DisplayName} used KILL EVERYONE! 💀`, RED)
 		return true
 	elseif product.Kind == "Coins" then

@@ -110,3 +110,7 @@ src/client/init.client.luau     ← Chat-Tags, Namensschilder
 src/client/UI.luau              ← HUD, Samenleiste, Samenladen, Upgrades, Store
 src/client/Extras.luau          ← Quests, Glücksrad, Pets, Buch, Einstellungen, Einführung
 ```
+
+## Computer-Gärtner (Rivalen)
+
+Solange weniger als 4 echte Spieler im Server sind, bewirtschaften bis zu 3 **Rival Gardener** freie Gärten (RivalService, `Config.Rivals`). Sie pflanzen Samen passend zum Fortschritt der Spieler, ernten (auch Golden/Rainbow, wird angesagt), kaufen am SEEDS-Stand ein und verkaufen am SELL-Stand. Ihr Verdienst steht am Gartenschild, damit es etwas zum Überholen gibt. Ein Garten bleibt immer frei; ist der Server trotzdem voll, räumt ein Rivale seinen Garten sofort für den neuen Spieler.

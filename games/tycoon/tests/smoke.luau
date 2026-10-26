@@ -272,6 +272,42 @@ check("level skin locked", data.Skins.midnight == nil)
 cosmetic:ApplySkin(plots[1], "classic")
 check("skin reset", plots[1].Model.Floor.Color == Config.SkinsById.classic.Floor)
 
+-- Computer-Gaertner: belegen freie Gaerten, raeumen sie fuer echte Spieler
+local rivals = require(ServerScriptService.Server.Services.RivalService)
+services.RivalService = rivals
+ok, err = pcall(function()
+	rivals:Init(services)
+	rivals:Start()
+end)
+check("rival service start", ok, err)
+local deadline = os.clock() + 20
+while #rivals.Rivals < math.min(Config.Rivals.Max, #plots - 1 - Config.Rivals.KeepFree) and os.clock() < deadline do
+	task.wait(0.5)
+end
+-- Weniger Gaerten (kleiner Server im Test): Rivalen lassen trotzdem KeepFree Gaerten frei
+local expectedRivals = math.min(Config.Rivals.Max, #plots - 1 - Config.Rivals.KeepFree)
+check("rivals fill empty server", #rivals.Rivals == expectedRivals, `{#rivals.Rivals}/{expectedRivals}`)
+local rival = rivals.Rivals[1]
+if rival then
+	check("rival not on player garden", rival.Plot ~= garden:GetPlot(player))
+	check("rival garden has plants", next(rival.Plants) ~= nil)
+	check("rival sign", string.find(rival.Plot.SignLabel.Text, rival.Name, 1, true) ~= nil, rival.Plot.SignLabel.Text)
+	local startPos = rival.Root.Position
+	task.wait(6)
+	check("rival moves", (rival.Root.Position - startPos).Magnitude > 2, rival.Phase)
+	local plotBefore = rival.Plot
+	local freed = rivals:FreePlot()
+	check("free plot for a real player", freed ~= nil and freed.Rival == nil and #rivals.Rivals == expectedRivals - 1)
+	check("freed plot cleared", plotBefore.Tiles[1].Model == nil or plotBefore.Rival ~= nil)
+end
+local free = 0
+for _, plot in plots do
+	if plot.Owner == nil and not plot.Rival then
+		free += 1
+	end
+end
+check("a garden stays free", free >= Config.Rivals.KeepFree, free)
+
 ok, err = pcall(garden.Release, garden, player)
 check("release garden", ok and plots[1].Owner == nil, err)
 

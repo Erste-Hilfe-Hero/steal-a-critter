@@ -283,4 +283,22 @@ for index, rarity in Config.Rarities do
 	Config.RaritiesByName[rarity.Name] = rarity
 end
 
+-- Computer-Gaertner (RivalService): bewirtschaften freie Gaerten, solange wenige echte Spieler da sind
+Config.Rivals = {
+	FillUntilPlayers = 4, -- Rivalen = FillUntilPlayers - Spieler (hoechstens Max)
+	Max = 3,
+	KeepFree = 1, -- so viele Gaerten bleiben immer frei fuer neue Spieler
+	SpawnInterval = 5,
+	Tiles = { 10, 18 },
+	SellAt = { 6, 12 }, -- so viele Fruechte, dann geht er verkaufen
+	GrowFactor = 0.5, -- Rivalen-Pflanzen wachsen doppelt so schnell (damit immer etwas passiert)
+	ValueFactor = { 0.6, 1.2 },
+	StartMinutes = { 4, 12 }, -- Startverdienst = so viele Minuten Verdienst des besten Spielers
+	WorkTime = { 0.8, 1.6 },
+	IdleTime = { 2, 5 },
+	WalkSpeed = 12,
+	AnnounceCooldown = 150,
+	Names = { "Farmer Fred", "Granny Rose", "Sprout Sam", "Daisy Dot", "Mister Mulch", "Petal Pia", "Turnip Tom", "Lily Lou", "Barry Berry", "Hazel Hoe" },
+}
+
 return Config

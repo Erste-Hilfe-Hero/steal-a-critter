@@ -315,6 +315,9 @@ task.spawn(function()
 					setCharacterHidden(other.Character, hide)
 				end
 			end
+			for _, runner in CollectionService:GetTagged("Runner") do
+				setCharacterHidden(runner, hide)
+			end
 			hiddenState = hide
 		end
 		task.wait(0.5)

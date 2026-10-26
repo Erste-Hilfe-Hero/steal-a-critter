@@ -166,6 +166,20 @@ Config.Emotes = {
 Config.BounceVelocity = 80
 
 -- In Studio Kaeufe ohne ID simulieren, damit alles testbar ist
+-- Computer-Laeufer (RunnerService): fuellen den Server auf, solange wenige echte Spieler da sind
+Config.Runners = {
+	FillUntilPlayers = 4, -- Laeufer = FillUntilPlayers - Spieler (hoechstens Max)
+	Max = 3,
+	SpawnInterval = 4, -- Sekunden zwischen zwei neuen Laeufern
+	Skill = { 0.15, 0.95 },
+	RestTime = { 0.5, 2.2 }, -- Pause am Checkpoint
+	FailChance = { 0.08, 0.3 }, -- Chance pro Stage herunterzufallen (Welt 1 .. Welt 10)
+	MaxLead = 4, -- so viele Stages darf ein Laeufer vor seinem Spieler sein, dann wartet er
+	MaxBehind = 10, -- liegt er weiter zurueck, springt er zu seinem Spieler
+	AnnounceCooldown = 120,
+	Names = { "Jumpy Jay", "Robo Rita", "Speedy Sue", "Bouncy Bo", "Turbo Tia", "Ninja Nico", "Pixel Pam", "Captain Hop", "Lucky Lou", "Dizzy Dex" },
+}
+
 Config.StudioFakePurchases = true
 
 -- Lookup-Tabellen
