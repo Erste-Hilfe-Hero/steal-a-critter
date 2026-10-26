@@ -494,7 +494,8 @@ function ArenaService:EndRound()
 	publishRound()
 	local services = self.Services
 	for _, e in entities do
-		if e.Player then
+		-- Belohnung nur, wer wirklich mitgespielt hat (nicht kurz vor Schluss beigetreten)
+		if e.Player and os.clock() - (e.JoinedAt or 0) >= 30 then
 			local data = services.DataService:Get(e.Player)
 			if data then
 				data.WarRounds = (data.WarRounds or 0) + 1
@@ -510,7 +511,12 @@ function ArenaService:EndRound()
 	end
 	event("RoundEnd", winner or "", scores.Frost, scores.Aurora)
 	local text = if winner then `{string.upper(Arena.TeamById[winner].Name)} WINS SNOWBALL WARS {scores.Frost}-{scores.Aurora}!` else `SNOWBALL WARS: DRAW {scores.Frost}-{scores.Aurora}`
-	services.Net.SendAnnounce(text, if winner then Arena.TeamById[winner].Color else THEME.Snow)
+	-- Nur an die Spieler in der Arena (die Surfer auf den Stages nicht jede Runde zuspammen)
+	for _, e in entities do
+		if e.Player then
+			services.Net.SendNotify(e.Player, text, if winner then Arena.TeamById[winner].Color else THEME.Snow)
+		end
+	end
 	task.delay(Arena.EndSeconds, function()
 		scores.Frost, scores.Aurora = 0, 0
 		for _, e in entities do
@@ -947,6 +953,7 @@ function ArenaService:Join(player: Player)
 		Weapon = "Snowball",
 		Ammo = 0,
 		LastShot = 0,
+		JoinedAt = os.clock(),
 	}
 	entities[entity.Key] = entity
 	player.Team = teamObjects[teamId]

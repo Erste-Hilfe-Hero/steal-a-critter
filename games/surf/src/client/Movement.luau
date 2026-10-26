@@ -265,7 +265,7 @@ local function checkZones()
 	local def = Config.Stages[stage]
 	local stuck = stuckFor()
 	local onPlatform = nowInStart or (finish ~= nil and inside(finish, point))
-	local isStuck = (not state.Grounded and stuck > 2) or (state.Grounded and not onPlatform and stuck > 5)
+	local isStuck = (not state.Grounded and stuck > 2) or (state.Grounded and not onPlatform and stuck > 3)
 	if killY and spawn and (feet.Y < killY or fellIntoVoid(feet.Y, (def and def.Height or 30) * 3) or isStuck) then
 		respawnAt(spawn)
 		remotes.Run:FireServer("Fell", stage)

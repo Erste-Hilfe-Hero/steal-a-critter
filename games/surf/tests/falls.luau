@@ -102,7 +102,7 @@ local function simulate(start, velocity, walk, killY, safe, platforms, drop, sec
 		if not state.Grounded and t - stuckSince > 2 then
 			return "unstuck-air", t, state.Position, last and last:GetFullName()
 		end
-		if state.Grounded and t - stuckSince > 5 then
+		if state.Grounded and t - stuckSince > (if onPlatform then 5 else 3) then
 			if onPlatform then
 				return "standing", t
 			end
@@ -115,8 +115,8 @@ end
 local function run(name, start, velocity, walk, killY, safe, platforms, drop)
 	local outcome, t, pos, part, grounded = simulate(start, velocity, walk, killY, safe, platforms or {}, drop or 90, 25)
 	local good = outcome ~= "timeout"
-	-- Abstuerze sollen schnell neu starten
-	if (outcome == "killed" or outcome == "void") and t > 4.5 then
+	-- Abstuerze sollen schnell neu starten (inkl. Laufzeit bis zur Kante grosser Plattformen)
+	if (outcome == "killed" or outcome == "void") and t > 7 then
 		good = false
 	end
 	check(name, good, string.format("%s %.1fs", outcome, t) .. (if pos then ` at {pos} on {part} grounded={grounded}` else ""))
