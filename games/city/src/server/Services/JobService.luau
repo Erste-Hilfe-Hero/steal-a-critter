@@ -175,6 +175,13 @@ function JobService:TryArrest(officer: Player)
 	end
 	if best then
 		self:Arrest(officer, best)
+		return
+	end
+	-- Computer-Raeuber in Reichweite?
+	local bots = self.Services.BotService
+	local bot = bots and bots:FindRobber(root.Position, Config.ArrestRange)
+	if bot then
+		bots:Bust(bot, officer)
 	else
 		notify(officer, "No wanted robber close enough!", C.Robber)
 	end
@@ -182,7 +189,12 @@ end
 
 function JobService:Arrest(officer: Player, robber: Player)
 	local stars = robber:GetAttribute("Wanted") or 0
-	local bag = bags[robber] or 0
+	self:PayBounty(officer, robber.DisplayName, stars, bags[robber] or 0)
+	self:Jail(robber, stars)
+end
+
+-- Kopfgeld fuer eine Festnahme (echter Raeuber oder Computer-Raeuber)
+function JobService:PayBounty(officer: Player, robberName: string, stars: number, bag: number)
 	local base = Config.ArrestBountyPerStar * math.max(stars, 1) + bag * Config.ArrestBagShare
 	if officer:GetAttribute("Pass_SWAT") then
 		base *= 1.5
@@ -200,9 +212,8 @@ function JobService:Arrest(officer: Player, robber: Player)
 	self.Services.ProgressService:AddXP(officer, Config.Xp.Arrest)
 	self.Services.ProgressService:Event(officer, "Job")
 	self.Services.ProgressService:Check(officer)
-	notify(officer, `Arrested {robber.DisplayName}! Bounty +{Format.Cash(reward)}` .. (if doubled then " (DOUBLE BOUNTY)" else ""), C.Green)
-	self.Services.Net.SendAnnounce(`Officer {officer.DisplayName} arrested {robber.DisplayName}!`, C.Police)
-	self:Jail(robber, stars)
+	notify(officer, `Arrested {robberName}! Bounty +{Format.Cash(reward)}` .. (if doubled then " (DOUBLE BOUNTY)" else ""), C.Green)
+	self.Services.Net.SendAnnounce(`Officer {officer.DisplayName} arrested {robberName}!`, C.Police)
 end
 
 function JobService:Jail(robber: Player, stars: number)
@@ -286,7 +297,13 @@ function JobService:Blast(officer: Player, handle: BasePart)
 		end
 	end
 	local from = handle.Position
-	local to = if best then (rootOf(best) :: BasePart).Position else from + look * 40
+	-- Kein echter Raeuber im Visier: Computer-Raeuber einfrieren
+	local bots = self.Services.BotService
+	local bot = if not best and bots then bots:FindRobber(root.Position, Config.BlasterRange, look) else nil
+	if bot then
+		bots:Stun(bot, Config.StunTime * 2)
+	end
+	local to = if best then (rootOf(best) :: BasePart).Position elseif bot then bot.Root.Position else from + look * 40
 	-- Comic-Strahl
 	local beam = Instance.new("Part")
 	beam.Anchored = true

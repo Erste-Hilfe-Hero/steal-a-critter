@@ -129,3 +129,9 @@ tests/smoke.luau                ← Test vor jedem Veröffentlichen
 15. **Tutorial:** Neue Spieler werden in 4 belohnten Schritten durchs Spiel geführt (Auto holen, fahren, einen Job machen, Glücksrad).
 
 Neues Produkt: **Max Tune** (49 R$).
+
+## Computer-Räuber und -Polizisten
+
+Solange weniger als 6 echte Spieler im Server sind, ist die Stadt mit bis zu 2 **Räuber-Bots** und 2 **Polizei-Bots** belebt (BotService, `Config.Bots`); die Aufteilung gleicht die echten Teams aus.
+- Räuber-Bots laufen über die Straßen zu Bank, Juwelier, Tankstelle oder Donut-Laden, rauben (Alarm und Marker für echte Polizisten) und rennen mit Beutesack zum Versteck. Echte Polizisten nehmen sie mit Handschellen fest (normales Kopfgeld) oder frieren sie mit dem Blaster ein.
+- Polizei-Bots streifen durch die Stadt und jagen gesuchte Räuber: echte Spieler zu Fuß (im Auto entkommt man) und Räuber-Bots. Sie laufen etwas langsamer als Spieler.

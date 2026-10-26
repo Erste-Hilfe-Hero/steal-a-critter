@@ -12,6 +12,7 @@ local Services = {
 	ProgressService = require(script.Services.ProgressService),
 	CosmeticService = require(script.Services.CosmeticService),
 	LeaderboardService = require(script.Services.LeaderboardService),
+	RivalService = require(script.Services.RivalService),
 }
 
 local ORDER = {
@@ -24,6 +25,7 @@ local ORDER = {
 	"ProgressService",
 	"CosmeticService",
 	"LeaderboardService",
+	"RivalService",
 }
 
 for _, name in ORDER do

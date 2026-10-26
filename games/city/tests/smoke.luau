@@ -58,7 +58,7 @@ check("max tune product", Config.DevProducts.MaxTune ~= nil and Config.DevProduc
 -- Services laden und starten wie init.server.luau
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
-local ORDER = { "DataService", "WorldService", "VehicleService", "HouseService", "JobService", "MonetizationService", "RewardService", "CommunityService", "ProgressService", "EventService" }
+local ORDER = { "DataService", "WorldService", "VehicleService", "HouseService", "JobService", "MonetizationService", "RewardService", "CommunityService", "ProgressService", "EventService", "BotService" }
 local services = {}
 local ok, err = pcall(function()
 	services.Net = require(folder.Services.Net)
@@ -199,6 +199,50 @@ if ok then
 			check("armored truck despawns", workspace:FindFirstChild("ArmoredTruck") == nil and workspace:GetAttribute("TruckAt") == nil)
 		end)
 		check("events ran", eventOk, eventErr)
+
+		-- Computer-Raeuber und -Polizisten
+		local botOk, botErr = pcall(function()
+			local bots = services.BotService
+			local wantRobbers, wantCops = bots:Wanted()
+			check("bots wanted in empty server", wantRobbers == Config.Bots.MaxRobbers and wantCops == Config.Bots.MaxCops, `{wantRobbers}/{wantCops}`)
+			local deadline = os.clock() + 25
+			while #bots.Bots < Config.Bots.MaxRobbers + Config.Bots.MaxCops and os.clock() < deadline do
+				task.wait(0.5)
+			end
+			check("bots fill empty server", bots:Count("Robber") == Config.Bots.MaxRobbers and bots:Count("Cop") == Config.Bots.MaxCops, #bots.Bots)
+			local route = bots.Route(Vector3.new(-300, 0, -300), Vector3.new(300, 0, 300))
+			check("road route", #route == 4 and route[4] == Vector3.new(300, 0, 300), #route)
+			local robber, cop
+			for _, bot in bots.Bots do
+				if bot.Role == "Robber" then
+					robber = robber or bot
+				else
+					cop = cop or bot
+				end
+			end
+			if robber and cop then
+				local startPos = robber.Root.Position
+				task.wait(4)
+				check("robber bot moves", (robber.Root.Position - startPos).Magnitude > 10, robber.Phase)
+				check("robber bot on ground", robber.Root.Position.Y > 0 and robber.Root.Position.Y < 12, robber.Root.Position.Y)
+				robber.Stars = 2
+				check("find wanted robber bot", bots:FindRobber(robber.Root.Position + Vector3.new(3, 0, 0), Config.ArrestRange) == robber)
+				check("blaster cone", bots:FindRobber(robber.Root.Position - Vector3.new(0, 0, 20), Config.BlasterRange, Vector3.new(0, 0, -1)) == nil)
+				-- Polizei-Bot jagt den Raeuber-Bot und nimmt ihn fest
+				cop.Root.CFrame = robber.Root.CFrame * CFrame.new(0, 0, 20)
+				cop.Scan = 0
+				cop.Phase = "Busy"
+				cop.Target = nil
+				robber.StunnedUntil = os.clock() + 10
+				local until_ = os.clock() + 8
+				while not robber.Jailed and os.clock() < until_ do
+					task.wait(0.25)
+				end
+				check("cop bot busts robber bot", robber.Jailed == true, cop.Phase)
+				check("busted robber clears", robber.Stars == 0 and robber.Bag == 0)
+			end
+		end)
+		check("bots ran", botOk, botErr)
 	end
 end
 

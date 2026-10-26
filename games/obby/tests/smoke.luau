@@ -57,7 +57,7 @@ check("daily rewards 7 days", #Config.DailyRewards == 7)
 local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local services = {}
-local ORDER = { "DataService", "WorldService", "StageService", "CosmeticService", "MonetizationService", "CommunityService", "RewardService", "LeaderboardService" }
+local ORDER = { "DataService", "WorldService", "StageService", "CosmeticService", "MonetizationService", "CommunityService", "RewardService", "LeaderboardService", "RunnerService" }
 local ok, err = pcall(function()
 	services.Net = require(folder.Services.Net)
 	for _, name in ORDER do
@@ -130,6 +130,38 @@ if ok then
 	for _, name in { "Sync", "ClaimDaily", "ClaimQuest", "EquipTitle", "RedeemCode", "BuyTrail", "SetSetting", "SelectStage" } do
 		check("remote " .. name, remotesFolder ~= nil and remotesFolder:FindFirstChild(name) ~= nil)
 	end
+	-- Computer-Laeufer: ohne echte Spieler fuellen sie den Server auf und kommen voran
+	local runners = services.RunnerService
+	local shortPaths, backwards = 0, 0
+	for stage = 1, Config.StageCount do
+		local path = runners:Path(stage)
+		if #path < 2 then
+			shortPaths += 1
+		end
+		for i = 2, #path do
+			if path[i].Z < path[i - 1].Z - 0.01 then
+				backwards += 1
+			end
+		end
+	end
+	check("runner paths for all stages", shortPaths == 0, shortPaths)
+	check("runner paths go forward", backwards == 0, backwards)
+	local waitUntil = os.clock() + 16
+	while #runners.Runners < Config.Runners.Max and os.clock() < waitUntil do
+		task.wait(0.5)
+	end
+	check("runners fill empty server", #runners.Runners == Config.Runners.Max, #runners.Runners)
+	local first = runners.Runners[1]
+	if first then
+		local startStage, startPos = first.Stage, first.Root.Position
+		task.wait(8)
+		check("runner moves", (first.Root.Position - startPos).Magnitude > 3 or first.Stage ~= startStage, first.Phase)
+		check("runner has name tag", first.Model:FindFirstChild("NameTag") ~= nil)
+		check("runner tagged", CollectionService:HasTag(first.Model, "Runner"))
+		runners:KillAll()
+		check("kill everyone hits runners", first.Phase == "Fall", first.Phase)
+	end
+	check("runner wanted count", runners:Wanted() == Config.Runners.Max, runners:Wanted())
 end
 
 table.insert(results, 1, `SUMMARY: {failed} failed of {#results}`)

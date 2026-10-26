@@ -67,3 +67,7 @@ Die "Passes" sind Developer Products, die dauerhaft gespeichert werden, weil der
 15. **Coin Pack** (neues Developer Product, 49 R$): 1.000 Coins.
 
 Neue Menüknöpfe links (2 Spalten, damit der Steuer-Stick auf dem Handy frei bleibt): Shop, Trails, Quests, Titles, More (Einstellungen, Codes, Emotes, Statistik).
+
+## Computer-Läufer (Rivalen)
+
+Solange weniger als 4 echte Spieler im Server sind, laufen bis zu 3 **Rival Runner** mit (RunnerService, `Config.Runners`). Sie hüpfen über die echten Plattformen jeder Stage, fallen mit steigender Schwierigkeit öfter herunter, feuern an und bleiben in der Nähe eines echten Spielers (warten, wenn sie mehr als 4 Stages vorne sind, holen auf, wenn sie weit zurück liegen). Namensschild mit "RIVAL RUNNER", Stage und Welt. Kill Everyone trifft sie auch, "Andere Spieler ausblenden" blendet sie aus. Mit jedem echten Spieler verschwindet einer.

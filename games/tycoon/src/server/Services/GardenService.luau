@@ -193,6 +193,8 @@ local function buildPlantModel(tile, seed, stage: number): Model
 	return model
 end
 
+GardenService.BuildPlantModel = buildPlantModel
+
 local function tileLabel(player: Player, data, index: number, plant): (string, Color3)
 	if plant then
 		local seed = Config.SeedsById[plant.Id]
@@ -268,13 +270,22 @@ end
 ---------------------------------------------------------------- Garten zuweisen
 
 function GardenService:Assign(player: Player)
+	local rivals = self.Services.RivalService
+	local function take(plot)
+		plot.Owner = player
+		plot.SignLabel.Text = player.DisplayName .. "'s Garden"
+		playerPlots[player] = plot
+		return plot
+	end
 	for _, plot in self.Services.WorldService.Plots do
-		if plot.Owner == nil then
-			plot.Owner = player
-			plot.SignLabel.Text = player.DisplayName .. "'s Garden"
-			playerPlots[player] = plot
-			return plot
+		if plot.Owner == nil and not plot.Rival then
+			return take(plot)
 		end
+	end
+	-- Alles belegt: ein Computer-Gegner raeumt seinen Garten fuer den echten Spieler
+	local freed = rivals and rivals:FreePlot()
+	if freed and freed.Owner == nil then
+		return take(freed)
 	end
 	return nil
 end

@@ -82,6 +82,27 @@ Config.Robberies = {
 	Donut = { Name = "Donut Palace", Loot = 500, Grabs = 4, Hold = 2.5, Stars = 1, Cooldown = 110 },
 }
 
+-- Computer-Raeuber und -Polizisten (BotService), solange wenige echte Spieler da sind
+Config.Bots = {
+	FillUntilPlayers = 6, -- Bots = FillUntilPlayers - Spieler (hoechstens MaxRobbers + MaxCops)
+	MaxRobbers = 2,
+	MaxCops = 2,
+	SpawnInterval = 5,
+	RobberSpeed = 15, -- Spieler laufen 16: zu Fuss kann man sie einholen
+	CopSpeed = 14, -- echte Raeuber koennen zu Fuss knapp entkommen
+	ChaseBoost = 1.05,
+	ChaseRange = 140, -- so weit sehen Polizei-Bots gesuchte Spieler
+	BotChaseRange = 70, -- Raeuber-Bots bemerken sie nur aus der Naehe (echte Polizisten sollen auch Chancen haben)
+	CatchRange = 6,
+	RobHoldFactor = 2, -- Raub dauert so viel laenger als bei Spielern
+	LootFactor = 2,
+	JailTime = 40,
+	RestTime = { 6, 14 },
+	AnnounceCooldown = 120,
+	RobberNames = { "Sly Sal", "Sneaky Pete", "Bandit Bea", "Lucky Lenny", "Masked Max", "Slick Rick", "Pickpocket Penny" },
+	CopNames = { "Sgt. Donut", "Officer Ace", "Deputy Dot", "Chief Bolt", "Officer Kim", "Sgt. Stone", "Officer Ray" },
+}
+
 -- Autos. Kein Preis = Robux-Auto (Pass). Team = nur fuer dieses Team.
 -- Speed in Studs/s, Turn in Grad/s.
 Config.Cars = {
