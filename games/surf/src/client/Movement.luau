@@ -63,6 +63,11 @@ local inStart = false
 local finishSent = false
 local portalCooldown = 0
 local assistReported = false
+-- Absturz/Haenger erkennen: Fuss-Hoehe bei der letzten Beruehrung und wie lange man schon (fast) stillsteht
+local lastSurfaceFeetY: number? = nil
+local stuckFrom = Vector3.new(0, 0, 0)
+local stuckSince = 0
+local voidCheckAt = 0
 local serverTeleport: CFrame? = nil -- letzter Teleport vom Server, solange der Charakter noch aufgebaut wird
 local characterSetupAt = 0
 local serverTeleportAt = -1
@@ -82,6 +87,7 @@ local function cast(from: Vector3, delta: Vector3)
 	if result then
 		lastContact = result.Normal
 		lastContactTime = os.clock()
+		lastSurfaceFeetY = from.Y - HULL.Y / 2
 		return { Distance = result.Distance, Normal = result.Normal }
 	end
 	return nil
@@ -114,6 +120,16 @@ function Movement.Teleport(cframe: CFrame)
 	finishSent = false
 	inStart = false
 	assistReported = false
+	lastSurfaceFeetY = nil
+	stuckFrom = state.Position
+	stuckSince = os.clock()
+end
+
+-- Neu starten nach Absturz oder Haenger (kurzes Aufblitzen + Sound in Update3 ueber Movement.Respawned)
+Movement.Respawns = 0
+local function respawnAt(cframe: CFrame)
+	Movement.Teleport(cframe)
+	Movement.Respawns += 1
 end
 
 ---------------------------------------------------------------- Zonen
@@ -127,6 +143,35 @@ end
 local function zoneFor(kind: string, stage: number?): BasePart?
 	local zones = workspace:FindFirstChild("Zones")
 	return zones and zones:FindFirstChild(kind .. (stage or "")) :: BasePart?
+end
+
+local voidParams = RaycastParams.new()
+voidParams.FilterType = Enum.RaycastFilterType.Exclude
+voidParams.RespectCanCollide = true
+
+-- Faellt man schon weit unter die letzte Rampe/Plattform und ist darunter nichts mehr? Dann sofort neu starten,
+-- statt sekundenlang bis zur Todeshoehe zu fallen.
+local function fellIntoVoid(feetY: number, drop: number): boolean
+	if state.Grounded or state.Velocity.Y > 0 or not lastSurfaceFeetY or feetY > lastSurfaceFeetY - drop then
+		return false
+	end
+	local now = os.clock()
+	if now < voidCheckAt then
+		return false
+	end
+	voidCheckAt = now + 0.1
+	voidParams.FilterDescendantsInstances = params.FilterDescendantsInstances
+	local hit = workspace:Blockcast(CFrame.new(state.Position), Vector3.new(8, 1, 8), Vector3.new(0, -400, 0), voidParams)
+	return hit == nil
+end
+
+-- Haengt man irgendwo fest (in der Luft eingeklemmt oder auf etwas, das keine Plattform ist)?
+local function stuckFor(): number
+	if (state.Position - stuckFrom).Magnitude > 1.5 or Movement.Locked then
+		stuckFrom = state.Position
+		stuckSince = os.clock()
+	end
+	return os.clock() - stuckSince
 end
 
 local function checkZones()
@@ -152,8 +197,9 @@ local function checkZones()
 	if arenaTeam then
 		local arenaSpawn = player:GetAttribute("ArenaSpawn")
 		local killY = workspace:GetAttribute("WarKillY")
-		if arenaSpawn and killY and feet.Y < killY then
-			Movement.Teleport(arenaSpawn)
+		local stuck = stuckFor()
+		if arenaSpawn and killY and (feet.Y < killY or fellIntoVoid(feet.Y, 90) or (not state.Grounded and stuck > 2)) then
+			respawnAt(arenaSpawn)
 			remotes.Wars:FireServer("Fell")
 		end
 		local pad = zoneFor("WarPad" .. arenaTeam)
@@ -168,10 +214,14 @@ local function checkZones()
 		remotes.Wars:FireServer("Join")
 	end
 	if stage == 0 then
+		-- Nur in der Naehe der Lobby (nach "Map geschafft" steht man kurz mit Stage 0 noch am Ziel)
 		local lobbyKill = workspace:GetAttribute("LobbyKillY")
 		local spawn = workspace:GetAttribute("LobbySpawn")
-		if lobbyKill and spawn and feet.Y < lobbyKill then
-			Movement.Teleport(spawn)
+		local stuck = stuckFor()
+		if lobbyKill and spawn and (point - spawn.Position).Magnitude < 1500 then
+			if feet.Y < lobbyKill or (not state.Grounded and stuck > 2) then
+				respawnAt(spawn)
+			end
 		end
 		return
 	end
@@ -212,8 +262,12 @@ local function checkZones()
 
 	local killY = start:GetAttribute("KillY")
 	local spawn = start:GetAttribute("Spawn")
-	if killY and spawn and feet.Y < killY then
-		Movement.Teleport(spawn)
+	local def = Config.Stages[stage]
+	local stuck = stuckFor()
+	local onPlatform = nowInStart or (finish ~= nil and inside(finish, point))
+	local isStuck = (not state.Grounded and stuck > 2) or (state.Grounded and not onPlatform and stuck > 3)
+	if killY and spawn and (feet.Y < killY or fellIntoVoid(feet.Y, (def and def.Height or 30) * 3) or isStuck) then
+		respawnAt(spawn)
 		remotes.Run:FireServer("Fell", stage)
 	end
 end
@@ -241,6 +295,9 @@ function Movement.LoadCheckpoint()
 	state.Position = cp.Position
 	state.Velocity = cp.Velocity
 	previousPosition = cp.Position
+	lastSurfaceFeetY = nil
+	stuckFrom = cp.Position
+	stuckSince = os.clock()
 	yaw, pitch = cp.Yaw, cp.Pitch
 	remotes.Run:FireServer("UsedCheckpoint")
 	return true

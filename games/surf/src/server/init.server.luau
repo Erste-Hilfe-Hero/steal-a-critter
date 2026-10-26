@@ -29,7 +29,19 @@ for _, name in ORDER do
 	end
 end
 
+-- Alle Charaktere in die Gruppe "Surfers": sonst prallt die Surf-Box anderer Clients an fremden
+-- Spielern ab (man bleibt an ihnen haengen oder steht auf ihnen); der Client setzt das nur fuer sich selbst
+local function surferGroup(part: Instance)
+	if part:IsA("BasePart") then
+		part.CollisionGroup = "Surfers"
+	end
+end
+
 local function onCharacterAdded(player: Player, character: Model)
+	for _, d in character:GetDescendants() do
+		surferGroup(d)
+	end
+	character.DescendantAdded:Connect(surferGroup)
 	Services.TimerService:OnCharacterAdded(player)
 	Services.CosmeticService:OnCharacterAdded(player, character)
 end

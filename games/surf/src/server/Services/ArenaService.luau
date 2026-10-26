@@ -461,9 +461,12 @@ local function splash(attacker, center: Vector3, weapon, weaponId: string)
 end
 
 respawn = function(entity)
+	local now = os.clock()
 	entity.Frozen = false
 	entity.HP = Arena.MaxHealth
-	entity.ShieldUntil = os.clock() + Arena.ShieldSeconds
+	-- Schutz nur, wenn der letzte Neustart etwas her ist (sonst waere "Fell" spammen unverwundbar)
+	entity.ShieldUntil = if now - (entity.LastRespawn or -100) > 8 then now + Arena.ShieldSeconds else 0
+	entity.LastRespawn = now
 	entity.Weapon = "Snowball"
 	entity.Ammo = 0
 	local spawn = Arena.Spawn(entity.Team)
@@ -491,7 +494,8 @@ function ArenaService:EndRound()
 	publishRound()
 	local services = self.Services
 	for _, e in entities do
-		if e.Player then
+		-- Belohnung nur, wer wirklich mitgespielt hat (nicht kurz vor Schluss beigetreten)
+		if e.Player and os.clock() - (e.JoinedAt or 0) >= 30 then
 			local data = services.DataService:Get(e.Player)
 			if data then
 				data.WarRounds = (data.WarRounds or 0) + 1
@@ -507,7 +511,12 @@ function ArenaService:EndRound()
 	end
 	event("RoundEnd", winner or "", scores.Frost, scores.Aurora)
 	local text = if winner then `{string.upper(Arena.TeamById[winner].Name)} WINS SNOWBALL WARS {scores.Frost}-{scores.Aurora}!` else `SNOWBALL WARS: DRAW {scores.Frost}-{scores.Aurora}`
-	services.Net.SendAnnounce(text, if winner then Arena.TeamById[winner].Color else THEME.Snow)
+	-- Nur an die Spieler in der Arena (die Surfer auf den Stages nicht jede Runde zuspammen)
+	for _, e in entities do
+		if e.Player then
+			services.Net.SendNotify(e.Player, text, if winner then Arena.TeamById[winner].Color else THEME.Snow)
+		end
+	end
 	task.delay(Arena.EndSeconds, function()
 		scores.Frost, scores.Aurora = 0, 0
 		for _, e in entities do
@@ -944,6 +953,7 @@ function ArenaService:Join(player: Player)
 		Weapon = "Snowball",
 		Ammo = 0,
 		LastShot = 0,
+		JoinedAt = os.clock(),
 	}
 	entities[entity.Key] = entity
 	player.Team = teamObjects[teamId]
@@ -953,6 +963,14 @@ function ArenaService:Join(player: Player)
 	balanceBots()
 	services.Net.SendNotify(player, `You joined {Arena.TeamById[teamId].Name}! Grab weapons on the map and freeze the other team.`, Arena.TeamById[teamId].Color)
 	tickRound()
+end
+
+-- Zurueck zur Basis (Reset-Knopf), aber nicht, solange man eingefroren ist
+function ArenaService:Respawn(player: Player)
+	local entity = entities[playerKey(player)]
+	if entity and not entity.Frozen then
+		respawn(entity)
+	end
 end
 
 function ArenaService:Remove(player: Player)
@@ -992,10 +1010,7 @@ function ArenaService:Start()
 		elseif action == "Impact" then
 			onImpact(player, a, b, c)
 		elseif action == "Fell" then
-			local entity = entities[playerKey(player)]
-			if entity and not entity.Frozen then
-				respawn(entity)
-			end
+			self:Respawn(player)
 		end
 	end)
 	Players.PlayerRemoving:Connect(function(player)
