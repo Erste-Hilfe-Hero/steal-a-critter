@@ -324,6 +324,7 @@ function Extras.Start(UI, Movement)
 
 	local settingsList = K.scrollList(pages.SETTINGS)
 	local SETTINGS = {
+		{ Key = "SurfAssist", Text = "Surf assist (sticks you to ramps, steers in the air)" },
 		{ Key = "HidePlayers", Text = "Hide other players (less distraction)" },
 		{ Key = "Snow", Text = "Snowfall" },
 		{ Key = "Speedometer", Text = "Speedometer" },
@@ -404,6 +405,7 @@ function Extras.Start(UI, Movement)
 			b.BackgroundColor3 = if on then T.Mint else T.Navy
 			b.TextColor3 = if on then T.Navy else T.Muted
 		end
+		Movement.Assist = s.SurfAssist ~= false
 		if UI.SpeedPanel then
 			UI.SpeedPanel.Visible = s.Speedometer ~= false
 		end

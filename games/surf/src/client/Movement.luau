@@ -8,6 +8,9 @@ local SoundService = game:GetService("SoundService")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 
+local Config = require(ReplicatedStorage.Shared.Config)
+local StageLayout = require(ReplicatedStorage.Shared.StageLayout)
+local SurfAssist = require(ReplicatedStorage.Shared.SurfAssist)
 local SurfPhysics = require(ReplicatedStorage.Shared.SurfPhysics)
 
 local player = Players.LocalPlayer
@@ -28,6 +31,8 @@ Movement.Finished = false
 Movement.Checkpoint = nil
 Movement.UiOpen = false -- Fenster offen: Maus frei
 Movement.JumpHeld = false -- Sprungknopf auf dem Handy
+Movement.Assist = true -- Surf-Hilfe (Einstellungen): auf der Rampe richtig druecken, in der Luft zur naechsten Rampe lenken
+Movement.Assisting = false
 
 local state = { Position = Vector3.new(0, 0, 0), Velocity = Vector3.new(0, 0, 0), Grounded = false }
 local previousPosition = state.Position
@@ -208,12 +213,38 @@ end
 
 ---------------------------------------------------------------- Eingabe
 
+local layouts = {}
+local function layoutFor(stage: number)
+	local def = Config.Stages[stage]
+	if not def then
+		return nil
+	end
+	if not layouts[stage] then
+		layouts[stage] = StageLayout.Build(stage, def, Config.StageSpacing, Config.StageHeight)
+	end
+	return layouts[stage]
+end
+
 local function readInput()
 	local move = if controls then controls:GetMoveVector() else Vector3.new(0, 0, 0)
 	local forward = Vector3.new(-math.sin(yaw), 0, -math.cos(yaw))
 	local right = Vector3.new(math.cos(yaw), 0, -math.sin(yaw))
 	local wish = right * move.X + forward * -move.Z
 	local amount = math.min(1, wish.Magnitude)
+	-- Surf-Hilfe: in der Luft und auf Rampen, solange man nicht deutlich seitlich lenkt
+	Movement.Assisting = false
+	local stage = player:GetAttribute("Stage") or 0
+	if Movement.Assist and stage > 0 and not state.Grounded and math.abs(move.X) < 0.5 then
+		local layout = layoutFor(stage)
+		if layout then
+			local onRamp = os.clock() - lastContactTime < 0.08 and lastContact.Y < SurfPhysics.Settings.StandNormal and lastContact.Y > 0
+			local assistWish, assistAmount = SurfAssist.Wish(layout, state.Position, state.Velocity, false, if onRamp then lastContact else nil)
+			if assistAmount > 0 then
+				wish, amount = assistWish, assistAmount
+				Movement.Assisting = true
+			end
+		end
+	end
 	local jump = Movement.JumpHeld
 		or (humanoid ~= nil and humanoid.Jump)
 		or (not Movement.UiOpen and UserInputService:IsKeyDown(Enum.KeyCode.Space))
@@ -359,6 +390,14 @@ local function step(dt: number)
 				pitch = math.clamp(pitch + key.Position.Y * dt * 2.4, -1.35, 1.2)
 			end
 		end
+	end
+
+	-- Surf-Hilfe: Kamera dreht sich sanft in Fahrtrichtung, solange man nicht selbst wischt oder die Maus nutzt
+	if Movement.Assist and next(touches) == nil and freeMouse and (player:GetAttribute("Stage") or 0) > 0 and Movement.Speed > 8 then
+		local v = state.Velocity
+		local heading = math.atan2(-v.X, -v.Z)
+		local diff = (heading - yaw + math.pi) % (2 * math.pi) - math.pi
+		yaw += diff * math.min(1, dt * 1.5)
 	end
 
 	-- Physik in festen Schritten (unabhaengig von der Bildrate)

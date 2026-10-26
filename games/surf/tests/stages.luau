@@ -106,40 +106,12 @@ for index, def in Stages do
 	while t < 90 do
 		t += DT
 		local pos = state.Position
-		-- Ziel-Rampe: die erste, deren Ende noch vor uns liegt
-		local target
-		for _, r in layout.Ramps do
-			if r.RidgeEnd.X > pos.X - 1 then
-				target = r
-				break
-			end
-		end
-		local wish, amount = Vector3.zero, 0
+		local wish, amount
 		if state.Grounded and pos.X < 0 then
 			wish, amount = Vector3.new(1, 0, 0), 1
-		elseif lastSlope and t - lastSlopeTime < 0.08 then
-			-- Auf der Rampe: in die Rampe druecken
-			wish, amount = Vector3.new(0, 0, if lastSlope.Z < 0 then 1 else -1), 1
 		else
-			local goal
-			if target then
-				local side = if pos.Z >= target.Ridge.Z then 1 else -1
-				goal = Vector3.new(math.max(target.Ridge.X + 25, pos.X + 40), 0, target.Ridge.Z + side * target.Width * 0.25)
-			else
-				goal = Vector3.new(layout.FinishCenter.X, 0, layout.FinishCenter.Z)
-			end
-			local v = flat(state.Velocity)
-			local h = flat(goal - pos)
-			if v.Magnitude > 1 and h.Magnitude > 1 then
-				v, h = v.Unit, h.Unit
-				local perp = Vector3.new(-v.Z, 0, v.X)
-				if perp:Dot(h) < 0 then
-					perp = -perp
-				end
-				if v:Dot(h) < math.cos(math.rad(2)) then
-					wish, amount = perp, 1
-				end
-			end
+			local slope = if lastSlope and t - lastSlopeTime < 0.08 then lastSlope else nil
+			wish, amount = SurfAssist.Wish(layout, pos, state.Velocity, state.Grounded, slope)
 		end
 		SurfPhysics.Step(state, { WishDir = wish, WishAmount = amount, Jump = false }, DT, cast, S)
 		if DEBUG and index == DEBUG_STAGE and math.floor(t * 100) % 10 == 0 and t > DEBUG_FROM and t < DEBUG_FROM + 3 then

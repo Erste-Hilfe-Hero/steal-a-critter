@@ -7,6 +7,7 @@ OUT=$(mktemp -d)/stages_all.luau
 	echo "local Vector3 = (function()"; cat tests/vector3.luau; echo "end)()"
 	echo "local SurfPhysics = (function()"; cat src/shared/SurfPhysics.luau; echo "end)()"
 	echo "local StageLayout = (function()"; cat src/shared/StageLayout.luau; echo "end)()"
+	echo "local SurfAssist = (function()"; cat src/shared/SurfAssist.luau; echo "end)()"
 	echo "local Color3 = { fromRGB = function() return {} end }"
 	echo "local Stages = (function()"
 	sed -n '/^Config.Stages = {/,/^}/p' src/shared/Config.luau | sed 's/^Config.Stages = /return /'
