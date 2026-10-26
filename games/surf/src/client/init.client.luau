@@ -26,6 +26,8 @@ end)
 local Movement = require(script.Movement)
 local UI = require(script.UI)
 local Extras = require(script.Extras)
+local WarsClient = require(script.WarsClient)
+local Update3 = require(script.Update3)
 
 local ok, err = pcall(Movement.Start)
 if not ok then
@@ -38,6 +40,14 @@ end
 ok, err = pcall(Extras.Start, UI, Movement)
 if not ok then
 	report("ERROR Extras.Start " .. tostring(err))
+end
+ok, err = pcall(WarsClient.Start, UI, Movement)
+if not ok then
+	report("ERROR WarsClient.Start " .. tostring(err))
+end
+ok, err = pcall(Update3.Start, UI, Movement)
+if not ok then
+	report("ERROR Update3.Start " .. tostring(err))
 end
 
 -- Zustand der ersten Minute: wo ist der Spieler, laeuft die Steuerung?

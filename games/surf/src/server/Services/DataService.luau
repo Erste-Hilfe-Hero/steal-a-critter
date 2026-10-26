@@ -50,6 +50,10 @@ local function defaultData()
 		Buddy = "none",
 		BoostSeconds = 0, -- Rest-Sekunden Flake Booster
 		Settings = {},
+		-- Update 3
+		WarFreezes = 0, -- Snowball Wars: eingefrorene Gegner
+		WarWins = 0,
+		WarRounds = 0,
 	}
 end
 

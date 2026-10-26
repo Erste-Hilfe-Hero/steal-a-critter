@@ -142,6 +142,53 @@ for index, def in Stages do
 	end
 	print(result)
 end
+-- Update 3: Arena-Haelfte (Snowball Wars) mit der Surf-Hilfe bis zum Platz in der Mitte
+do
+	local layout = Arena.Half
+	local solids = { box(layout.StartCenter, layout.StartSize), box(layout.FinishCenter, layout.FinishSize) }
+	for _, r in layout.Ramps do
+		table.insert(solids, prism(r))
+	end
+	local rawCast = makeCast(solids)
+	local lastSlope, lastSlopeTime = nil, -1
+	local t = 0
+	local cast = function(from, delta)
+		local hit = rawCast(from, delta)
+		if hit and hit.Normal.Y < S.StandNormal and hit.Normal.Y > 0 then
+			lastSlope, lastSlopeTime = hit.Normal, t
+		end
+		return hit
+	end
+	local state = { Position = layout.Spawn + Vector3.new(0, 2.5 - 3, 0), Velocity = Vector3.zero, Grounded = false }
+	local result
+	while t < 40 do
+		t += DT
+		local pos = state.Position
+		local wish, amount
+		if state.Grounded and pos.X < layout.StartCenter.X + layout.StartSize.X / 2 then
+			wish, amount = Vector3.new(1, 0, 0), 1
+		else
+			local slope = if lastSlope and t - lastSlopeTime < 0.08 then lastSlope else nil
+			wish, amount = SurfAssist.Wish(layout, pos, state.Velocity, state.Grounded, slope)
+		end
+		SurfPhysics.Step(state, { WishDir = wish, WishAmount = amount, Jump = false }, DT, cast, S)
+		local p = state.Position - layout.FinishCenter
+		if state.Grounded and math.abs(p.X) < layout.FinishSize.X / 2 and math.abs(p.Y) < 4 and math.abs(p.Z) < layout.FinishSize.Z / 2 then
+			result = string.format("PASS arena half reaches plaza in %.2fs (plaza %.0f wide)", t, layout.FinishSize.X)
+			break
+		end
+		if state.Position.Y < layout.KillY then
+			result = string.format("FAIL arena half fell at x=%.0f z=%.0f after %.1fs", state.Position.X, state.Position.Z, t)
+			break
+		end
+	end
+	result = result or "FAIL arena half timeout at " .. tostring(state.Position)
+	if result:sub(1, 4) == "FAIL" then
+		failed += 1
+	end
+	print(result)
+	print(string.format("arena base x=%.0f top=%.0f plazaTop=%.0f killY=%.0f ramps end x=%.0f", layout.StartCenter.X, layout.StartCenter.Y, layout.FinishCenter.Y, layout.KillY, layout.Ramps[3].RidgeEnd.X))
+end
 print(`SUMMARY: {failed} failed`)
 for index, def in Stages do
 	local layout = StageLayout.Build(index, def, StageSpacing, StageHeight)

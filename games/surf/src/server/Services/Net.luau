@@ -29,6 +29,11 @@ Net.Progress = remote("Progress") -- Client -> Server ("Title", Id) / ("Claim", 
 Net.ProgressSync = remote("ProgressSync") -- Server -> ein Spieler (Erfolge, Aufgaben, Medaillen, Statistik, Einstellungen)
 Net.Reward = remote("Reward") -- Server -> ein Spieler ("Achievement", Id) / ("Spin", Index, Text)
 
+-- Update 3
+Net.Wars = remote("Wars") -- Client -> Server ("Join") / ("Leave") / ("Fire", Waffe, Ursprung, Richtung, SchussId, Treffer) / ("Impact", SchussId, Ziel, Punkt) / ("Fell")
+Net.WarsEvent = remote("WarsEvent") -- Server -> Clients ("Shot", Key, Waffe, Ursprung, Richtung) / ("Frozen", ...) / ("Knock", Vektor) / ("HitConfirm", ...) / ("Pickup", Waffe) / ("Countdown"/"RoundStart"/"RoundEnd") / ("Splash", Punkt)
+Net.Fx = remote("Fx") -- Server -> alle ("Fireworks", Position) fuer Effekte
+
 folder.Parent = ReplicatedStorage
 
 function Net.SendNotify(player: Player, text: string, color: Color3?)

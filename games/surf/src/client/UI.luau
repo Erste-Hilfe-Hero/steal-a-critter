@@ -14,6 +14,7 @@ local UserInputService = game:GetService("UserInputService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
 local Progression = require(ReplicatedStorage.Shared.Progression)
+local Sounds = require(ReplicatedStorage.Shared.Sounds)
 local SurfPhysics = require(ReplicatedStorage.Shared.SurfPhysics)
 
 local player = Players.LocalPlayer
@@ -128,6 +129,7 @@ function UI.Start(Movement)
 	------------------------------------------------ Timer (oben Mitte)
 
 	local timerPanel = panel({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8), Size = UDim2.fromOffset(340, 104), Parent = gui })
+	UI.TimerPanel = timerPanel
 	local stageLabel = text({ Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -24, 0, 18), Text = "LOBBY", TextColor3 = T.Ice, FontFace = HEAVY, Parent = timerPanel })
 	local runLabel = text({ Position = UDim2.fromOffset(12, 28), Size = UDim2.new(1, -24, 0, 44), Text = "--:--.---", FontFace = MONO, Parent = timerPanel })
 	local subLabel = text({ Position = UDim2.fromOffset(12, 76), Size = UDim2.new(1, -24, 0, 18), Text = "", TextColor3 = T.Muted, FontFace = MONO, Parent = timerPanel })
@@ -504,7 +506,7 @@ function UI.Start(Movement)
 
 	------------------------------------------------ Knoepfe
 
-	local leftBar = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(84, 330), BackgroundTransparency = 1, Parent = gui })
+	local leftBar = create("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 20), Size = UDim2.fromOffset(84, 384), BackgroundTransparency = 1, Parent = gui })
 	UI.LeftBar = leftBar
 	create("UIListLayout", { Padding = UDim.new(0, 8), Parent = leftBar })
 	local function sideButton(label: string, color: Color3, order: number, onClick)
@@ -616,7 +618,9 @@ function UI.Start(Movement)
 	local resultFlakes = text({ Position = UDim2.fromOffset(16, 120), Size = UDim2.new(1, -32, 0, 20), Text = "", FontFace = HEAVY, TextColor3 = T.Gold, Parent = resultCard })
 	local resultMedal = text({ Position = UDim2.fromOffset(16, 144), Size = UDim2.new(1, -32, 0, 20), Text = "", FontFace = HEAVY, Parent = resultCard })
 	local resultToken = 0
-	local finishSound = create("Sound", { SoundId = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.8, PlaybackSpeed = 1.3, Parent = SoundService })
+	-- Update 3: eigener Ziel-Sound (Sounds.luau); bis die ID da ist, der alte Ping
+	local ownFinish = Sounds.Id("sfx_finish")
+	local finishSound = create("Sound", { SoundId = if ownFinish ~= "" then ownFinish else "rbxasset://sounds/electronicpingshort.wav", Volume = 0.8, PlaybackSpeed = if ownFinish ~= "" then 1 else 1.3, Parent = SoundService })
 	remotes.Result.OnClientEvent:Connect(function(result)
 		resultToken += 1
 		local token = resultToken
@@ -632,7 +636,7 @@ function UI.Start(Movement)
 			resultTitle.TextColor3 = if result.StagePB then T.Gold else T.Ice
 			resultTime.Text = Format.Run(result.StageTime)
 			local delta = if result.PreviousBest then result.StageTime - result.PreviousBest else nil
-			resultSub.Text = if not result.Clean then "practice (not saved)" elseif delta then string.format("%s%.3f vs PB", if delta < 0 then "-" else "+", math.abs(delta)) else "first time!"
+			resultSub.Text = if not result.Clean then (if Movement.Assist then "assist run - turn assist off in SETTINGS for records" else "practice (not saved)") elseif delta then string.format("%s%.3f vs PB", if delta < 0 then "-" else "+", math.abs(delta)) else "first time!"
 		end
 		-- Zwischenzeit im Lauf gegen den Bestzeit-Lauf (Update 2)
 		if result.SplitDelta and not result.MapComplete then
@@ -646,7 +650,7 @@ function UI.Start(Movement)
 				else `{medalDef.Name} medal` .. (if result.Medal < 3 and gold then `   (Gold: {Format.Run(gold)})` else "")
 			resultMedal.TextColor3 = medalDef.Color
 		else
-			resultMedal.Text = if result.Clean == false then "Medals need a clean run" else ""
+			resultMedal.Text = if result.Clean == false then "Medals need a clean run without assist" else ""
 			resultMedal.TextColor3 = T.Muted
 		end
 		resultFlakes.Text = `+{Format.Number(result.Flakes or 0)} Snowflakes`
@@ -782,6 +786,7 @@ function UI.Start(Movement)
 			local def = Config.Stages[stage]
 			stageLabel.Text = `STAGE {stage}/{#Config.Stages}  -  {string.upper(def.Name)}`
 			practiceTag.Visible = not ranked
+			practiceTag.Text = if Movement.Assist then "ASSIST" else "PRACTICE"
 			if run and ranked then
 				runLabel.Text = Format.Run(run)
 			else

@@ -11,9 +11,10 @@ local Services = {
 	ProgressService = require(script.Services.ProgressService),
 	EventService = require(script.Services.EventService),
 	MonetizationService = require(script.Services.MonetizationService),
+	ArenaService = require(script.Services.ArenaService),
 }
 
-local ORDER = { "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "ProgressService", "EventService", "MonetizationService" }
+local ORDER = { "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "ProgressService", "EventService", "MonetizationService", "ArenaService" }
 
 for _, name in ORDER do
 	Services[name]:Init(Services)

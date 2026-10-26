@@ -37,6 +37,10 @@ function TimerService:Begin(player: Player, stage: number, ranked: boolean)
 	if not run then
 		return
 	end
+	local arena = self.Services.ArenaService
+	if arena and arena:IsIn(player) then
+		arena:Remove(player)
+	end
 	run.Ranked = ranked and not lowGravity()
 	run.RunStart = nil
 	run.StageStart = nil
@@ -59,6 +63,10 @@ function TimerService:ToLobby(player: Player)
 	local run = runs[player]
 	if not run then
 		return
+	end
+	local arena = self.Services.ArenaService
+	if arena and arena:IsIn(player) then
+		arena:Remove(player)
 	end
 	run.RunStart = nil
 	run.StageStart = nil
@@ -211,6 +219,8 @@ local function finishStage(player: Player, stage: number, clientStage: any, clie
 	end
 	result.Flakes += services.DataService:AddFlakes(player, mapReward)
 	services.ProgressService:OnMapClear(player)
+	-- Update 3: Feuerwerk ueber dem Ziel, das alle sehen
+	services.Net.Fx:FireAllClients("Fireworks", info.Finish.Position, player.DisplayName)
 	run.RunStart = nil
 	run.Ranked = false
 	setStage(player, 0)
@@ -273,7 +283,7 @@ function TimerService:Start()
 					data.Falls += 1
 				end
 			end
-		elseif action == "UsedCheckpoint" then
+		elseif action == "UsedCheckpoint" or action == "Assisted" then
 			run.Ranked = false
 			run.StageClean = false
 			player:SetAttribute("Ranked", false)
@@ -299,6 +309,12 @@ function TimerService:OnCharacterAdded(player: Player)
 		task.delay(0.3, function()
 			if player.Parent and runs[player] then
 				local stage = runs[player].Stage
+				local arena = self.Services.ArenaService
+				local arenaSpawn = arena and arena:GetSpawn(player)
+				if arenaSpawn then
+					teleport(player, arenaSpawn, 0)
+					return
+				end
 				teleport(player, if stage > 0 then self.Services.WorldService:GetSpawn(stage) else self.Services.WorldService:GetLobbySpawn(), stage)
 			end
 		end)

@@ -317,6 +317,9 @@ local function snapshot(player: Player, data)
 			QuestsDone = data.QuestsDone,
 			Streak = data.DailyStreak,
 			GoldMedals = goldMedals(data),
+			WarFreezes = data.WarFreezes or 0,
+			WarWins = data.WarWins or 0,
+			WarRounds = data.WarRounds or 0,
 		},
 	}
 end
