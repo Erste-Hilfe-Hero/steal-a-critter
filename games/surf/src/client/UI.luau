@@ -709,7 +709,7 @@ function UI.Start(Movement)
 	text({
 		Size = UDim2.new(1, 0, 0, 190),
 		Text = if touch
-			then "1. Leave the start hut and drop onto the first ramp.\n2. Land on the SIDE of a ramp, never the top.\n3. Push the stick TOWARD the ramp to stick to it.\n4. Swipe the right side to steer. Faster = higher score!\n5. Fall? You restart the stage. The clock keeps going."
+			then "1. Push the stick forward to leave the start hut.\n2. SURF ASSIST is on: it keeps you on the ramp and steers to the next one.\n3. Want full control? Push the stick sideways, or turn assist off in MORE > SETTINGS.\n4. Swipe the right side to look around. Faster = higher score!\n5. Fall? You restart the stage. The clock keeps going."
 			else "1. Leave the start hut and drop onto the first ramp.\n2. Land on the SIDE of a ramp, never the top.\n3. Hold A or D TOWARD the ramp (not W!) and steer with the mouse.\n4. In the air: strafe + turn the mouse together to gain speed.\n5. Fall? You restart the stage. The clock keeps going.",
 		TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Left,

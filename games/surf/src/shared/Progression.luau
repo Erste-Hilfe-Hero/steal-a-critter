@@ -166,6 +166,7 @@ Progression.DefaultSettings = {
 	Wind = true,
 	SpeedFx = true,
 	Hints = true,
+	SurfAssist = true, -- Surf-Hilfe: drueckt auf Rampen automatisch richtig, lenkt in der Luft (Handy-Freund)
 }
 
 return Progression
