@@ -53,9 +53,20 @@ end
 -- Nur die aktuelle Stage neu (Map-Zeit laeuft weiter)
 function TimerService:RestartStage(player: Player)
 	local run = runs[player]
-	if run and run.Stage > 0 then
+	if not run then
+		return
+	end
+	if run.Stage > 0 then
 		run.StageStart = nil
 		teleport(player, self.Services.WorldService:GetSpawn(run.Stage), run.Stage)
+		return
+	end
+	-- "Reset" in der Arena oder Lobby: zurueck zur eigenen Basis bzw. zum Lobby-Spawn
+	local arena = self.Services.ArenaService
+	if arena and arena:IsIn(player) then
+		arena:Respawn(player)
+	else
+		teleport(player, self.Services.WorldService:GetLobbySpawn(), 0)
 	end
 end
 

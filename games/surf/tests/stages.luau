@@ -93,10 +93,14 @@ for index, def in Stages do
 	local rawCast = makeCast(solids)
 	local lastSlope, lastSlopeTime = nil, -1
 	local t = 0
+	local lastSurfaceFeetY, maxFallBelow = nil, 0
 	local cast = function(from, delta)
 		local hit = rawCast(from, delta)
 		if hit and hit.Normal.Y < S.StandNormal and hit.Normal.Y > 0 then
 			lastSlope, lastSlopeTime = hit.Normal, t
+		end
+		if hit then
+			lastSurfaceFeetY = from.Y - 2.5
 		end
 		return hit
 	end
@@ -118,9 +122,16 @@ for index, def in Stages do
 			print(string.format("t=%.2f pos=%s vel=%s g=%s wish=%s slope=%s", t, tostring(state.Position), tostring(state.Velocity), tostring(state.Grounded), tostring(wish), tostring(lastSlope)))
 		end
 		topSpeed = math.max(topSpeed, flat(state.Velocity).Magnitude)
+		if lastSurfaceFeetY then
+			maxFallBelow = math.max(maxFallBelow, lastSurfaceFeetY - (state.Position.Y - 2.5))
+		end
 		local p = state.Position - finishZoneC
 		if math.abs(p.X) < 70 and math.abs(p.Y) < 30 and math.abs(p.Z) < 85 then
-			result = string.format("PASS stage %d %-14s finished in %.2fs  top %d u/s", index, def.Name, t, topSpeed / SurfPhysics.Unit)
+			result = string.format("PASS stage %d %-14s finished in %.2fs  top %d u/s  max drop %.0f", index, def.Name, t, topSpeed / SurfPhysics.Unit, maxFallBelow)
+			-- Movement.luau startet neu, wenn man mehr als 3 Rampenhoehen unter die letzte Beruehrung faellt
+			if maxFallBelow > def.Height * 3 then
+				result = "FAIL" .. result:sub(5) .. " (early respawn would trigger)"
+			end
 			break
 		end
 		if state.Position.Y - 2.5 < layout.KillY then

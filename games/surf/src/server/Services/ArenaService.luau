@@ -461,9 +461,12 @@ local function splash(attacker, center: Vector3, weapon, weaponId: string)
 end
 
 respawn = function(entity)
+	local now = os.clock()
 	entity.Frozen = false
 	entity.HP = Arena.MaxHealth
-	entity.ShieldUntil = os.clock() + Arena.ShieldSeconds
+	-- Schutz nur, wenn der letzte Neustart etwas her ist (sonst waere "Fell" spammen unverwundbar)
+	entity.ShieldUntil = if now - (entity.LastRespawn or -100) > 8 then now + Arena.ShieldSeconds else 0
+	entity.LastRespawn = now
 	entity.Weapon = "Snowball"
 	entity.Ammo = 0
 	local spawn = Arena.Spawn(entity.Team)
@@ -955,6 +958,14 @@ function ArenaService:Join(player: Player)
 	tickRound()
 end
 
+-- Zurueck zur Basis (Reset-Knopf), aber nicht, solange man eingefroren ist
+function ArenaService:Respawn(player: Player)
+	local entity = entities[playerKey(player)]
+	if entity and not entity.Frozen then
+		respawn(entity)
+	end
+end
+
 function ArenaService:Remove(player: Player)
 	local key = playerKey(player)
 	if not entities[key] then
@@ -992,10 +1003,7 @@ function ArenaService:Start()
 		elseif action == "Impact" then
 			onImpact(player, a, b, c)
 		elseif action == "Fell" then
-			local entity = entities[playerKey(player)]
-			if entity and not entity.Frozen then
-				respawn(entity)
-			end
+			self:Respawn(player)
 		end
 	end)
 	Players.PlayerRemoving:Connect(function(player)

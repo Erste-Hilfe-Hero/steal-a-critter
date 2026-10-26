@@ -438,8 +438,15 @@ function Update3.Start(UI, Movement)
 
 	local lastStage = -1
 	local clock = 0
+	local respawns = Movement.Respawns or 0
 	RunService.RenderStepped:Connect(function(dt)
 		clock += dt
+		-- Nach einem Absturz kurz anzeigen, dass man neu startet
+		if (Movement.Respawns or 0) ~= respawns then
+			respawns = Movement.Respawns or 0
+			play("sfx_whoosh", 0.5, 0.8)
+			K.toast(if player:GetAttribute("ArenaTeam") then "Fell off - back to base!" else "Fell off - back to the start!", T.Ice, 1.2)
+		end
 		local stage = player:GetAttribute("Stage") or 0
 		local inArena = player:GetAttribute("ArenaTeam") ~= nil
 		local speed = Movement.Speed
