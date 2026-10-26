@@ -60,6 +60,12 @@ local function positionOf(entity): Vector3?
 	return root and root.Position
 end
 
+-- Wie weit darf die gemeldete Trefferstelle von der Server-Position abweichen? Latenz mal Tempo.
+local function tolerance(entity): number
+	local speed = if entity.Bot then entity.Bot.State.Velocity.Magnitude else (entity.Speed or 0)
+	return 4 + math.min(30, speed * 0.3)
+end
+
 local function humansIn(teamId: string?): number
 	local count = 0
 	for _, e in entities do
@@ -570,8 +576,7 @@ end
 
 ---------------------------------------------------------------- Schuesse
 
--- Nur echte, lebende Gegner im Strahl gelten. Toleranz fuer die Latenz (Positionen kommen verzoegert an).
-local LAG_TOLERANCE = 4
+-- Nur echte, lebende Gegner im Strahl gelten. Toleranz fuer die Latenz: siehe tolerance().
 
 local function canFire(entity, weaponId: string): boolean
 	local weapon = Arena.Weapons[weaponId]
@@ -614,7 +619,7 @@ local function hitscan(attacker, weaponId: string, origin: Vector3, direction: V
 		for _, e in entities do
 			if e.Team ~= attacker.Team and not e.Frozen and (claimed == nil or table.find(claimed, e.Key)) then
 				local pos = positionOf(e)
-				local radius = Arena.HitRadius + (if e.Player and claimed then LAG_TOLERANCE else 0)
+				local radius = Arena.HitRadius + (if claimed then tolerance(e) else 0)
 				local d = pos and Arena.RaySphere(origin, dir, pos, radius)
 				if d and d < bestDistance and d <= weapon.Range and d <= wallDistance + 2 then
 					best, bestDistance = e, d
@@ -699,7 +704,7 @@ local function onImpact(player: Player, shotId, targetKey, point)
 	local victim = typeof(targetKey) == "string" and entities[targetKey]
 	if victim and victim.Team ~= entity.Team then
 		local pos = positionOf(victim)
-		if pos and (pos - point).Magnitude <= Arena.HitRadius + LAG_TOLERANCE + 4 then
+		if pos and (pos - point).Magnitude <= Arena.HitRadius + tolerance(victim) + 4 then
 			damage(victim, entity, weapon.Damage, shot.Weapon, shot.Origin)
 		end
 	end
@@ -1029,6 +1034,14 @@ function ArenaService:Start()
 					end
 					if entity.Player and entity.Player:GetAttribute("WarShield") and entity.ShieldUntil <= now then
 						publish(entity)
+					end
+					-- Tempo der Spieler schaetzen (der Client bewegt sich selbst, Geschwindigkeit ist 0)
+					if entity.Player then
+						local pos = positionOf(entity)
+						if pos and entity.LastPos then
+							entity.Speed = math.min(400, (pos - entity.LastPos).Magnitude / 0.1)
+						end
+						entity.LastPos = pos
 					end
 				end
 				-- Alte Projektil-Eintraege vergessen
