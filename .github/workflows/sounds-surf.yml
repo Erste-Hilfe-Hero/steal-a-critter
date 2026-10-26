@@ -23,6 +23,7 @@ jobs:
       - name: Upload sounds
         run: |
           USER_ID=$(jq -r '.ownerUserId' roblox.json)
+          [ -f src/shared/SoundIds.json ] || echo '{}' > src/shared/SoundIds.json
           MAP="{}"
           for F in assets/sounds/*.ogg; do
             N=$(basename "$F" .ogg)

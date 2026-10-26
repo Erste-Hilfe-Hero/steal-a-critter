@@ -8,6 +8,7 @@ local SoundService = game:GetService("SoundService")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 
+local Arena = require(ReplicatedStorage.Shared.Arena)
 local Config = require(ReplicatedStorage.Shared.Config)
 local StageLayout = require(ReplicatedStorage.Shared.StageLayout)
 local SurfAssist = require(ReplicatedStorage.Shared.SurfAssist)
@@ -33,6 +34,18 @@ Movement.UiOpen = false -- Fenster offen: Maus frei
 Movement.JumpHeld = false -- Sprungknopf auf dem Handy
 Movement.Assist = true -- Surf-Hilfe (Einstellungen): auf der Rampe richtig druecken, in der Luft zur naechsten Rampe lenken
 Movement.Assisting = false
+-- Update 3: Zustand fuer Effekte, Sounds und Statistik (liest Update3.luau)
+Movement.Surfing = false
+Movement.Grounded = false
+Movement.Landings = 0 -- zaehlt Landungen (Sound)
+Movement.Locked = false -- eingefroren (Snowball Wars)
+Movement.StrafeGood = 0 -- Luft-Strafe-Synchronitaet: Schritte mit passender Drehung
+Movement.StrafeTotal = 0
+Movement.Roll = true -- Kamera neigt sich auf Rampen (Einstellung)
+Movement.RenderPosition = nil :: Vector3?
+Movement.Contact = Vector3.new(0, 1, 0)
+Movement._lastYaw = nil :: number?
+Movement._roll = 0
 
 local state = { Position = Vector3.new(0, 0, 0), Velocity = Vector3.new(0, 0, 0), Grounded = false }
 local previousPosition = state.Position
@@ -49,6 +62,7 @@ local lastContactTime = 0
 local inStart = false
 local finishSent = false
 local portalCooldown = 0
+local assistReported = false
 local serverTeleport: CFrame? = nil -- letzter Teleport vom Server, solange der Charakter noch aufgebaut wird
 local characterSetupAt = 0
 local serverTeleportAt = -1
@@ -99,6 +113,7 @@ function Movement.Teleport(cframe: CFrame)
 	end
 	finishSent = false
 	inStart = false
+	assistReported = false
 end
 
 ---------------------------------------------------------------- Zonen
@@ -131,6 +146,26 @@ local function checkZones()
 				Movement.Teleport(spawnAt)
 			end
 		end)
+	end
+	-- Snowball Wars: Absturz, Rueckweg-Platte, Tor in der Lobby
+	local arenaTeam = player:GetAttribute("ArenaTeam")
+	if arenaTeam then
+		local arenaSpawn = player:GetAttribute("ArenaSpawn")
+		local killY = workspace:GetAttribute("WarKillY")
+		if arenaSpawn and killY and feet.Y < killY then
+			Movement.Teleport(arenaSpawn)
+			remotes.Wars:FireServer("Fell")
+		end
+		local pad = zoneFor("WarPad" .. arenaTeam)
+		if arenaSpawn and pad and inside(pad, point) then
+			Movement.Teleport(arenaSpawn)
+		end
+		return
+	end
+	local warsPortal = zoneFor("WarsPortal")
+	if stage == 0 and warsPortal and inside(warsPortal, point) and os.clock() > portalCooldown then
+		portalCooldown = os.clock() + 2
+		remotes.Wars:FireServer("Join")
 	end
 	if stage == 0 then
 		local lobbyKill = workspace:GetAttribute("LobbyKillY")
@@ -234,17 +269,37 @@ local function readInput()
 	-- Surf-Hilfe: in der Luft und auf Rampen, solange man nicht deutlich seitlich lenkt
 	Movement.Assisting = false
 	local stage = player:GetAttribute("Stage") or 0
-	if Movement.Assist and stage > 0 and not state.Grounded and math.abs(move.X) < 0.5 then
-		local layout = layoutFor(stage)
+	local arenaTeam = player:GetAttribute("ArenaTeam")
+	if Movement.Assist and (stage > 0 or arenaTeam) and not state.Grounded and math.abs(move.X) < 0.5 then
+		-- Arena: Team Aurora faehrt die gespiegelte Haelfte (Rechnung im gespiegelten Raum)
+		local mirror = arenaTeam ~= nil and Arena.TeamById[arenaTeam] ~= nil and Arena.TeamById[arenaTeam].Side > 0
+		local function m(v: Vector3): Vector3
+			return if mirror then Arena.Mirror(v) else v
+		end
+		local layout = if arenaTeam then Arena.Half else layoutFor(stage)
 		if layout then
 			local onRamp = os.clock() - lastContactTime < 0.08 and lastContact.Y < SurfPhysics.Settings.StandNormal and lastContact.Y > 0
-			local assistWish, assistAmount = SurfAssist.Wish(layout, state.Position, state.Velocity, false, if onRamp then lastContact else nil)
+			local assistWish, assistAmount = SurfAssist.Wish(layout, m(state.Position), m(state.Velocity), false, if onRamp then m(lastContact) else nil)
 			if assistAmount > 0 then
-				wish, amount = assistWish, assistAmount
+				wish, amount = m(assistWish), assistAmount
 				Movement.Assisting = true
+				-- Mit Hilfe gefahrene Stages zaehlen nicht fuer Bestenliste und Medaillen (fair fuer alle)
+				if stage > 0 and not assistReported then
+					assistReported = true
+					remotes.Run:FireServer("Assisted")
+				end
 			end
 		end
 	end
+	-- Strafe-Sync (wie auf CS-Surf-Servern): in der Luft seitlich druecken und in dieselbe Richtung drehen
+	if not state.Grounded and math.abs(move.X) > 0.3 then
+		Movement.StrafeTotal += 1
+		local turning = yaw - (Movement._lastYaw or yaw)
+		if (move.X > 0 and turning < -1e-4) or (move.X < 0 and turning > 1e-4) then
+			Movement.StrafeGood += 1
+		end
+	end
+	Movement._lastYaw = yaw
 	local jump = Movement.JumpHeld
 		or (humanoid ~= nil and humanoid.Jump)
 		or (not Movement.UiOpen and UserInputService:IsKeyDown(Enum.KeyCode.Space))
@@ -407,7 +462,11 @@ local function step(dt: number)
 	while accumulator >= TICK do
 		accumulator -= TICK
 		previousPosition = state.Position
-		SurfPhysics.Step(state, input, TICK, cast, s)
+		if Movement.Locked then
+			state.Velocity = Vector3.new(0, 0, 0)
+		elseif SurfPhysics.Step(state, input, TICK, cast, s) then
+			Movement.Landings += 1
+		end
 		checkZones()
 		if humanoid then
 			humanoid.Jump = false
@@ -419,6 +478,10 @@ local function step(dt: number)
 
 	-- Koerper: schaut in Blickrichtung und lehnt sich beim Surfen in die Rampe
 	local surfing = os.clock() - lastContactTime < 0.15 and lastContact.Y < s.StandNormal and not state.Grounded
+	Movement.Surfing = surfing
+	Movement.Grounded = state.Grounded
+	Movement.RenderPosition = renderPos
+	Movement.Contact = lastContact
 	local targetUp = if surfing then Vector3.new(0, 1, 0):Lerp(lastContact, 0.55).Unit else Vector3.new(0, 1, 0)
 	up = up:Lerp(targetUp, math.min(1, dt * 10)).Unit
 	local forward = Vector3.new(-math.sin(yaw), 0, -math.cos(yaw))
@@ -442,7 +505,11 @@ local function step(dt: number)
 		end
 	end
 	camera.CameraType = Enum.CameraType.Scriptable
-	camera.CFrame = CFrame.new(focus) * rotation * CFrame.new(0, 0, wanted)
+	-- Leichte Neigung in die Rampe (Update 3)
+	local cameraRight = (CFrame.Angles(0, yaw, 0)).RightVector
+	local targetRoll = if Movement.Roll and surfing then -cameraRight:Dot(up) * 0.35 else 0
+	Movement._roll = (Movement._roll or 0) + (targetRoll - (Movement._roll or 0)) * math.min(1, dt * 5)
+	camera.CFrame = CFrame.new(focus) * rotation * CFrame.new(0, 0, wanted) * CFrame.Angles(0, 0, Movement._roll)
 	camera.FieldOfView = camera.FieldOfView + (70 + math.min(25, Movement.Speed / 9) - camera.FieldOfView) * math.min(1, dt * 4)
 	local hide = if distance < 0.5 then 1 else 0
 	for _, d in character:GetDescendants() do
@@ -492,6 +559,24 @@ function Movement.Start()
 			task.wait(1)
 		end
 	end)
+end
+
+function Movement.AddVelocity(v: Vector3)
+	state.Velocity += v
+	state.Grounded = false
+end
+
+function Movement.GetVelocity(): Vector3
+	return state.Velocity
+end
+
+function Movement.GetYaw(): number
+	return yaw
+end
+
+-- Punkt, von dem aus geworfen wird (Brusthoehe)
+function Movement.GetFocus(): Vector3
+	return (Movement.RenderPosition or state.Position) - hullOffset() + Vector3.new(0, 1.6, 0)
 end
 
 function Movement.DebugPosition(): Vector3

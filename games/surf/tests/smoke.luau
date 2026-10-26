@@ -37,10 +37,10 @@ local folder = ServerScriptService:FindFirstChild("Server")
 check("server script present", folder ~= nil)
 local services = {}
 local ok, err = pcall(function()
-	for _, name in { "Net", "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "ProgressService", "EventService", "MonetizationService" } do
+	for _, name in { "Net", "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "ProgressService", "EventService", "MonetizationService", "ArenaService" } do
 		services[name] = require(folder.Services[name])
 	end
-	for _, name in { "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "ProgressService", "EventService", "MonetizationService" } do
+	for _, name in { "DataService", "WorldService", "LeaderboardService", "TimerService", "CosmeticService", "ProgressService", "EventService", "MonetizationService", "ArenaService" } do
 		services[name]:Init(services)
 	end
 	services.WorldService:Build()
@@ -76,6 +76,65 @@ end
 check("lucky snowball slots", spinOk)
 for _, buddy in Progression.Buddies do
 	check("buddy " .. buddy.Id, buddy.Price ~= nil or buddy.Spin == true)
+end
+
+-- Update 3: Musik/Sounds, Arena (Snowball Wars) und ein Bot, der die Arena-Haelfte bis zum Platz faehrt
+local Sounds = require(ReplicatedStorage.Shared.Sounds)
+for _, name in { "music_lobby", "music_run", "music_night", "sfx_finish", "sfx_throw", "sfx_freeze" } do
+	check("sound id " .. name, Sounds.Id(name) ~= "", Sounds.Id(name))
+end
+for _, name in { "Wars", "WarsEvent", "Fx" } do
+	check("remote " .. name, remotes ~= nil and remotes:FindFirstChild(name) ~= nil)
+end
+check("lobby wars portal", zones and zones:FindFirstChild("WarsPortal") ~= nil)
+local arenaOk, arenaErr = pcall(services.ArenaService.Start, services.ArenaService)
+check("arena service start", arenaOk, arenaErr)
+if arenaOk then
+	local Arena = require(ReplicatedStorage.Shared.Arena)
+	local map = workspace:FindFirstChild("Map")
+	check("arena built", map and map:FindFirstChild("Arena") ~= nil)
+	local pickupFolder = workspace:FindFirstChild("WarPickups")
+	check("arena pickups", pickupFolder and #pickupFolder:GetChildren() == #Arena.Pickups, pickupFolder and #pickupFolder:GetChildren())
+	check("arena pads", zones:FindFirstChild("WarPadFrost") ~= nil and zones:FindFirstChild("WarPadAurora") ~= nil)
+	check("teams", #game:GetService("Teams"):GetTeams() >= 2)
+	local arenaParams = RaycastParams.new()
+	arenaParams.FilterType = Enum.RaycastFilterType.Exclude
+	arenaParams.FilterDescendantsInstances = { zones, workspace:FindFirstChild("WarBots") }
+	for _, team in Arena.Teams do
+		local spawn = Arena.Spawn(team.Id)
+		local hit = workspace:Raycast(spawn.Position, Vector3.new(0, -10, 0), arenaParams)
+		check(`arena {team.Id} spawn above base`, hit and hit.Normal.Y > 0.99, hit and hit.Position)
+	end
+	-- Rampen beider Haelften surfbar
+	for _, mirror in { false, true } do
+		local r = Arena.Half.Ramps[2]
+		local cf = CFrame.new(r.Ridge) * CFrame.Angles(0, 0, -math.rad(r.Pitch))
+		local point = (cf * CFrame.new(r.Length / 2, 0, r.Width / 4)).Position
+		if mirror then
+			point = Arena.Mirror(point)
+		end
+		local faceHit = workspace:Raycast(point + Vector3.new(0, 40, 0), Vector3.new(0, -80, 0), arenaParams)
+		local n = faceHit and faceHit.Normal
+		check(`arena ramp surfable mirror={mirror}`, n and n.Y > 0.2 and n.Y < SurfPhysics.Settings.StandNormal, n)
+	end
+	-- Ein Bot je Team faehrt mit echter Physik zum Platz
+	services.ArenaService._spawnBot("Frost")
+	services.ArenaService._spawnBot("Aurora")
+	local reached = {}
+	local started = os.clock()
+	while os.clock() - started < 25 do
+		task.wait(0.25)
+		for _, entity in services.ArenaService._entities do
+			if entity.Bot and entity.Bot.Mode == "Fight" then
+				reached[entity.Team] = true
+			end
+		end
+		if reached.Frost and reached.Aurora then
+			break
+		end
+	end
+	check("arena bot Frost reaches plaza", reached.Frost == true)
+	check("arena bot Aurora reaches plaza", reached.Aurora == true)
 end
 
 local params = RaycastParams.new()

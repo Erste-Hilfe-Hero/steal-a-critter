@@ -39,6 +39,7 @@ function Extras.Start(UI, Movement)
 		Stats = {},
 		SettingsLoaded = false,
 	}
+	UI.Settings = state.Settings
 	local refreshers = {}
 	local function refreshAll()
 		for _, fn in refreshers do
@@ -173,7 +174,7 @@ function Extras.Start(UI, Movement)
 		return label
 	end
 	local lines = {}
-	for i = 1, 12 do
+	for i = 1, 14 do
 		lines[i] = profileLine(i)
 	end
 	local medalHeader = profileLine(20, T.Aurora, K.HEAVY)
@@ -204,6 +205,8 @@ function Extras.Start(UI, Movement)
 			{ "QUESTS DONE", Format.Number(stats.QuestsDone or 0), T.Snow },
 			{ "FALLS", Format.Number(stats.Falls or 0), T.Snow },
 			{ "TIME SURFED", `{(stats.PlayTime or 0) // 3600}h {((stats.PlayTime or 0) % 3600) // 60}m`, T.Snow },
+			{ "WARS FREEZES", Format.Number(stats.WarFreezes or 0), T.Aurora },
+			{ "WARS WINS", `{stats.WarWins or 0} of {stats.WarRounds or 0} rounds`, T.Aurora },
 			{ "FRIENDS HERE", `{player:GetAttribute("FriendsHere") or 0}  (+{math.floor((player:GetAttribute("FriendBonus") or 0) * 100 + 0.5)}% Snowflakes)`, T.Mint },
 		}
 		for i, entry in values do
@@ -325,6 +328,10 @@ function Extras.Start(UI, Movement)
 	local settingsList = K.scrollList(pages.SETTINGS)
 	local SETTINGS = {
 		{ Key = "SurfAssist", Text = "Surf assist (sticks you to ramps, steers in the air)" },
+		{ Key = "Music", Text = "Music (own soundtrack, tap the music button to pick a song)" },
+		{ Key = "Ghost", Text = "Ghost of your best run in each stage" },
+		{ Key = "CameraTilt", Text = "Camera tilts into the ramp" },
+		{ Key = "SkiSpray", Text = "Snow spray from your skis" },
 		{ Key = "HidePlayers", Text = "Hide other players (less distraction)" },
 		{ Key = "Snow", Text = "Snowfall" },
 		{ Key = "Speedometer", Text = "Speedometer" },
@@ -406,6 +413,9 @@ function Extras.Start(UI, Movement)
 			b.TextColor3 = if on then T.Navy else T.Muted
 		end
 		Movement.Assist = s.SurfAssist ~= false
+		if UI.ApplySettings3 then
+			UI.ApplySettings3(s)
+		end
 		if UI.SpeedPanel then
 			UI.SpeedPanel.Visible = s.Speedometer ~= false
 		end

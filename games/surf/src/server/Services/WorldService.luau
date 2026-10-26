@@ -7,6 +7,7 @@ local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local SoundIds = require(ReplicatedStorage.Shared.Sounds)
 local StageLayout = require(ReplicatedStorage.Shared.StageLayout)
 
 local WorldService = { Services = nil :: any }
@@ -395,13 +396,70 @@ local function buildLobby()
 	label(shopSign, Enum.NormalId.Back, "SKI SHOP", THEME.Gold)
 	deco({ Size = Vector3.new(1, 1, 1), CFrame = CFrame.new(hut + Vector3.new(0, 12, 0)), Transparency = 1, Parent = folder })
 
+	-- Update 3: Tor zu "Snowball Wars" (Team-Modus)
+	local warsCenter = c + Vector3.new(70, 0, -70)
+	arch(warsCenter, 30, 24, THEME.Aurora, "SNOWBALL WARS", folder)
+	local warsGlow = deco({ Size = Vector3.new(1, 22, 28), CFrame = CFrame.new(warsCenter + Vector3.new(0, 11, 0)), Color = THEME.Aurora, Material = Enum.Material.ForceField, Transparency = 0.2, Parent = folder })
+	warsGlow.Name = "WarsGlow"
+	zone("WarsPortal", CFrame.new(warsCenter + Vector3.new(0, 12, 0)), Vector3.new(6, 24, 28))
+	local warsSign = deco({ Size = Vector3.new(1, 5, 26), CFrame = CFrame.new(warsCenter + Vector3.new(-6, 3, 0)), Color = THEME.Navy, Parent = folder })
+	label(warsSign, Enum.NormalId.Left, "2 TEAMS - GRAB WEAPONS", THEME.Gold)
+
+	-- Update 3: Lagerfeuer mit Baenken und Laternen (gemuetliche Apres-Ski-Ecke)
+	local fire = c + Vector3.new(25, 0, 45)
+	for i = 1, 10 do
+		local angle = i / 10 * math.pi * 2
+		deco({ Shape = Enum.PartType.Ball, Size = Vector3.new(1.6, 1.6, 1.6), CFrame = CFrame.new(fire + Vector3.new(math.cos(angle) * 3.2, 0.6, math.sin(angle) * 3.2)), Color = Color3.fromRGB(120, 125, 135), Material = Enum.Material.Slate, Parent = folder })
+	end
+	for _, angle in { 0, 60, 120 } do
+		deco({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(4.5, 0.8, 0.8), CFrame = CFrame.new(fire + Vector3.new(0, 0.8, 0)) * CFrame.Angles(0, math.rad(angle), math.rad(18)), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = folder })
+	end
+	local flame = deco({ Name = "Campfire", Size = Vector3.new(2, 1, 2), CFrame = CFrame.new(fire + Vector3.new(0, 1.2, 0)), Transparency = 1, Parent = folder })
+	local fireEffect = Instance.new("Fire")
+	fireEffect.Size = 6
+	fireEffect.Heat = 12
+	fireEffect.Color = Color3.fromRGB(255, 150, 50)
+	fireEffect.SecondaryColor = Color3.fromRGB(255, 70, 20)
+	fireEffect.Parent = flame
+	local fireLight = Instance.new("PointLight")
+	fireLight.Color = Color3.fromRGB(255, 170, 90)
+	fireLight.Range = 24
+	fireLight.Brightness = 3
+	fireLight.Shadows = true
+	fireLight.Parent = flame
+	local crackle = Instance.new("Sound")
+	crackle.Name = "Crackle"
+	crackle.SoundId = SoundIds.Id("sfx_fire")
+	crackle.Looped = true
+	crackle.Volume = 0.7
+	crackle.RollOffMinDistance = 6
+	crackle.RollOffMaxDistance = 60
+	crackle.Parent = flame
+	crackle:Play()
+	for i = 1, 3 do
+		local angle = math.rad(i * 120 + 30)
+		local pos = fire + Vector3.new(math.cos(angle) * 9, 0, math.sin(angle) * 9)
+		deco({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(8, 1.8, 1.8), CFrame = CFrame.lookAt(pos + Vector3.new(0, 0.9, 0), fire + Vector3.new(0, 0.9, 0)) * CFrame.Angles(0, math.rad(90), 0), Color = WOOD, Material = Enum.Material.Wood, Parent = folder })
+	end
+	-- Laternen am Weg zu den Toren
+	for i = 0, 5 do
+		local pos = c + Vector3.new(-40 + i * 24, 0, -24)
+		deco({ Size = Vector3.new(0.6, 9, 0.6), CFrame = CFrame.new(pos + Vector3.new(0, 4.5, 0)), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = folder })
+		local lamp = deco({ Size = Vector3.new(1.4, 1.8, 1.4), CFrame = CFrame.new(pos + Vector3.new(0, 9.6, 0)), Color = Color3.fromRGB(255, 214, 140), Material = Enum.Material.Neon, Parent = folder })
+		local lampLight = Instance.new("PointLight")
+		lampLight.Color = Color3.fromRGB(255, 200, 130)
+		lampLight.Range = 16
+		lampLight.Brightness = 1.5
+		lampLight.Parent = lamp
+	end
+
 	-- Tannen und Berge rund um die Lobby
 	local rng = Random.new(7)
 	for _ = 1, 22 do
 		local angle = rng:NextNumber(0, math.pi * 2)
 		local radius = rng:NextNumber(70, 120)
 		local pos = c + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
-		if (pos - portalCenter).Magnitude > 30 and (pos - hut).Magnitude > 26 and (pos - (c + Vector3.new(-60, 0, 0))).Magnitude > 20 and (pos - (c + Vector3.new(-20, 0, -100))).Magnitude > 30 then
+		if (pos - portalCenter).Magnitude > 30 and (pos - hut).Magnitude > 26 and (pos - (c + Vector3.new(-60, 0, 0))).Magnitude > 20 and (pos - (c + Vector3.new(-20, 0, -100))).Magnitude > 30 and (pos - warsCenter).Magnitude > 26 and (pos - fire).Magnitude > 18 then
 			tree(pos, rng:NextNumber(0.7, 1.3), folder)
 		end
 	end
@@ -461,6 +519,30 @@ local function setupLighting()
 	rays.Intensity = 0.04
 	rays.Spread = 0.5
 	rays.Parent = Lighting
+end
+
+---------------------------------------------------------------- Bausteine fuer andere Services (Arena, Update 3)
+
+WorldService.Kit = {
+	part = part,
+	deco = deco,
+	ramp = ramp,
+	platform = platform,
+	tree = tree,
+	label = label,
+	arch = arch,
+	zone = function(kind: string, cframe: CFrame, size: Vector3, stage: number?)
+		return zone(kind, cframe, size, stage)
+	end,
+	mountain = mountain,
+	THEME = THEME,
+	WOOD = WOOD,
+	WOOD_DARK = WOOD_DARK,
+	TRIM = TRIM,
+}
+
+function WorldService:GetMap(): Folder
+	return map
 end
 
 ---------------------------------------------------------------- Oeffentlich

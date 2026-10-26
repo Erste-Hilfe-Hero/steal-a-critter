@@ -1,0 +1,20 @@
+{
+  "music_lobby": 0,
+  "music_night": 0,
+  "music_run": 0,
+  "sfx_carve": 0,
+  "sfx_countdown": 0,
+  "sfx_finish": 0,
+  "sfx_fire": 0,
+  "sfx_firework": 0,
+  "sfx_freeze": 0,
+  "sfx_land": 0,
+  "sfx_mapclear": 0,
+  "sfx_medal": 0,
+  "sfx_pb": 0,
+  "sfx_pickup": 0,
+  "sfx_splat": 0,
+  "sfx_throw": 0,
+  "sfx_whoosh": 0,
+  "sfx_zap": 0
+}
