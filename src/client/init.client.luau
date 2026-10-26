@@ -129,3 +129,14 @@ RunService.Heartbeat:Connect(function()
 			* base.Rotation
 	end
 end)
+
+-- Favoriten-Abfrage nach ein paar Minuten Spielzeit (Favoriten sehen Updates und finden das Spiel wieder).
+-- Nur einmal pro Sitzung und nur, wenn das Spiel noch nicht favorisiert ist.
+task.delay(Config.FavoritePromptAfter, function()
+	local AvatarEditorService = game:GetService("AvatarEditorService")
+	local ok, isFavorite = pcall(AvatarEditorService.GetFavorite, AvatarEditorService, game.PlaceId, Enum.AvatarItemType.Asset)
+	if ok and isFavorite then
+		return
+	end
+	pcall(AvatarEditorService.PromptSetFavorite, AvatarEditorService, game.PlaceId, Enum.AvatarItemType.Asset, true)
+end)

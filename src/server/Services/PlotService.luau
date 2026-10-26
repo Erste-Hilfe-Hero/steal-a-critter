@@ -18,19 +18,26 @@ function PlotService:GetPlot(player: Player)
 end
 
 function PlotService:Assign(player: Player)
+	-- Zuerst Basen ohne Rivalen, sonst bekommt der Spieler eine Rivalen-Basis (der Rivale geht)
+	local rivals = self.Services.RivalService
+	local chosen
 	for _, plot in self.Services.WorldService.Plots do
-		if plot.Owner == nil then
-			plot.Owner = player
-			plot.LockedUntil = 0
-			plot.LockCooldownUntil = 0
-			plot.SignLabel.Text = player.DisplayName .. "'s Base"
-			playerPlots[player] = plot
-			-- Fuer die Einfuehrung (Pfeil zum eigenen Sperr-Knopf)
-			player:SetAttribute("PlotName", plot.Model.Name)
-			return plot
+		if plot.Owner == nil and (chosen == nil or (rivals:IsRival(chosen) and not rivals:IsRival(plot))) then
+			chosen = plot
 		end
 	end
-	return nil
+	if not chosen then
+		return nil
+	end
+	rivals:Release(chosen)
+	chosen.Owner = player
+	chosen.LockedUntil = 0
+	chosen.LockCooldownUntil = 0
+	chosen.SignLabel.Text = player.DisplayName .. "'s Base"
+	playerPlots[player] = chosen
+	-- Fuer die Einfuehrung (Pfeil zum eigenen Sperr-Knopf)
+	player:SetAttribute("PlotName", chosen.Model.Name)
+	return chosen
 end
 
 function PlotService:Release(player: Player)

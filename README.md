@@ -116,6 +116,17 @@ Alle neuen Spielstände-Felder sind optional (`DataService.defaultData`, nur neu
 14. 4 neue Kreaturen: Jelly, Owl, Yeti, Phoenix.
 15. Basis-Deko (Blumen, Laternen, Flagge, Brunnen, Statue).
 
+## Update 5: Allein spielen macht Spaß (Rivalen-Basen)
+
+Problem: Mit wenigen Besuchern ist man allein auf dem Server. Dann gibt es niemanden zum Klauen, der
+Tutorial-Schritt "Steal a critter" bleibt für immer offen, und der Kern des Spiels fehlt.
+
+- **Rivalen-Basen** (`RivalService`, `Config.Rivals`): Bei weniger als 5 Spielern belegen bis zu 3 NPC-Rivalen
+  freie Basen (z.B. "🤖 Sneaky Sam's Base") mit je 4 Kreaturen. Die Kreaturen passen sich dem Einkommen der Spieler an,
+  kommen nach 75 s wieder, die Rivalen sperren ab und zu ihre Basis. 20 s Abklingzeit pro Spieler gegen Farmen.
+  Kommen echte Spieler dazu, verschwinden die Rivalen wieder (neue Spieler bekommen nie eine Rivalen-Basis, solange andere frei sind).
+- **Favoriten-Abfrage** nach 6 Minuten (nur wenn noch nicht favorisiert): Favoriten sehen Updates und finden das Spiel wieder.
+
 ## Projektstruktur (Rojo)
 
 ```

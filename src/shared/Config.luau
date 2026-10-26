@@ -404,6 +404,25 @@ Config.BaseColors = {
 	{ Name = "Snow", Color = Color3.fromRGB(225, 230, 240) },
 }
 
+---------------------------------------------------------------- Rivalen (RivalService)
+
+-- NPC-Rivalen belegen freie Basen, solange wenige Spieler da sind (allein auf dem Server gibt es sonst nichts zu klauen)
+Config.FavoritePromptAfter = 6 * 60 -- Sekunden bis zur Favoriten-Abfrage
+
+Config.Rivals = {
+	FillUntilPlayers = 5, -- Rivalen = FillUntilPlayers - Spieler (hoechstens MaxBases)
+	MaxBases = 3,
+	Critters = 4, -- Kreaturen pro Rivalen-Basis
+	MinPrice = 250, -- Rivalen-Kreaturen kosten hoechstens so viel ...
+	IncomeSeconds = 45, -- ... oder so viele Sekunden Durchschnitts-Einkommen der Spieler
+	PickFrom = 4, -- zufaellig aus den teuersten passenden
+	RespawnTime = 75, -- Sekunden, bis eine geklaute Kreatur ersetzt wird
+	StealCooldown = 20, -- Sekunden zwischen zwei Rivalen-Diebstaehlen pro Spieler
+	LockEvery = { 60, 120 }, -- Rivalen sperren ab und zu ihre Basis
+	LockDuration = 20,
+	Names = { "Sneaky Sam", "Robo Rita", "Captain Crumb", "Lady Loot", "Mister Mittens", "Greedy Gus", "Professor Pinch" },
+}
+
 ---------------------------------------------------------------- Update 4 (ExtraService, Extras.luau)
 
 -- Einfuehrung fuer neue Spieler: Schritte mit Belohnung (Stat = Zaehler in data.Stats). Target = wohin der Pfeil zeigt

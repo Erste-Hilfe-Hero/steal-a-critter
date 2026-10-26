@@ -1,0 +1,31 @@
+name: All games stats
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/**]
+    paths: [.github/workflows/stats-all.yml]
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      # Pro Spiel: Besucher, Favoriten, Votes, Sichtbarkeit, Altersfreigabe, Bilder (nur Spiel-Daten, keine Spielerdaten)
+      - name: Stats
+        run: |
+          OUT=""
+          for F in roblox.json games/*/roblox.json; do
+            U=$(jq -r '.universeId // empty' "$F"); [ -z "$U" ] && continue
+            G=$(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -c '.data[0] | {name, playing, visits, fav: .favoritedCount, max: .maxPlayers, g: .genre_l1, upd: .updated}')
+            V=$(curl -sS "https://games.roblox.com/v1/games/votes?universeIds=$U" | jq -c '.data[0] | {up: .upVotes, down: .downVotes}')
+            C=$(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{vis: .visibility, age: .ageRating}')
+            I=$(curl -sS "https://thumbnails.roblox.com/v1/games/icons?universeIds=$U&size=150x150&format=Png" | jq -r '.data[0].imageUrl // "none"' | cut -c1-60)
+            T=$(curl -sS "https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=$U&size=768x432&format=Png" | jq -c '[.data[0].thumbnails[]?] | length')
+            OUT="$OUT || $F $U $G $V $C thumbs=$T icon=$I"
+          done
+          echo "$OUT" | tr '|' '\n'
+          echo "::notice::$(echo "$OUT" | head -c 3900)"
+          true
