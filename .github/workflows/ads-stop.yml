@@ -1,0 +1,49 @@
+name: Stop all paid ads
+
+# Ali 2026-10-30: "jegliche kostenpflichtige Werbung einstellen".
+# Pausiert jede bezahlte Kampagne (bekannte IDs + alles, was die API auflistet) und zeigt danach den Status.
+on:
+  workflow_dispatch:
+
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      ADS: https://apis.roblox.com/ads-management/v1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect campaigns
+        run: |
+          IDS="$(jq -r '.campaignId // empty' ads.json games/*/ads.json 2>/dev/null)"
+          for Q in "campaigns" "campaigns?maxPageSize=100" "campaigns?universeId=$(jq -r '.universeId' roblox.json)"; do
+            curl -sS "$ADS/$Q" -H "x-api-key: $ROBLOX_API_KEY" -o list.json -w "" || true
+            echo "::notice::list $Q: $(head -c 800 list.json)"
+            IDS="$IDS $(jq -r '.. | objects | (.id // .campaignId // empty)' list.json 2>/dev/null)"
+          done
+          for G in games/*/roblox.json; do
+            U=$(jq -r '.universeId // empty' "$G"); [ -z "$U" ] && continue
+            curl -sS "$ADS/campaigns?universeId=$U" -H "x-api-key: $ROBLOX_API_KEY" -o l.json || true
+            IDS="$IDS $(jq -r '.. | objects | (.id // .campaignId // empty)' l.json 2>/dev/null)"
+          done
+          IDS=$(echo $IDS | tr ' ' '\n' | grep -E '^[0-9a-f-]{36}$' | sort -u | tr '\n' ' ')
+          echo "::notice::campaign ids: $IDS"
+          echo "IDS=$IDS" >> "$GITHUB_ENV"
+
+      - name: Pause every campaign
+        run: |
+          for C in $IDS; do
+            echo "::notice::$C before: $(curl -sS "$ADS/campaigns/$C" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{name, status, deliveryStatus, budget, schedule}' 2>/dev/null)"
+            for TRY in \
+              "PATCH|campaigns/$C?updateMask=status|{\"status\":\"PAUSED\"}" \
+              "PATCH|campaigns/$C?updateMask=status|{\"status\":\"CAMPAIGN_STATUS_PAUSED\"}" \
+              "POST|campaigns/$C:pause|{}" \
+              "PATCH|campaigns/$C?updateMask=paused|{\"paused\":true}"; do
+              M=${TRY%%|*}; R=${TRY#*|}; P=${R%%|*}; B=${R#*|}
+              OUT=$(curl -sS -X "$M" "$ADS/$P" -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/json" -d "$B" -w " HTTP %{http_code}")
+              echo "::notice::$C $M $P -> $(echo "$OUT" | tail -c 400)"
+              echo "$OUT" | grep -q "HTTP 2" && break
+            done
+            echo "::notice::$C after: $(curl -sS "$ADS/campaigns/$C" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{name, status, deliveryStatus, budget, schedule}' 2>/dev/null)"
+          done
