@@ -314,7 +314,7 @@ local function sendExpedition(player: Player, arg: any)
 	local slotKey = arg.Slot
 	local info = Units.Info(data.Units[slotKey])
 	if not trip or not info then
-		return false, "No critter there"
+		return false, "No animal there"
 	end
 	if #data.Expeditions >= Config.MaxExpeditions then
 		return false, `Only {Config.MaxExpeditions} expeditions at once!`
@@ -324,7 +324,7 @@ local function sendExpedition(player: Player, arg: any)
 		return false, "Not possible right now"
 	end
 	if data.Vault == slotKey then
-		return false, "Vaulted critters stay home!"
+		return false, "Vaulted animals stay home!"
 	end
 	-- Belohnung beim Start festlegen: so viel, wie die Kreatur in RewardMinutes verdienen wuerde
 	local perSecond = info.Income * services.FeatureService:LevelFactor(player, slotKey) * services.MonetizationService:GetMultiplier(player)
@@ -360,7 +360,7 @@ local function claimExpedition(player: Player, index: any)
 	end
 	local slot = services.UnitService:FindFreeSlot(player)
 	if not slot then
-		return false, "Your base is full! Sell or fuse a critter first."
+		return false, "Your base is full! Sell or fuse an animal first."
 	end
 	-- Chance auf eine bessere Mutation (seltenste zuerst)
 	local code = info.Code
@@ -387,7 +387,7 @@ local function claimExpedition(player: Player, index: any)
 	if upgraded then
 		text = `WOW! {info.Name} came back as {result.Name} with {Format.Cash(cash)}!`
 		if upgraded.Multiplier >= 4 then
-			services.Net.SendAnnounce(`{player.DisplayName}'s critter came back from an expedition as {result.Name}!`, upgraded.Color)
+			services.Net.SendAnnounce(`{player.DisplayName}'s animal came back from an expedition as {result.Name}!`, upgraded.Color)
 		end
 	end
 	ExtraService:Refresh(player)
@@ -400,7 +400,7 @@ local function toggleFavorite(player: Player, slotKey: any)
 	local data = dataOf(player)
 	local info = data and type(slotKey) == "string" and Units.Info(data.Units[slotKey])
 	if not info then
-		return false, "No critter there"
+		return false, "No animal there"
 	end
 	local favorite = not data.Favorites[slotKey]
 	data.Favorites[slotKey] = if favorite then true else nil
@@ -427,7 +427,7 @@ local function sellBulk(player: Player, rarity: any)
 		end
 	end
 	if #slots == 0 then
-		return false, `No plain {rarity} critters to sell (mutated, fused, trained and ❤ critters are kept).`
+		return false, `No plain {rarity} animals to sell (mutated, fused, trained and ❤ animals are kept).`
 	end
 	local total = 0
 	for _, slotKey in slots do
@@ -440,7 +440,7 @@ local function sellBulk(player: Player, rarity: any)
 	services.DataService:AddCash(player, total)
 	services.ProgressService:Track(player, "Sold", #slots)
 	services.Net.PlaySfx(player, "Buy")
-	return true, `Sold {#slots} {rarity} critters for {Format.Cash(total)}!`
+	return true, `Sold {#slots} {rarity} animals for {Format.Cash(total)}!`
 end
 
 ---------------------------------------------------------------- Diebstahl-Protokoll
@@ -465,6 +465,14 @@ function ExtraService:LogTheft(owner: Player, thief: Player, info)
 	end
 	addLog(owner, "Lost", thief.DisplayName, info.Name)
 	addLog(thief, "Stole", owner.DisplayName, info.Name)
+end
+
+-- Bots: Eintrag nur beim Spieler (Kind = "Lost" oder "Defended")
+function ExtraService:LogBot(owner: Player, kind: string, botName: string, info)
+	if not info or not owner.Parent then
+		return
+	end
+	addLog(owner, kind, "🤖 " .. botName, info.Name)
 end
 
 -- Ein Dieb wurde geschlagen und hat die Kreatur fallen lassen
@@ -549,7 +557,7 @@ local DECOR_BUILDERS = {
 	Statue = function(folder: Instance, base: CFrame)
 		local cf = base * CFrame.new(0, 0, 19.5)
 		decoPart(folder, { Name = "Pedestal", Size = Vector3.new(4, 1.6, 3), CFrame = cf * CFrame.new(0, 0.8, 0), Color = Color3.fromRGB(70, 65, 80), Material = Enum.Material.Marble })
-		local info = table.clone(Units.Info(Units.Encode("goose", "Golden", 0)))
+		local info = table.clone(Units.Info(Units.Encode("lion", "Golden", 0)))
 		info.Scale = 3
 		local statue = UnitFactory.Build(info)
 		statue.Name = "Statue"

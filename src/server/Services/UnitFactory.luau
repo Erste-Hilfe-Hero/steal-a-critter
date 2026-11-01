@@ -34,8 +34,9 @@ local AMBER = Color3.fromRGB(255, 185, 40)
 
 -- Liefert ein Model, dessen PrimaryPart "Body" verankert ist; alle anderen Teile sind angeschweisst.
 -- info kommt aus Units.Info (enthaelt Def, Mutation und Fusionsstufe).
--- Stil "freche Monster": grosse Augen mit Glanzpunkt, boese Augenbrauen, Grinsen mit Reisszaehnen,
--- heller Bauch, Krallen. Je seltener, desto mehr Leuchten (Neon-Augen, Flecken, Krone, Heiligenschein).
+-- Stil "Steal a Animal": niedliche Tiere mit grossen Augen und Glanzpunkt, hellem Bauch und Tier-Merkmalen
+-- (Ohren, Schwanz, Mähne, Rüssel ...). Nur Raubtiere (Extra "Fangs") haben Reisszaehne und boese Augenbrauen.
+-- Je seltener, desto mehr Leuchten (Neon-Augen, Flecken, Krone, Heiligenschein).
 -- Jede Art behaelt ihre Bauform (Def.Body) und Merkmale (Def.Extras).
 function UnitFactory.Build(info): Model
 	local def = info.Def
@@ -64,6 +65,8 @@ function UnitFactory.Build(info): Model
 	local accentMaterial = if glowing then Enum.Material.Neon else Enum.Material.SmoothPlastic
 	local kind = def.Body or "Blob"
 	local blocky = def.Shape == "Block"
+	local fierce = extras.Fangs == true
+	local legColor = if extras.DarkLegs then Color3.fromRGB(35, 35, 40) else dark
 
 	local body: BasePart
 	local function attach(part: BasePart, cf: CFrame): BasePart
@@ -171,8 +174,12 @@ function UnitFactory.Build(info): Model
 		for _, side in { -1, 1 } do
 			piece("Leg", Vector3.new(0.06, 0.24, 0.06) * s, CFrame.new(side * 0.12 * s, -0.42 * s, 0), Color3.fromRGB(240, 160, 50), { Material = Enum.Material.SmoothPlastic })
 			table.insert(legs, Vector3.new(side * 0.12 * s, -0.55 * s, -0.04 * s))
+			if extras.NoWings then
+				-- Pinguin: flache Flossen statt Federn
+				piece("Flipper", Vector3.new(0.06, 0.42, 0.18) * s, CFrame.new(side * 0.37 * s, -0.04 * s, 0) * CFrame.Angles(0, 0, math.rad(side * 15)), dark)
+			end
 			-- Fluegel aus drei Federn
-			for i = 0, 2 do
+			for i = 0, if extras.NoWings then -1 else 2 do
 				piece("Wing", Vector3.new(0.06, 0.34 - i * 0.07, 0.16) * s, CFrame.new(side * 0.36 * s, 0.02 * s - i * 0.04 * s, (0.02 + i * 0.12) * s) * CFrame.Angles(math.rad(-15 - i * 12), 0, math.rad(side * -12)), dark)
 			end
 		end
@@ -210,6 +217,21 @@ function UnitFactory.Build(info): Model
 			piece("Wing", Vector3.new(0.5, 0.36, 0.03) * s, CFrame.new(side * 0.55 * s, 0.22 * s, 0.24 * s) * CFrame.Angles(0, math.rad(side * -20), math.rad(side * 20)), skin:Lerp(glow, 0.35), { Transparency = 0.1 })
 		end
 		tailStart = Vector3.new(0, -0.1 * s, 0.38 * s)
+	elseif kind == "Fish" then
+		-- Fisch/Hai: schwebt, laenglicher Koerper aus drei Kugeln, Flossen
+		bodyRadius = 0.36 * s
+		makeBody(Vector3.one * 0.72 * s, Enum.PartType.Ball, 0)
+		ball("Hips", 0.56 * s, Vector3.new(0, 0.02 * s, 0.36 * s))
+		ball("TailBase", 0.36 * s, Vector3.new(0, 0.04 * s, 0.66 * s))
+		head = { Pos = Vector3.new(0, 0.02 * s, -0.32 * s), R = 0.3 * s, Block = false }
+		ball("Head", 0.6 * s, head.Pos)
+		for _, side in { -1, 1 } do
+			-- Schwanzflosse (oben/unten) und Seitenflossen
+			piece("TailFin", Vector3.new(0.05, 0.42, 0.22) * s, CFrame.new(0, side * 0.2 * s, 0.86 * s) * CFrame.Angles(math.rad(side * -35), 0, 0), dark)
+			piece("SideFin", Vector3.new(0.34, 0.04, 0.2) * s, CFrame.new(side * 0.4 * s, -0.14 * s, -0.05 * s) * CFrame.Angles(0, math.rad(side * 25), math.rad(side * -25)), dark)
+		end
+		piece("DorsalFin", Vector3.new(0.05, 0.36, 0.3) * s, CFrame.new(0, 0.42 * s, 0.08 * s) * CFrame.Angles(math.rad(-30), 0, 0), dark)
+		ball("Belly", 0.62 * s, Vector3.new(0, -0.12 * s, -0.1 * s), belly, { Material = Enum.Material.SmoothPlastic })
 	else -- Quad
 		bodyRadius = 0.38 * s
 		if blocky then
@@ -226,11 +248,14 @@ function UnitFactory.Build(info): Model
 		ball("Head", 0.58 * s, head.Pos)
 		for _, x in { -1, 1 } do
 			for _, z in { -0.24, 0.32 } do
-				piece("Leg", Vector3.new(0.2, 0.3, 0.2) * s, CFrame.new(x * 0.24 * s, -0.4 * s, z * s), dark)
+				piece("Leg", Vector3.new(0.2, 0.3, 0.2) * s, CFrame.new(x * 0.24 * s, -0.4 * s, z * s), legColor)
 				table.insert(legs, Vector3.new(x * 0.24 * s, -0.55 * s, (z - 0.1) * s))
 			end
 		end
 		tailStart = Vector3.new(0, 0.08 * s, 0.6 * s)
+	end
+	if kind == "Fish" then
+		tailStart = nil
 	end
 	if hover then
 		-- Geister schweben: Schweif aus kleiner werdenden Kugeln
@@ -244,12 +269,13 @@ function UnitFactory.Build(info): Model
 	local hp, hr = head.Pos, head.R
 	local front = hp + Vector3.new(0, 0, -hr)
 	-- Heller Bauch vorne am Rumpf (nicht bei Blob/Geist, dort ist das Gesicht)
-	if kind ~= "Blob" and kind ~= "Ghost" and kind ~= "Frog" and not blocky then
+	if kind ~= "Blob" and kind ~= "Ghost" and kind ~= "Frog" and kind ~= "Fish" and not blocky then
 		ball("Belly", bodyRadius * 1.15, Vector3.new(0, -0.08 * s, -bodyRadius * 0.5), belly, { Material = Enum.Material.SmoothPlastic })
 	end
 
-	local eyeD = math.max(hr * 0.62, 0.14 * s)
-	local iris = if glowing then glow elseif tier >= 3 then rarity.Color else AMBER
+	local eyeD = math.max(hr * 0.62, 0.14 * s) * (if extras.BigEyes then 1.3 else 1)
+	-- Friedliche Tiere: dunkle, freundliche Augen; Raubtiere: bernsteinfarben; ab Epic leuchtend
+	local iris = if glowing then glow elseif fierce then AMBER else Color3.fromRGB(70, 45, 30)
 	local frog = kind == "Frog"
 	for _, side in { -1, 1 } do
 		local eyePos
@@ -267,8 +293,12 @@ function UnitFactory.Build(info): Model
 		ball("Iris", eyeD * 0.64, eyePos + fwd * (eyeD * 0.26) + Vector3.new(-side * eyeD * 0.04, 0, 0), iris, { Material = if glowing then Enum.Material.Neon else Enum.Material.SmoothPlastic })
 		ball("Pupil", eyeD * 0.34, eyePos + fwd * (eyeD * 0.4) + Vector3.new(-side * eyeD * 0.05, 0, 0), INK, { Material = Enum.Material.SmoothPlastic })
 		ball("Shine", eyeD * 0.17, eyePos + fwd * (eyeD * 0.47) + Vector3.new(eyeD * 0.1, eyeD * 0.12, 0), WHITE, { Material = Enum.Material.Neon })
-		-- Freche Augenbraue: innen tiefer
-		if not extras.EyePatch or side < 0 then
+		if extras.EyePatches then
+			-- Panda: dunkle Flecken um die Augen
+			ball("EyePatch", eyeD * 1.45, eyePos + Vector3.new(side * eyeD * 0.08, -eyeD * 0.1, eyeD * 0.25), Color3.fromRGB(35, 35, 40), { Material = Enum.Material.SmoothPlastic })
+		end
+		-- Boese Augenbraue nur bei Raubtieren: innen tiefer
+		if fierce and (not extras.EyePatch or side < 0) then
 			piece("Brow", Vector3.new(eyeD * 0.95, eyeD * 0.18, eyeD * 0.2), CFrame.new(eyePos + Vector3.new(0, eyeD * 0.58, -eyeD * 0.32)) * CFrame.Angles(0, 0, math.rad(side * 22)), dark:Lerp(INK, 0.5), { Material = Enum.Material.SmoothPlastic })
 		end
 	end
@@ -292,9 +322,22 @@ function UnitFactory.Build(info): Model
 		else
 			mouthPos = hp + Vector3.new(0, -hr * 0.38, -hr * 0.9)
 		end
-		piece("Mouth", Vector3.new(mouthW, hr * 0.16, hr * 0.14), CFrame.new(mouthPos), INK, { Material = Enum.Material.SmoothPlastic })
-		for _, side in { -1, 1 } do
-			spike("Fang", hr * 0.16, mouthPos + Vector3.new(side * mouthW * 0.28, -hr * 0.08, 0), WHITE)
+		if extras.Muzzle then
+			-- Helle Schnauze mit Nase (Fuchs, Wolf, Affe)
+			ball("Muzzle", hr * 0.9, hp + Vector3.new(0, -hr * 0.3, -hr * 0.72), belly, { Material = Enum.Material.SmoothPlastic })
+			ball("Nose", hr * 0.28, hp + Vector3.new(0, -hr * 0.08, -hr * 1.15), INK, { Material = Enum.Material.SmoothPlastic })
+			mouthPos += Vector3.new(0, -hr * 0.12, -hr * 0.22)
+		end
+		if fierce then
+			piece("Mouth", Vector3.new(mouthW, hr * 0.16, hr * 0.14), CFrame.new(mouthPos), INK, { Material = Enum.Material.SmoothPlastic })
+			for _, side in { -1, 1 } do
+				spike("Fang", hr * 0.16, mouthPos + Vector3.new(side * mouthW * 0.28, -hr * 0.08, 0), WHITE)
+			end
+		else
+			-- Freundliches Laecheln: zwei schraege Striche
+			for _, side in { -1, 1 } do
+				piece("Smile", Vector3.new(mouthW * 0.45, hr * 0.08, hr * 0.1), CFrame.new(mouthPos + Vector3.new(side * mouthW * 0.2, 0, 0)) * CFrame.Angles(0, 0, math.rad(side * 18)), INK, { Material = Enum.Material.SmoothPlastic })
+			end
 		end
 		if extras.Snout then
 			piece("Snout", Vector3.new(0.28, 0.18, 0.12) * s, CFrame.new(front + Vector3.new(0, -0.02 * s, -0.04 * s)), dark)
@@ -312,12 +355,36 @@ function UnitFactory.Build(info): Model
 		end
 	end
 
-	if tailStart or extras.Tail then
+	local tailKind = if extras.ThinTail then "Thin" elseif extras.CurlyTail then "Curly" elseif extras.PuffTail then "Puff"
+		elseif extras.BushyTail then "Bushy" elseif kind == "Dragon" or kind == "Lizard" or extras.Tail then "Default"
+		elseif tailStart then "Puff" else nil
+	if tailKind then
 		local start = tailStart or Vector3.new(0, 0, bodyRadius * 1.1)
-		for i = 1, 3 do
-			ball("Tail", (0.26 - i * 0.05) * s, start + Vector3.new(0, i * 0.08 * s, i * 0.12 * s), dark)
+		if tailKind == "Thin" then
+			for i = 1, 5 do
+				ball("Tail", 0.09 * s, start + Vector3.new(0, i * 0.07 * s + math.max(0, i - 3) * 0.05 * s, i * 0.08 * s), dark)
+			end
+			if extras.Mane then
+				ball("TailTuft", 0.2 * s, start + Vector3.new(0, 0.5 * s, 0.42 * s), dark:Lerp(INK, 0.3))
+			end
+		elseif tailKind == "Curly" then
+			for i = 0, 4 do
+				local angle = i / 4 * math.pi * 1.5
+				ball("Tail", 0.08 * s, start + Vector3.new(0, 0.06 * s + math.sin(angle) * 0.08 * s, 0.04 * s + (1 - math.cos(angle)) * 0.06 * s), skin:Lerp(INK, 0.1))
+			end
+		elseif tailKind == "Puff" then
+			ball("Tail", 0.22 * s, start + Vector3.new(0, 0.04 * s, 0), if extras.PuffTail then WHITE else dark, { Material = Enum.Material.SmoothPlastic })
+		elseif tailKind == "Bushy" then
+			for i = 1, 3 do
+				ball("Tail", (0.26 + i * 0.03) * s, start + Vector3.new(0, i * 0.1 * s, i * 0.13 * s), if extras.Mane then skin:Lerp(glow, 0.3) else skin)
+			end
+			ball("TailTip", 0.24 * s, start + Vector3.new(0, 0.42 * s, 0.52 * s), if extras.Mane then glow else WHITE, { Material = if extras.Mane then Enum.Material.Neon else Enum.Material.SmoothPlastic })
+		else
+			for i = 1, 3 do
+				ball("Tail", (0.26 - i * 0.05) * s, start + Vector3.new(0, i * 0.08 * s, i * 0.12 * s), dark)
+			end
 		end
-		if kind == "Dragon" or kind == "Lizard" or tier >= 5 then
+		if kind == "Dragon" or kind == "Lizard" then
 			spike("TailTip", 0.2 * s, start + Vector3.new(0, 0.34 * s, 0.46 * s), accent, "X", { Material = accentMaterial })
 		end
 	end
@@ -348,11 +415,89 @@ function UnitFactory.Build(info): Model
 			local base = top + Vector3.new(side * hr * 0.5, -0.02 * s, 0.04 * s)
 			piece("Horn", Vector3.new(0.1, 0.2, 0.1) * s, CFrame.new(base) * CFrame.Angles(math.rad(-15), 0, math.rad(side * -25)), accent, { Material = accentMaterial })
 			piece("HornTip", Vector3.new(0.07, 0.16, 0.07) * s, CFrame.new(base + Vector3.new(side * 0.06 * s, 0.15 * s, 0.05 * s)) * CFrame.Angles(math.rad(-35), 0, math.rad(side * -45)), accent, { Material = accentMaterial })
-		elseif tier == 3 and not extras.CatEars and not extras.Ears and not extras.Helmet and not extras.PirateHat then
-			-- Rare: kleine Hoerner-Stummel
-			spike("Nub", 0.1 * s, top + Vector3.new(side * hr * 0.45, -0.01 * s, 0), BONE)
 		end
 	end
+	---------------------------------------------------------------- Tier-Merkmale (Steal a Animal)
+
+	local earDark = if extras.DarkLegs then Color3.fromRGB(35, 35, 40) else dark
+	for _, side in { -1, 1 } do
+		if extras.RoundEars then
+			ball("Ear", 0.24 * s, top + Vector3.new(side * hr * 0.72, -0.04 * s, 0.02 * s), earDark)
+			if not extras.DarkLegs then
+				ball("EarInner", 0.14 * s, top + Vector3.new(side * hr * 0.72, -0.04 * s, -0.06 * s), Color3.fromRGB(255, 185, 195), { Material = Enum.Material.SmoothPlastic })
+			end
+		end
+		if extras.LongEars then
+			piece("Ear", Vector3.new(0.14, 0.56, 0.08) * s, CFrame.new(top + Vector3.new(side * hr * 0.4, 0.22 * s, 0.04 * s)) * CFrame.Angles(0, 0, math.rad(side * -10)), skin)
+			piece("EarInner", Vector3.new(0.08, 0.42, 0.04) * s, CFrame.new(top + Vector3.new(side * hr * 0.4, 0.22 * s, -0.01 * s)) * CFrame.Angles(0, 0, math.rad(side * -10)), Color3.fromRGB(255, 180, 195), { Material = Enum.Material.SmoothPlastic })
+		end
+		if extras.Whiskers then
+			for i = -1, 1 do
+				piece("Whisker", Vector3.new(0.26, 0.015, 0.015) * s, CFrame.new(hp + Vector3.new(side * hr * 0.75, -hr * 0.25 + i * 0.03 * s, -hr * 0.82)) * CFrame.Angles(0, math.rad(side * -15), math.rad(i * side * 12)), INK, { Material = Enum.Material.SmoothPlastic })
+			end
+		end
+		if extras.Ossicones then
+			local base = top + Vector3.new(side * hr * 0.3, 0.06 * s, 0.04 * s)
+			piece("Ossicone", Vector3.new(0.06, 0.18, 0.06) * s, CFrame.new(base), dark)
+			ball("OssiconeTip", 0.1 * s, base + Vector3.new(0, 0.1 * s, 0), Color3.fromRGB(110, 70, 40))
+		end
+		if extras.Tusks then
+			spike("Tusk", 0.12 * s, hp + Vector3.new(side * hr * 0.42, -hr * 0.7, -hr * 0.95), BONE, "X", { Material = Enum.Material.SmoothPlastic })
+		end
+	end
+	if extras.Tuft then
+		for i = -1, 1 do
+			piece("Tuft", Vector3.new(0.04, 0.16, 0.04) * s, CFrame.new(top + Vector3.new(i * 0.04 * s, 0.06 * s, 0)) * CFrame.Angles(0, 0, math.rad(i * 25)), skin:Lerp(AMBER, 0.4))
+		end
+	end
+	if extras.Trunk then
+		-- Ruessel: Segmente nach unten, Spitze nach vorne gebogen
+		for i = 0, 4 do
+			local y = -hr * 0.2 - i * 0.1 * s
+			local z = -hr * 0.95 - math.max(0, i - 2) * 0.07 * s
+			ball("Trunk", (0.2 - i * 0.02) * s, hp + Vector3.new(0, y, z), skin)
+		end
+	end
+	if extras.Mane then
+		-- Maehne: Kugelring hinter dem Gesicht (Einhorn: in der Farbe der Seltenheit)
+		local maneColor = if extras.UniHorn then glow else skin:Lerp(Color3.fromRGB(130, 60, 20), 0.55)
+		local maneMaterial = if extras.UniHorn and glowing then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		if extras.UniHorn then
+			for i = 0, 4 do
+				ball("Mane", 0.2 * s, hp + Vector3.new(0, hr * 0.7 - i * 0.12 * s, hr * 0.5 + i * 0.06 * s), maneColor, { Material = maneMaterial })
+			end
+		else
+			for i = 0, 9 do
+				local angle = i / 10 * math.pi * 2
+				ball("Mane", 0.26 * s, hp + Vector3.new(math.cos(angle) * hr * 1.0, math.sin(angle) * hr * 1.0, hr * 0.25), maneColor)
+			end
+		end
+	end
+	if extras.UniHorn then
+		-- Einhorn: gedrehtes Horn aus immer kleineren Stuecken
+		for i = 0, 3 do
+			local size = (0.14 - i * 0.03) * s
+			piece("UniHorn", Vector3.new(size, 0.12 * s, size), CFrame.new(top + Vector3.new(0, 0.02 * s + i * 0.1 * s, -hr * 0.45 - i * 0.03 * s)) * CFrame.Angles(math.rad(-20), math.rad(i * 30), 0), Color3.fromRGB(255, 215, 90), { Material = if glowing then Enum.Material.Neon else Enum.Material.Foil })
+		end
+	end
+	if extras.Stripes then
+		for i = -2, 2 do
+			piece("Stripe", Vector3.new(bodyRadius * 2.05, 0.06 * s, 0.07 * s), CFrame.new(0, bodyY + bodyRadius * 0.55, i * 0.15 * s) * CFrame.Angles(0, 0, 0), INK, { Material = Enum.Material.SmoothPlastic })
+		end
+		for i = 0, 1 do
+			piece("Stripe", Vector3.new(0.05 * s, 0.05 * s, 0.07 * s), CFrame.new(0, hp.Y + hr * 0.85, hp.Z + (i - 0.5) * 0.1 * s), INK, { Material = Enum.Material.SmoothPlastic })
+		end
+	end
+	if extras.Spots then
+		for _, offset in { Vector3.new(-0.6, 0.5, -0.3), Vector3.new(0.55, 0.55, 0.1), Vector3.new(-0.2, 0.85, 0.3), Vector3.new(0.3, 0.3, 0.75), Vector3.new(-0.55, 0.2, 0.7) } do
+			ball("Spot", 0.16 * s, Vector3.new(offset.X * bodyRadius, bodyY + offset.Y * bodyRadius, offset.Z * bodyRadius), Color3.fromRGB(150, 90, 40), { Material = Enum.Material.SmoothPlastic })
+		end
+		if extras.LongNeck then
+			ball("Spot", 0.12 * s, Vector3.new(0.12 * s, 0.4 * s, -0.4 * s), Color3.fromRGB(150, 90, 40), { Material = Enum.Material.SmoothPlastic })
+			ball("Spot", 0.12 * s, Vector3.new(-0.12 * s, 0.55 * s, -0.42 * s), Color3.fromRGB(150, 90, 40), { Material = Enum.Material.SmoothPlastic })
+		end
+	end
+
 	if extras.Shell then
 		piece("Shell", Vector3.new(0.86, 0.36, 1.0) * s, CFrame.new(0, bodyRadius * 0.7, 0.05 * s), Color3.fromRGB(60, 110, 60), { Material = Enum.Material.Slate })
 		for i = -1, 1 do
@@ -404,7 +549,7 @@ function UnitFactory.Build(info): Model
 	if tier >= 4 then
 		-- Leuchtende Flecken auf dem Ruecken
 		for i, offset in { Vector3.new(-0.5, 0.75, 0.2), Vector3.new(0.45, 0.7, 0.35), Vector3.new(0.05, 0.9, 0.5) } do
-			if not extras.Shell and (i <= 2 or tier >= 5) then
+			if not extras.Shell and not extras.Stripes and (i <= 2 or tier >= 5) then
 				ball("Spot", 0.13 * s, Vector3.new(offset.X * bodyRadius, bodyY + offset.Y * bodyRadius, offset.Z * bodyRadius), glow, { Material = Enum.Material.Neon })
 			end
 		end

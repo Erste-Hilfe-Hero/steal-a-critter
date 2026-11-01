@@ -231,7 +231,7 @@ function Extras.Start(api)
 	end
 	refresher("Trips", tripsPage, function(e)
 		table.clear(tripTimers)
-		header(tripsPage.Frame, 0, `Send a critter on a trip: it can't be stolen, earns cash and may come back GOLDEN or better! Max {Config.MaxExpeditions} at once.`)
+		header(tripsPage.Frame, 0, `Send an animal on a trip: it can't be stolen, earns cash and may come back GOLDEN or better! Max {Config.MaxExpeditions} at once.`)
 		for order, trip in e.Expeditions do
 			local line = row(tripsPage.Frame, order)
 			local rarity = Config.RaritiesByName[trip.Rarity]
@@ -244,7 +244,7 @@ function Extras.Start(api)
 		local f = api.GetState() and api.GetState().Features
 		local units = f and f.Units or {}
 		local full = #e.Expeditions >= Config.MaxExpeditions
-		header(tripsPage.Frame, 10, if full then "All explorers are out. Claim them when they are back!" elseif #units == 0 then "You have no critters at home to send." else "Pick a critter and a trip:", THEME.Gold)
+		header(tripsPage.Frame, 10, if full then "All explorers are out. Claim them when they are back!" elseif #units == 0 then "You have no animals at home to send." else "Pick an animal and a trip:", THEME.Gold)
 		for order, unit in units do
 			if order > 8 then
 				break

@@ -218,13 +218,13 @@ local function grantProduct(player: Player, key: string): boolean
 			local income = player:GetAttribute("IncomePerSec") or 0
 			local amount = math.max(10_000, income * 60 * 30) * Units.MutationsByName[product.Mutation].Multiplier
 			services.DataService:AddCash(player, amount)
-			services.Net.SendNotify(player, `No critter to upgrade, so you got {Format.Cash(amount)} instead!`, GOLD)
+			services.Net.SendNotify(player, `No animal to upgrade, so you got {Format.Cash(amount)} instead!`, GOLD)
 		end
 	elseif kind == "Catalyst" then
 		local data = services.DataService:Get(player)
 		data.Catalysts = (data.Catalysts or 0) + 1
 		player:SetAttribute("Catalysts", data.Catalysts)
-		services.Net.SendNotify(player, "Fusion Catalyst ready: your next fusion needs only 2 identical critters!", GOLD)
+		services.Net.SendNotify(player, "Fusion Catalyst ready: your next fusion needs only 2 identical animals!", GOLD)
 	elseif kind == "QuestSkip" then
 		if not services.ProgressService:SkipQuest(player) then
 			-- Alle Quests schon erledigt: fair in Cash liefern

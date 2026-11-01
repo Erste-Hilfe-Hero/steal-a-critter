@@ -185,9 +185,20 @@ end
 check("moonlit mutation", Units.MutationsByName.Moonlit ~= nil and Units.MutationsByName.Moonlit.NightOnly == true)
 check("update4 code", Config.Codes.UPDATE4 ~= nil)
 check("vote fits in event cycle", Config.EventInterval - Config.EventDuration - Config.EventVoteTime > 0)
-for _, id in { "jelly", "owl", "yeti", "phoenix" } do
-	check("new critter " .. id, Config.UnitsById[id] ~= nil)
+-- Steal a Animal: genau 20 Tiere, alte Ids zeigen auf neue Tiere gleicher Seltenheit
+check("20 animals", #Config.Units == 20, #Config.Units)
+local bodies = { Quad = true, Bird = true, Biped = true, Frog = true, Fish = true, Lizard = true, Dragon = true, Blob = true, Ghost = true }
+local names = {}
+for _, unit in Config.Units do
+	check("animal body " .. unit.Id, bodies[unit.Body] == true, unit.Body)
+	check("animal name unique " .. unit.Id, names[unit.Name] == nil)
+	names[unit.Name] = true
 end
+for old, new in Config.UnitAliases do
+	local info = Units.Info(old .. ":Golden:1")
+	check("alias " .. old, info ~= nil and info.Id == new and info.Code == new .. ":Golden:1" and Config.UnitsById[new].Rarity ~= nil, info and info.Code)
+end
+check("migrate keeps unknown", Units.Migrate("nope") == "nope")
 if ok then
 	check("trampolines", workspace:FindFirstChild("Trampolines") ~= nil and #workspace.Trampolines:GetChildren() > 0)
 	check("sfx remote", ReplicatedStorage.Remotes:FindFirstChild("Sfx") ~= nil)
@@ -203,7 +214,8 @@ if ok then
 	end
 	-- Durchsichtige Kreaturen (Geist) bleiben nach einem abgebrochenen Diebstahl durchsichtig
 	local UnitFactory = require(folder.Services.UnitFactory)
-	local ghost = UnitFactory.Build(Units.Info("banana"))
+	local ghost = UnitFactory.Build(Units.Info("dragon"))
+	ghost.PrimaryPart.Transparency = 0.2 -- wie frueher Geister/Glas-Blobs: von Haus aus leicht durchsichtig
 	local before = ghost.PrimaryPart.Transparency
 	UnitFactory.SetTransparency(ghost, 0.7)
 	local during = ghost.PrimaryPart.Transparency
@@ -240,9 +252,17 @@ if ok and services.RivalService then
 		end
 		check("rival critters stealable", prompts == Config.Rivals.Critters, prompts)
 		check("rival sign", list[1].SignLabel.Text:find("Base") ~= nil, list[1].SignLabel.Text)
+		local bots = services.RivalService:GetBots()
+		check("rival bots spawn", #bots == #list, #bots)
+		if #bots > 0 then
+			check("bot model in workspace", bots[1].Bot.Model.Parent == workspace and bots[1].Bot.Root ~= nil)
+			local stepOk, stepErr = pcall(services.RivalService.StepBot, bots[1].Plot, { Bot = bots[1].Bot, Name = bots[1].Name, Models = {} }, 0.1, os.clock())
+			check("bot step", stepOk, stepErr)
+		end
 	end
 	pcall(services.RivalService.Balance, services.RivalService, Config.Rivals.FillUntilPlayers)
 	check("rivals leave when full", #rivalPlots() == 0, #rivalPlots())
+	check("bots leave with rivals", #services.RivalService:GetBots() == 0, #services.RivalService:GetBots())
 	pcall(services.RivalService.Balance, services.RivalService, 1)
 	local fakePlayer = { DisplayName = "Test", SetAttribute = function() end, Name = "Test" }
 	local free = 0

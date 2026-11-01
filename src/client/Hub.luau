@@ -576,7 +576,7 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 
 	------------------------------------------------ Index
 
-	local indexPage = addPage("Index", "📖 CRITTER INDEX", THEME.Purple, false)
+	local indexPage = addPage("Index", "📖 ANIMAL INDEX", THEME.Purple, false)
 	local indexHeader = text({
 		Size = UDim2.new(1, -170, 0, 46),
 		Text = "",
@@ -645,7 +645,7 @@ function Hub.Start(showToast: (string, Color3?) -> ())
 	text({
 		Position = UDim2.fromOffset(0, 266),
 		Size = UDim2.new(1, 0, 0, 70),
-		Text = `Every level: +{math.floor(Config.BaseLevelIncome * 100)}% income and +{Config.BaseLevelLock}s base lock. Tip: hold R on your critters to sell them.`,
+		Text = `Every level: +{math.floor(Config.BaseLevelIncome * 100)}% income and +{Config.BaseLevelLock}s base lock. Tip: hold R on your animals to sell them.`,
 		TextSize = 16,
 		TextWrapped = true,
 		TextColor3 = THEME.Muted,

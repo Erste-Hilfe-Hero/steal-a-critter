@@ -131,14 +131,14 @@ function Features.Start(api)
 
 	---------------------------------------------------------------- Eier
 
-	local eggPage = api.AddPage("Eggs", "🥚 CRITTER EGGS", Color3.fromRGB(80, 150, 220), false)
+	local eggPage = api.AddPage("Eggs", "🥚 ANIMAL EGGS", Color3.fromRGB(80, 150, 220), false)
 	local eggGrid = create("Frame", { Size = UDim2.new(1, 0, 0, 240), BackgroundTransparency = 1, Parent = eggPage.Frame }, {
 		create("UIGridLayout", { CellSize = UDim2.fromOffset(196, 236), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
 	local hatchResult = text({
 		Position = UDim2.fromOffset(0, 242),
 		Size = UDim2.new(1, 0, 0, 32),
-		Text = "Eggs cost cash only. Your critter goes straight to your base!",
+		Text = "Eggs cost cash only. Your animal goes straight to your base!",
 		Font = TITLE_FONT,
 		TextSize = 18,
 		TextColor3 = THEME.Muted,
@@ -187,7 +187,7 @@ function Features.Start(api)
 					hatchResult.Text = `🎉 You hatched {extra.Name} ({extra.Rarity})!`
 					hatchResult.TextColor3 = if rarity then rarity.Color else THEME.Gold
 				else
-					hatchResult.Text = "Eggs cost cash only. Your critter goes straight to your base!"
+					hatchResult.Text = "Eggs cost cash only. Your animal goes straight to your base!"
 					hatchResult.TextColor3 = THEME.Muted
 				end
 			end)
@@ -230,7 +230,7 @@ function Features.Start(api)
 				hatchResult.Text = `🎉 You hatched {extra.Name} ({extra.Rarity})!`
 				hatchResult.TextColor3 = if rarity then rarity.Color else THEME.Gold
 			else
-				hatchResult.Text = "Eggs cost cash only. Your critter goes straight to your base!"
+				hatchResult.Text = "Eggs cost cash only. Your animal goes straight to your base!"
 				hatchResult.TextColor3 = THEME.Muted
 			end
 		end)
@@ -249,7 +249,7 @@ function Features.Start(api)
 
 	local trainPage = listPage("Train", "🏋️ TRAIN & PROTECT", THEME.Orange)
 	refresher(trainPage, function(f)
-		header(trainPage.Frame, 0, `Each training level gives +{math.floor(Config.TrainBonusPer * 100)}% income for that critter (max {Config.TrainMaxLevel}). A vaulted critter can't be stolen.`)
+		header(trainPage.Frame, 0, `Each training level gives +{math.floor(Config.TrainBonusPer * 100)}% income for that animal (max {Config.TrainMaxLevel}). A vaulted animal can't be stolen.`)
 		local alarm = row(trainPage.Frame, 1)
 		rowTitle(alarm, "🚨 Base Alarm", if f.Alarm then "Installed! Thieves are slowed and everyone is warned." else "Thieves get slowed and everyone is warned", if f.Alarm then THEME.Cash else nil, 150)
 		rowButton(alarm, 1, 140, if f.Alarm then "✓ OWNED" else Format.Cash(Config.AlarmPrice), THEME.Red, not f.Alarm, function()
@@ -257,7 +257,7 @@ function Features.Start(api)
 		end)
 		-- Schnell-Verkauf (Update 4): einfache Kreaturen auf einmal loswerden, Favoriten bleiben
 		local quick = row(trainPage.Frame, 2)
-		rowTitle(quick, "🧹 Quick sell", "Sells plain critters (keeps ❤, trained, mutated, fused)", nil, 290)
+		rowTitle(quick, "🧹 Quick sell", "Sells plain animals (keeps ❤, trained, mutated, fused)", nil, 290)
 		for index, rarityName in Config.BulkSellRarities do
 			local rarity = Config.RaritiesByName[rarityName]
 			rowButton(quick, #Config.BulkSellRarities - index + 1, 140, `ALL {string.upper(rarityName)}`, if rarity then rarity.Color:Lerp(Color3.new(0, 0, 0), 0.35) else THEME.Gray, true, function()
@@ -265,7 +265,7 @@ function Features.Start(api)
 			end)
 		end
 		if #f.Units == 0 then
-			header(trainPage.Frame, 3, "Buy critters on the belt or hatch eggs first!", THEME.Gold)
+			header(trainPage.Frame, 3, "Buy animals on the belt or hatch eggs first!", THEME.Gold)
 		end
 		for order, unit in f.Units do
 			local line = row(trainPage.Frame, 10 + order)
@@ -326,7 +326,7 @@ function Features.Start(api)
 
 	---------------------------------------------------------------- Critter Pass
 
-	local passPage = listPage("Pass", "🎫 CRITTER PASS  ·  FREE", Color3.fromRGB(170, 90, 230))
+	local passPage = listPage("Pass", "🎫 ANIMAL PASS  ·  FREE", Color3.fromRGB(170, 90, 230))
 	local function passClaimable(): boolean
 		local f = features()
 		return f ~= nil and f.PassClaimed < f.PassTier
@@ -423,8 +423,8 @@ function Features.Start(api)
 			{ "💰", "Total earned", Format.Cash(f.Earned) },
 			{ "⏱️", "Play time", api.LongTime(f.PlayTime) },
 			{ "♻️", "Rebirths", tostring(f.Rebirths) },
-			{ "🦝", "Critters stolen", tostring(stats.Stolen or 0) },
-			{ "🛒", "Critters bought", tostring(stats.Bought or 0) },
+			{ "🦝", "Animals stolen", tostring(stats.Stolen or 0) },
+			{ "🛒", "Animals bought", tostring(stats.Bought or 0) },
 			{ "🥚", "Eggs hatched", tostring(stats.Hatched or 0) },
 			{ "✨", "Fusions", tostring(stats.Fused or 0) },
 			{ "👋", "Slaps", tostring(stats.Slaps or 0) },
@@ -482,10 +482,10 @@ function Features.Start(api)
 
 	local settingsPage = listPage("Settings", "⚙️ SETTINGS", THEME.Gray)
 	local OPTIONS = {
-		{ Key = "Labels", Title = "🏷️ Name tags", Text = "Hide tags so they don't cover the critters", Values = { "All", "Mine", "Off" } },
+		{ Key = "Labels", Title = "🏷️ Name tags", Text = "Hide tags so they don't cover the animals", Values = { "All", "Mine", "Off" } },
 		{ Key = "Hints", Title = "💬 Hint bar", Text = "Event, boss and bonus hints at the bottom", Values = { "On", "Off" } },
 		{ Key = "Detail", Title = "✨ Effects", Text = "Low = no sparkles and fire (faster on phones)", Values = { "High", "Low" } },
-		{ Key = "Buddy", Title = "🐾 Buddy", Text = `Your best critter follows you (+{math.floor(Config.BuddyBonus * 100)}% income)`, Values = { "On", "Off" } },
+		{ Key = "Buddy", Title = "🐾 Buddy", Text = `Your best animal follows you (+{math.floor(Config.BuddyBonus * 100)}% income)`, Values = { "On", "Off" } },
 		{ Key = "Sounds", Title = "🔊 Sounds", Text = "Sound effects for buying, stealing and rewards", Values = { "On", "Off" } },
 	}
 	local rebuildSettings = refresher(settingsPage, function()

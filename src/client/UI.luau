@@ -973,7 +973,7 @@ function UI.Start()
 	text({
 		Position = UDim2.fromOffset(16, 192),
 		Size = UDim2.new(1, -32, 0, 22),
-		Text = "Resets your cash and critters.",
+		Text = "Resets your cash and animals.",
 		Font = Enum.Font.BuilderSansMedium,
 		TextSize = 16,
 		TextColor3 = THEME.Muted,

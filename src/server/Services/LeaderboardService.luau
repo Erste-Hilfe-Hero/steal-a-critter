@@ -10,7 +10,7 @@ local LeaderboardService = { Services = nil :: any }
 
 -- Offset: Position relativ zum Spawn (alle Tafeln blicken Richtung Laufband)
 local BOARDS = {
-	{ Name = "Leaderboard", Store = Config.LeaderboardStore, Title = "👑 RICHEST CRITTER BOSSES 👑", Color = Color3.fromRGB(255, 190, 30), Offset = Vector3.new(-10, 6.5, 0), Value = function(data)
+	{ Name = "Leaderboard", Store = Config.LeaderboardStore, Title = "👑 RICHEST ANIMAL BOSSES 👑", Color = Color3.fromRGB(255, 190, 30), Offset = Vector3.new(-10, 6.5, 0), Value = function(data)
 		return data.TotalEarned
 	end, Format = Format.Cash },
 	{ Name = "RebirthBoard", Store = "TopRebirths_v1", Title = "♻️ MOST REBIRTHS ♻️", Color = Color3.fromRGB(170, 100, 255), Offset = Vector3.new(-6, 6.5, -20), Value = function(data)

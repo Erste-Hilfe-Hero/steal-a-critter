@@ -55,46 +55,46 @@ Config.Rarities = {
 	{ Name = "Secret", Color = Color3.fromRGB(40, 255, 210), Weight = 0.015, Scale = 5, Material = Enum.Material.Neon, Lucky = true, Crown = true, Sparkles = true, Announce = true, Glow = true },
 }
 
--- Eigene Kreaturen (keine fremden Assets). Body: Bauform (Quad, Bird, Biped, Blob, Frog, Ghost, Lizard, Dragon), Extras: Merkmale.
+-- 20 eigene Tiere (keine fremden Assets). Body: Bauform (Quad, Bird, Biped, Frog, Fish, Lizard, Dragon), Extras: Merkmale.
+-- Nur Raubtiere (Extra "Fangs") haben Reisszaehne und boese Augenbrauen, alle anderen sehen freundlich aus.
 Config.Units = {
-	{ Id = "blobby", Name = "Blobby", Rarity = "Common", Price = 25, Income = 1, Color = Color3.fromRGB(120, 200, 255), Shape = "Ball", Body = "Blob", Extras = {} },
-	{ Id = "pebble", Name = "Pebble Pal", Rarity = "Common", Price = 50, Income = 2, Color = Color3.fromRGB(140, 140, 140), Shape = "Block", Body = "Biped", Extras = { "Rocky" } },
-	{ Id = "sock", Name = "Sock Goblin", Rarity = "Common", Price = 90, Income = 3, Color = Color3.fromRGB(110, 170, 80), Shape = "Ball", Body = "Biped", Extras = { "BigEars" } },
+	{ Id = "chick", Name = "Chick", Rarity = "Common", Price = 25, Income = 1, Color = Color3.fromRGB(255, 220, 80), Shape = "Ball", Body = "Bird", Extras = { "Beak", "Tuft" } },
+	{ Id = "mouse", Name = "Mouse", Rarity = "Common", Price = 50, Income = 2, Color = Color3.fromRGB(170, 165, 175), Shape = "Ball", Body = "Quad", Extras = { "RoundEars", "ThinTail", "Whiskers" } },
+	{ Id = "piggy", Name = "Piggy", Rarity = "Common", Price = 90, Income = 3, Color = Color3.fromRGB(255, 165, 180), Shape = "Ball", Body = "Quad", Extras = { "Ears", "Snout", "CurlyTail" } },
 
-	{ Id = "toast", Name = "Toast Knight", Rarity = "Uncommon", Price = 250, Income = 6, Color = Color3.fromRGB(210, 160, 90), Shape = "Block", Body = "Biped", Extras = { "Helmet" } },
-	{ Id = "frog", Name = "Bubble Frog", Rarity = "Uncommon", Price = 500, Income = 10, Color = Color3.fromRGB(60, 200, 120), Shape = "Ball", Body = "Frog", Extras = {} },
-	{ Id = "cactus", Name = "Cactus Cat", Rarity = "Uncommon", Price = 900, Income = 15, Color = Color3.fromRGB(40, 150, 60), Shape = "Block", Body = "Quad", Extras = { "CatEars", "Tail", "Spikes" } },
+	{ Id = "kitty", Name = "Kitty", Rarity = "Uncommon", Price = 250, Income = 6, Color = Color3.fromRGB(240, 155, 70), Shape = "Ball", Body = "Quad", Extras = { "CatEars", "ThinTail", "Whiskers" } },
+	{ Id = "frog", Name = "Frog", Rarity = "Uncommon", Price = 500, Income = 10, Color = Color3.fromRGB(70, 190, 90), Shape = "Ball", Body = "Frog", Extras = {} },
+	{ Id = "bunny", Name = "Bunny", Rarity = "Uncommon", Price = 1_400, Income = 21, Color = Color3.fromRGB(245, 240, 240), Shape = "Ball", Body = "Quad", Extras = { "LongEars", "PuffTail", "Whiskers" } },
 
-	{ Id = "duck", Name = "Disco Duck", Rarity = "Rare", Price = 2_500, Income = 35, Color = Color3.fromRGB(255, 230, 60), Shape = "Ball", Body = "Bird", Extras = { "Beak", "DiscoBall" } },
-	{ Id = "ninja", Name = "Noodle Ninja", Rarity = "Rare", Price = 5_000, Income = 60, Color = Color3.fromRGB(240, 220, 160), Shape = "Ball", Body = "Biped", Extras = { "Headband" } },
-	{ Id = "potato", Name = "Pirate Potato", Rarity = "Rare", Price = 9_000, Income = 95, Color = Color3.fromRGB(170, 120, 70), Shape = "Block", Body = "Biped", Extras = { "PirateHat", "EyePatch" } },
+	{ Id = "fox", Name = "Fox", Rarity = "Rare", Price = 2_500, Income = 35, Color = Color3.fromRGB(235, 115, 40), Shape = "Ball", Body = "Quad", Extras = { "CatEars", "BushyTail", "Muzzle" } },
+	{ Id = "panda", Name = "Panda", Rarity = "Rare", Price = 5_000, Income = 60, Color = Color3.fromRGB(245, 245, 245), Shape = "Ball", Body = "Quad", Extras = { "RoundEars", "EyePatches", "DarkLegs" } },
+	{ Id = "penguin", Name = "Penguin", Rarity = "Rare", Price = 14_000, Income = 140, Color = Color3.fromRGB(45, 50, 65), Shape = "Ball", Body = "Bird", Extras = { "Beak", "NoWings" } },
+	{ Id = "owl", Name = "Owl", Rarity = "Rare", Price = 20_000, Income = 190, Color = Color3.fromRGB(150, 110, 70), Shape = "Ball", Body = "Bird", Extras = { "Beak", "Ears", "BigEyes" } },
 
-	{ Id = "rooster", Name = "Robo Rooster", Rarity = "Epic", Price = 25_000, Income = 220, Color = Color3.fromRGB(180, 190, 200), Shape = "Block", Body = "Bird", Extras = { "Beak", "Comb", "Metal" } },
-	{ Id = "llama", Name = "Lava Llama", Rarity = "Epic", Price = 50_000, Income = 380, Color = Color3.fromRGB(255, 100, 30), Shape = "Ball", Body = "Quad", Extras = { "LongNeck", "Ears", "Tail" } },
-	{ Id = "banana", Name = "Ghost Banana", Rarity = "Epic", Price = 90_000, Income = 600, Color = Color3.fromRGB(250, 250, 200), Shape = "Ball", Body = "Ghost", Extras = {} },
+	{ Id = "monkey", Name = "Monkey", Rarity = "Epic", Price = 25_000, Income = 220, Color = Color3.fromRGB(140, 95, 60), Shape = "Ball", Body = "Biped", Extras = { "RoundEars", "ThinTail", "Muzzle" } },
+	{ Id = "giraffe", Name = "Giraffe", Rarity = "Epic", Price = 90_000, Income = 600, Color = Color3.fromRGB(240, 195, 90), Shape = "Ball", Body = "Quad", Extras = { "LongNeck", "Spots", "Ossicones", "Ears", "ThinTail" } },
+	{ Id = "wolf", Name = "Wolf", Rarity = "Epic", Price = 220_000, Income = 1_300, Color = Color3.fromRGB(125, 130, 145), Shape = "Ball", Body = "Quad", Extras = { "CatEars", "BushyTail", "Muzzle", "Fangs" } },
 
-	{ Id = "gecko", Name = "Galaxy Gecko", Rarity = "Legendary", Price = 300_000, Income = 1_600, Color = Color3.fromRGB(90, 60, 200), Shape = "Ball", Body = "Lizard", Extras = { "Tail" } },
-	{ Id = "turtle", Name = "Thunder Turtle", Rarity = "Legendary", Price = 650_000, Income = 3_000, Color = Color3.fromRGB(60, 120, 255), Shape = "Block", Body = "Quad", Extras = { "Shell" } },
-	{ Id = "goose", Name = "Golden Goose", Rarity = "Legendary", Price = 1_200_000, Income = 5_000, Color = Color3.fromRGB(255, 200, 40), Shape = "Ball", Body = "Bird", Extras = { "Beak", "LongNeck" } },
+	{ Id = "shark", Name = "Shark", Rarity = "Legendary", Price = 300_000, Income = 1_600, Color = Color3.fromRGB(95, 125, 165), Shape = "Ball", Body = "Fish", Extras = { "Fangs" } },
+	{ Id = "turtle", Name = "Turtle", Rarity = "Legendary", Price = 650_000, Income = 3_000, Color = Color3.fromRGB(110, 175, 90), Shape = "Block", Body = "Quad", Extras = { "Shell" } },
+	{ Id = "elephant", Name = "Elephant", Rarity = "Legendary", Price = 1_200_000, Income = 5_000, Color = Color3.fromRGB(150, 155, 170), Shape = "Block", Body = "Quad", Extras = { "Trunk", "BigEars", "Tusks", "ThinTail" } },
+	{ Id = "lion", Name = "Lion", Rarity = "Legendary", Price = 4_000_000, Income = 14_000, Color = Color3.fromRGB(230, 175, 80), Shape = "Ball", Body = "Quad", Extras = { "Mane", "RoundEars", "ThinTail", "Fangs" } },
 
-	{ Id = "capybara", Name = "Cosmic Capybara", Rarity = "Mythic", Price = 5_000_000, Income = 18_000, Color = Color3.fromRGB(150, 80, 255), Shape = "Block", Body = "Quad", Extras = { "Ears", "Snout" } },
-	{ Id = "donut", Name = "Dragon Donut", Rarity = "Mythic", Price = 12_000_000, Income = 38_000, Color = Color3.fromRGB(255, 80, 160), Shape = "Ball", Body = "Dragon", Extras = { "Horns", "Tail" } },
-	{ Id = "icecream", Name = "Infinity Ice Cream", Rarity = "Mythic", Price = 30_000_000, Income = 85_000, Color = Color3.fromRGB(120, 255, 240), Shape = "Ball", Body = "Blob", Extras = { "Cone", "Cherry" } },
+	{ Id = "tiger", Name = "Tiger", Rarity = "Mythic", Price = 12_000_000, Income = 38_000, Color = Color3.fromRGB(245, 135, 35), Shape = "Ball", Body = "Quad", Extras = { "CatEars", "Stripes", "ThinTail", "Whiskers", "Fangs" } },
+	{ Id = "unicorn", Name = "Unicorn", Rarity = "Mythic", Price = 60_000_000, Income = 160_000, Color = Color3.fromRGB(250, 245, 255), Shape = "Ball", Body = "Quad", Extras = { "UniHorn", "Mane", "Ears", "BushyTail" } },
 
-	-- Neue Kreaturen (Update 2)
-	{ Id = "bunny", Name = "Mochi Bunny", Rarity = "Uncommon", Price = 1_400, Income = 21, Color = Color3.fromRGB(255, 205, 225), Shape = "Ball", Body = "Quad", Extras = { "BigEars", "Tail" } },
-	{ Id = "penguin", Name = "Pizza Penguin", Rarity = "Rare", Price = 14_000, Income = 140, Color = Color3.fromRGB(60, 60, 80), Shape = "Ball", Body = "Bird", Extras = { "Beak" } },
-	{ Id = "sloth", Name = "Samurai Sloth", Rarity = "Epic", Price = 150_000, Income = 950, Color = Color3.fromRGB(150, 120, 90), Shape = "Ball", Body = "Biped", Extras = { "Helmet" } },
-	{ Id = "kitsune", Name = "Crystal Kitsune", Rarity = "Legendary", Price = 2_500_000, Income = 9_500, Color = Color3.fromRGB(150, 220, 255), Shape = "Ball", Body = "Quad", Extras = { "CatEars", "Tail" } },
-	{ Id = "narwhal", Name = "Nebula Narwhal", Rarity = "Mythic", Price = 60_000_000, Income = 160_000, Color = Color3.fromRGB(110, 90, 255), Shape = "Ball", Body = "Ghost", Extras = { "Horns" } },
-	{ Id = "goat", Name = "Glitch Goat", Rarity = "Secret", Price = 150_000_000, Income = 400_000, Color = Color3.fromRGB(30, 30, 40), Shape = "Block", Body = "Quad", Extras = { "Horns", "Tail" } },
-	{ Id = "voiddragon", Name = "Void Dragon", Rarity = "Secret", Price = 400_000_000, Income = 1_000_000, Color = Color3.fromRGB(20, 10, 40), Shape = "Ball", Body = "Dragon", Extras = { "Horns", "Tail" } },
+	{ Id = "dragon", Name = "Dragon", Rarity = "Secret", Price = 400_000_000, Income = 1_000_000, Color = Color3.fromRGB(40, 25, 70), Shape = "Ball", Body = "Dragon", Extras = { "Horns", "Fangs" } },
+}
 
-	-- Neue Kreaturen (Update 4)
-	{ Id = "jelly", Name = "Jelly Jester", Rarity = "Uncommon", Price = 1_900, Income = 27, Color = Color3.fromRGB(255, 140, 200), Shape = "Ball", Body = "Blob", Extras = { "Horns" } },
-	{ Id = "owl", Name = "Night Owl", Rarity = "Rare", Price = 20_000, Income = 190, Color = Color3.fromRGB(120, 90, 60), Shape = "Ball", Body = "Bird", Extras = { "Beak", "Ears" } },
-	{ Id = "yeti", Name = "Frost Yeti", Rarity = "Epic", Price = 220_000, Income = 1_300, Color = Color3.fromRGB(225, 235, 250), Shape = "Ball", Body = "Biped", Extras = { "BigEars", "Horns" } },
-	{ Id = "phoenix", Name = "Pixel Phoenix", Rarity = "Legendary", Price = 4_000_000, Income = 14_000, Color = Color3.fromRGB(255, 120, 40), Shape = "Ball", Body = "Bird", Extras = { "Beak", "Comb", "Tail" } },
+-- Alte Kreaturen aus "Steal a Critter" -> neues Tier gleicher Seltenheit (Spielstaende bleiben gueltig)
+Config.UnitAliases = {
+	blobby = "chick", pebble = "mouse", sock = "piggy",
+	toast = "kitty", cactus = "kitty", jelly = "bunny",
+	duck = "fox", ninja = "panda", potato = "panda",
+	rooster = "monkey", llama = "giraffe", banana = "giraffe", sloth = "wolf", yeti = "wolf",
+	gecko = "shark", goose = "elephant", kitsune = "lion", phoenix = "lion",
+	capybara = "tiger", donut = "tiger", icecream = "unicorn", narwhal = "unicorn",
+	goat = "dragon", voiddragon = "dragon",
 }
 
 -- Gamepasses: einmal kaufen, fuer immer behalten. PriceHint = empfohlener Preis in Robux.
@@ -103,7 +103,7 @@ Config.Units = {
 Config.GamePasses = {
 	VIP = { Id = 0, ProductId = 3721859195, Name = "VIP", Description = "x1.5 income forever + VIP chat tag", PriceHint = 249, Order = 1 },
 	DoubleCash = { Id = 0, ProductId = 3721859198, Name = "2x Cash", Description = "Double all income forever", PriceHint = 399, Order = 2 },
-	ExtraSlots = { Id = 0, ProductId = 3721859204, Name = "+4 Base Slots", Description = "Hold 4 more critters in your base", PriceHint = 299, Order = 3 },
+	ExtraSlots = { Id = 0, ProductId = 3721859204, Name = "+4 Base Slots", Description = "Hold 4 more animals in your base", PriceHint = 299, Order = 3 },
 	FastSteal = { Id = 0, ProductId = 3721859207, Name = "Fast Steal", Description = "Steal in 1 second instead of 2.5", PriceHint = 199, Order = 4 },
 	SpeedCoil = { Id = 0, ProductId = 3721859211, Name = "Speed Coil", Description = "Run faster forever - escape with loot", PriceHint = 149, Order = 5 },
 	OfflinePro = { Id = 0, ProductId = 3721931507, Name = "Offline Pro", Description = "Earn 100% of your income while offline (up to 24h)", PriceHint = 199, Order = 6 },
@@ -116,18 +116,18 @@ Config.DevProducts = {
 	CashMedium = { Id = 3721859216, Kind = "Cash", Minutes = 60, MinCash = 10_000, Name = "Cash Crate", Description = "1 hour of income", PriceHint = 199, Order = 2 },
 	CashLarge = { Id = 3721859218, Kind = "Cash", Minutes = 360, MinCash = 100_000, Name = "Cash Vault", Description = "6 hours of income", PriceHint = 699, Order = 3 },
 	LockBase = { Id = 3721859219, Kind = "Lock", Seconds = 300, Name = "5 Min Base Lock", Description = "Nobody can steal from you for 5 minutes", PriceHint = 39, Order = 4 },
-	ServerLuck = { Id = 3721859223, Kind = "ServerLuck", Seconds = 900, Name = "Server Luck x3", Description = "15 min: rare critters spawn 3x more for EVERYONE", PriceHint = 199, Order = 5 },
+	ServerLuck = { Id = 3721859223, Kind = "ServerLuck", Seconds = 900, Name = "Server Luck x3", Description = "15 min: rare animals spawn 3x more for EVERYONE", PriceHint = 199, Order = 5 },
 	-- Sofortkauf des sichtbaren Tiers auf dem Laufband (kein Zufall: der Spieler sieht genau, was er kauft)
 	InstantEpic = { Id = 3721859226, Kind = "InstantBuy", Rarity = "Epic", Name = "Instant Epic", Description = "Buy an Epic from the belt with Robux", PriceHint = 49, Hidden = true },
 	InstantLegendary = { Id = 3721859228, Kind = "InstantBuy", Rarity = "Legendary", Name = "Instant Legendary", Description = "Buy a Legendary from the belt with Robux", PriceHint = 149, Hidden = true },
 	-- Belohnung fuer freiwillige Video-Werbung (Rewarded Video Ad): Roblox zahlt dir pro angesehener Werbung
 	AdCash = { Id = 3721862820, Kind = "Cash", Minutes = 5, MinCash = 500, Name = "Free Cash", Description = "Watch a short video ad", PriceHint = 0, Hidden = true },
 	-- Neue Produkte: alles festgelegt, kein Zufall (der Spieler weiss genau, was er bekommt)
-	StarterPack = { Id = 3721871752, Kind = "StarterPack", Cash = 25_000, Name = "Starter Pack", Description = "One time only: 25K cash + a Golden Epic critter", PriceHint = 79, Order = 0, OwnedAttribute = "StarterPack", Hidden = true },
-	GoldenTouch = { Id = 3721871757, Kind = "Mutate", Mutation = "Golden", Name = "Golden Touch", Description = "Turn your best critter Golden (x2 income)", PriceHint = 99, Order = 6 },
-	DiamondTouch = { Id = 3721871761, Kind = "Mutate", Mutation = "Diamond", Name = "Diamond Touch", Description = "Turn your best critter Diamond (x4 income)", PriceHint = 249, Order = 7 },
-	RainbowTouch = { Id = 3721871765, Kind = "Mutate", Mutation = "Rainbow", Name = "Rainbow Touch", Description = "Turn your best critter Rainbow (x10 income)", PriceHint = 599, Order = 8 },
-	FusionCatalyst = { Id = 3721871770, Kind = "Catalyst", Name = "Fusion Catalyst", Description = "Next fusion needs only 2 identical critters", PriceHint = 79, Order = 9 },
+	StarterPack = { Id = 3721871752, Kind = "StarterPack", Cash = 25_000, Name = "Starter Pack", Description = "One time only: 25K cash + a Golden Epic animal", PriceHint = 79, Order = 0, OwnedAttribute = "StarterPack", Hidden = true },
+	GoldenTouch = { Id = 3721871757, Kind = "Mutate", Mutation = "Golden", Name = "Golden Touch", Description = "Turn your best animal Golden (x2 income)", PriceHint = 99, Order = 6 },
+	DiamondTouch = { Id = 3721871761, Kind = "Mutate", Mutation = "Diamond", Name = "Diamond Touch", Description = "Turn your best animal Diamond (x4 income)", PriceHint = 249, Order = 7 },
+	RainbowTouch = { Id = 3721871765, Kind = "Mutate", Mutation = "Rainbow", Name = "Rainbow Touch", Description = "Turn your best animal Rainbow (x10 income)", PriceHint = 599, Order = 8 },
+	FusionCatalyst = { Id = 3721871770, Kind = "Catalyst", Name = "Fusion Catalyst", Description = "Next fusion needs only 2 identical animals", PriceHint = 79, Order = 9 },
 	CashParty = { Id = 3721871773, Kind = "CashParty", Seconds = 300, Name = "Cash Party", Description = "5 min DOUBLE CASH for the whole server", PriceHint = 149, Order = 10 },
 	QuestSkip = { Id = 3721931517, Kind = "QuestSkip", Name = "Quest Skip", Description = "Instantly complete one daily quest", PriceHint = 29, Order = 11 },
 	InstantMythic = { Id = 3721859230, Kind = "InstantBuy", Rarity = "Mythic", Name = "Instant Mythic", Description = "Buy a Mythic from the belt with Robux", PriceHint = 399, Hidden = true },
@@ -155,12 +155,12 @@ Config.RevengeHoldTime = 0.5
 Config.EventInterval = 8 * 60
 Config.EventDuration = 2 * 60
 Config.Events = {
-	{ Id = "GoldenHour", Name = "GOLDEN HOUR", Description = "Golden critters everywhere!", Color = Color3.fromRGB(255, 205, 40) },
-	{ Id = "CritterRush", Name = "CRITTER RUSH", Description = "The belt spawns 3x faster!", Color = Color3.fromRGB(90, 220, 255) },
-	{ Id = "LuckyBelt", Name = "LUCKY BELT", Description = "Rare critters 3x more likely!", Color = Color3.fromRGB(90, 255, 140) },
+	{ Id = "GoldenHour", Name = "GOLDEN HOUR", Description = "Golden animals everywhere!", Color = Color3.fromRGB(255, 205, 40) },
+	{ Id = "CritterRush", Name = "ANIMAL RUSH", Description = "The belt spawns 3x faster!", Color = Color3.fromRGB(90, 220, 255) },
+	{ Id = "LuckyBelt", Name = "LUCKY BELT", Description = "Rare animals 3x more likely!", Color = Color3.fromRGB(90, 255, 140) },
 	{ Id = "DoubleCash", Name = "DOUBLE CASH", Description = "Everyone earns 2x!", Color = Color3.fromRGB(120, 255, 120) },
 	{ Id = "CashRain", Name = "CASH RAIN", Description = "Money falls from the sky - grab it!", Color = Color3.fromRGB(110, 255, 130) },
-	{ Id = "MythicDrop", Name = "MYTHIC DROP", Description = "A Mythic (or Secret!) critter appears on the belt!", Color = Color3.fromRGB(255, 60, 90) },
+	{ Id = "MythicDrop", Name = "MYTHIC DROP", Description = "A Mythic (or Secret!) animal appears on the belt!", Color = Color3.fromRGB(255, 60, 90) },
 }
 
 -- Taegliche Belohnung mit Serie (Streak)
@@ -202,22 +202,22 @@ Config.GuardianKickCooldown = 60
 -- Taegliche Quests: jeden Tag (UTC) 3 zufaellige aus dieser Liste. Reward = Minuten Einkommen (mindestens MinCash)
 Config.QuestsPerDay = 3
 Config.Quests = {
-	{ Id = "Buy", Stat = "Bought", Text = "Buy %d critters from the belt", Goals = { 5, 10, 20 }, Minutes = 10 },
-	{ Id = "Steal", Stat = "Stolen", Text = "Steal %d critters", Goals = { 1, 3, 5 }, Minutes = 20 },
+	{ Id = "Buy", Stat = "Bought", Text = "Buy %d animals from the belt", Goals = { 5, 10, 20 }, Minutes = 10 },
+	{ Id = "Steal", Stat = "Stolen", Text = "Steal %d animals", Goals = { 1, 3, 5 }, Minutes = 20 },
 	{ Id = "Slap", Stat = "Slaps", Text = "Slap %d players", Goals = { 5, 15, 30 }, Minutes = 8 },
-	{ Id = "Fuse", Stat = "Fused", Text = "Fuse %d critters", Goals = { 1, 2 }, Minutes = 25 },
+	{ Id = "Fuse", Stat = "Fused", Text = "Fuse %d animals", Goals = { 1, 2 }, Minutes = 25 },
 	{ Id = "Rain", Stat = "Coins", Text = "Collect %d coins in Cash Rain", Goals = { 10, 25 }, Minutes = 12 },
 	{ Id = "Play", Stat = "Minutes", Text = "Play %d minutes", Goals = { 10, 20, 30 }, Minutes = 15 },
-	{ Id = "Sell", Stat = "Sold", Text = "Sell %d critters", Goals = { 2, 5 }, Minutes = 6 },
+	{ Id = "Sell", Stat = "Sold", Text = "Sell %d animals", Goals = { 2, 5 }, Minutes = 6 },
 }
 Config.QuestMinCash = 1_000
 Config.AllQuestsBonusMinutes = 30 -- Bonus, wenn alle Quests des Tages erledigt sind
 
 -- Erfolge (einmalig, Belohnung in Cash). Stat = Zaehler in data.Stats oder Spezialwert
 Config.Achievements = {
-	{ Id = "Buy1", Name = "First Critter", Stat = "Bought", Goal = 1, Cash = 500 },
+	{ Id = "Buy1", Name = "First Animal", Stat = "Bought", Goal = 1, Cash = 500 },
 	{ Id = "Buy50", Name = "Collector", Stat = "Bought", Goal = 50, Cash = 25_000 },
-	{ Id = "Buy250", Name = "Critter Tycoon", Stat = "Bought", Goal = 250, Cash = 500_000 },
+	{ Id = "Buy250", Name = "Animal Tycoon", Stat = "Bought", Goal = 250, Cash = 500_000 },
 	{ Id = "Steal1", Name = "Sneaky", Stat = "Stolen", Goal = 1, Cash = 2_000 },
 	{ Id = "Steal25", Name = "Master Thief", Stat = "Stolen", Goal = 25, Cash = 100_000 },
 	{ Id = "Steal100", Name = "Legendary Heister", Stat = "Stolen", Goal = 100, Cash = 2_000_000 },
@@ -226,7 +226,7 @@ Config.Achievements = {
 	{ Id = "Fuse10", Name = "Mad Scientist", Stat = "Fused", Goal = 10, Cash = 750_000 },
 	{ Id = "Rebirth1", Name = "Reborn", Stat = "Rebirths", Goal = 1, Cash = 50_000 },
 	{ Id = "Rebirth5", Name = "Phoenix", Stat = "Rebirths", Goal = 5, Cash = 5_000_000 },
-	{ Id = "Index10", Name = "Critter Scholar", Stat = "Index", Goal = 10, Cash = 50_000 },
+	{ Id = "Index10", Name = "Animal Scholar", Stat = "Index", Goal = 10, Cash = 50_000 },
 	{ Id = "IndexAll", Name = "Gotta Catch 'Em", Stat = "Index", Goal = #Config.Units, Cash = 10_000_000 },
 	{ Id = "Earn1M", Name = "Millionaire", Stat = "TotalEarned", Goal = 1_000_000, Cash = 50_000 },
 	{ Id = "Earn1B", Name = "Billionaire", Stat = "TotalEarned", Goal = 1_000_000_000, Cash = 50_000_000 },
@@ -252,14 +252,14 @@ Config.SpinPrizes = {
 	{ Name = "1 hour cash", Kind = "Cash", Minutes = 60, Weight = 8, Color = Color3.fromRGB(255, 200, 40) },
 	{ Name = "Server Luck 5 min", Kind = "Luck", Seconds = 300, Weight = 12, Color = Color3.fromRGB(90, 255, 140) },
 	{ Name = "Fusion Catalyst", Kind = "Catalyst", Weight = 10, Color = Color3.fromRGB(120, 255, 200) },
-	{ Name = "Golden critter", Kind = "Mutate", Mutation = "Golden", Weight = 12, Color = Color3.fromRGB(255, 205, 40) },
-	{ Name = "Diamond critter", Kind = "Mutate", Mutation = "Diamond", Weight = 5, Color = Color3.fromRGB(150, 230, 255) },
-	{ Name = "Rainbow critter", Kind = "Mutate", Mutation = "Rainbow", Weight = 1, Color = Color3.fromRGB(255, 80, 200) },
+	{ Name = "Golden animal", Kind = "Mutate", Mutation = "Golden", Weight = 12, Color = Color3.fromRGB(255, 205, 40) },
+	{ Name = "Diamond animal", Kind = "Mutate", Mutation = "Diamond", Weight = 5, Color = Color3.fromRGB(150, 230, 255) },
+	{ Name = "Rainbow animal", Kind = "Mutate", Mutation = "Rainbow", Weight = 1, Color = Color3.fromRGB(255, 80, 200) },
 }
 
 -- Index: jede entdeckte Art gibt dauerhaft +2 % Einkommen; Meilensteine geben Cash
 Config.IndexBonusPer = 0.02
-Config.IndexMilestones = { { Count = 5, Cash = 10_000 }, { Count = 10, Cash = 100_000 }, { Count = 15, Cash = 1_000_000 }, { Count = 20, Cash = 10_000_000 }, { Count = 25, Cash = 100_000_000 } }
+Config.IndexMilestones = { { Count = 5, Cash = 10_000 }, { Count = 10, Cash = 100_000 }, { Count = 15, Cash = 1_000_000 }, { Count = 20, Cash = 25_000_000 } }
 
 -- Basis-Ausbau (Cash-Senke): jede Stufe +10 % Einkommen und +5 s Sperre
 Config.BaseMaxLevel = 10
@@ -280,6 +280,8 @@ Config.OfflineMinSeconds = 120
 Config.Codes = {
 	RELEASE = { Minutes = 10, Cash = 5_000 },
 	CRITTER = { Minutes = 10, Cash = 5_000 },
+	ANIMAL = { Minutes = 15, Cash = 10_000 },
+	BOTS = { Minutes = 15, Cash = 10_000 },
 	UPDATE2 = { Minutes = 20, Cash = 20_000 },
 	BIGBABA = { Minutes = 15, Cash = 10_000 },
 	UPDATE4 = { Minutes = 20, Cash = 25_000 },
@@ -340,7 +342,7 @@ Config.Perks = {
 	{ Id = "Cash", Name = "Cash Boost", Icon = "💰", Text = "+10% income per level", Max = 5, Per = 0.1 },
 	{ Id = "Speed", Name = "Quick Feet", Icon = "👟", Text = "+2 walk speed per level", Max = 3, Per = 2 },
 	{ Id = "Thief", Name = "Sticky Hands", Icon = "🧤", Text = "Steal 0.25s faster per level", Max = 2, Per = 0.25 },
-	{ Id = "EggLuck", Name = "Egg Luck", Icon = "🍀", Text = "Rarer critters from eggs", Max = 3, Per = 0.25 },
+	{ Id = "EggLuck", Name = "Egg Luck", Icon = "🍀", Text = "Rarer animals from eggs", Max = 3, Per = 0.25 },
 }
 
 -- Critter Pass (kostenlos): XP aus allem, was man tut; jede Stufe hat eine Belohnung
@@ -421,43 +423,58 @@ Config.Rivals = {
 	LockEvery = { 60, 120 }, -- Rivalen sperren ab und zu ihre Basis
 	LockDuration = 20,
 	Names = { "Sneaky Sam", "Robo Rita", "Captain Crumb", "Lady Loot", "Mister Mittens", "Greedy Gus", "Professor Pinch" },
+	-- Sichtbare Bots: bewachen ihre Basis und klauen selbst (fair: nie das wertvollste Tier, nie Favoriten/Tresor,
+	-- nicht bei gesperrter Basis oder Neulingsschutz; Versicherung zahlt, man kann sofort zurueckklauen)
+	Bots = true,
+	BotWalkSpeed = 13,
+	BotCarrySpeed = 10, -- langsamer als Spieler (16): man kann ihn immer einholen und schlagen
+	BotChaseSpeed = 15, -- knapp langsamer als Spieler: wer sofort losrennt, entkommt
+	ChaseDelay = 1.2, -- Sekunden, bis der Bot den Dieb bemerkt
+	ChaseTime = 10,
+	BotSlapRange = 4.5,
+	BotStunTime = 3,
+	GrabTime = 3, -- so lange steht der Bot am Tier, bevor er es nimmt (Zeit zum Verteidigen)
+	FirstRaid = { 90, 150 }, -- erster Angriff nach dem Erscheinen
+	RaidEvery = { 120, 210 },
+	VictimCooldown = 240, -- derselbe Spieler wird hoechstens alle 4 Minuten angegriffen
+	MinUnitsToRaid = 3,
 }
 
 ---------------------------------------------------------------- Update 4 (ExtraService, Extras.luau)
 
 -- Einfuehrung fuer neue Spieler: Schritte mit Belohnung (Stat = Zaehler in data.Stats). Target = wohin der Pfeil zeigt
 Config.TutorialSteps = {
-	{ Text = "Buy a critter from the belt", Stat = "Bought", Goal = 1, Cash = 500, Target = "Belt" },
+	{ Text = "Buy an animal from the belt", Stat = "Bought", Goal = 1, Cash = 500, Target = "Belt" },
 	{ Text = "Lock your base at the red button", Stat = "Locks", Goal = 1, Cash = 1_000, Target = "Lock" },
 	{ Text = "Hatch your FREE egg (MORE > EGGS)", Stat = "Hatched", Goal = 1, Cash = 1_500 },
-	{ Text = "Steal a critter from another base", Stat = "Stolen", Goal = 1, Cash = 3_000, Target = "Steal" },
+	{ Text = "Steal an animal from another base", Stat = "Stolen", Goal = 1, Cash = 3_000, Target = "Steal" },
 }
 
 -- Wochen-Quests: jede Woche (ab Montag 00:00 UTC) 3 grosse Aufgaben. Reward = Minuten Einkommen (mindestens MinCash)
 Config.WeeklyQuestsPerWeek = 3
 Config.WeeklyQuests = {
-	{ Id = "Buy", Stat = "Bought", Text = "Buy %d critters", Goal = 100, Minutes = 60 },
-	{ Id = "Steal", Stat = "Stolen", Text = "Steal %d critters", Goal = 15, Minutes = 90 },
+	{ Id = "Buy", Stat = "Bought", Text = "Buy %d animals", Goal = 100, Minutes = 60 },
+	{ Id = "Steal", Stat = "Stolen", Text = "Steal %d animals", Goal = 15, Minutes = 90 },
 	{ Id = "Hatch", Stat = "Hatched", Text = "Hatch %d eggs", Goal = 30, Minutes = 60 },
 	{ Id = "Boss", Stat = "BossHits", Text = "Hit bosses %d times", Goal = 300, Minutes = 60 },
 	{ Id = "Gems", Stat = "Gems", Text = "Find %d gems", Goal = 25, Minutes = 45 },
 	{ Id = "Play", Stat = "Minutes", Text = "Play %d minutes", Goal = 180, Minutes = 90 },
 	{ Id = "Trips", Stat = "Expeditions", Text = "Finish %d expeditions", Goal = 8, Minutes = 75 },
-	{ Id = "Fuse", Stat = "Fused", Text = "Fuse %d critters", Goal = 5, Minutes = 90 },
+	{ Id = "Fuse", Stat = "Fused", Text = "Fuse %d animals", Goal = 5, Minutes = 90 },
 }
 Config.WeeklyMinCash = 20_000
 
 -- Titel ueber dem Namen: werden durch Statistiken freigeschaltet (Stat wie bei den Erfolgen, dazu PlayHours und Likes)
 Config.Titles = {
 	{ Id = "Rookie", Name = "Rookie", Text = "Everyone starts here", Stat = "PlayHours", Goal = 0, Color = Color3.fromRGB(200, 200, 210) },
-	{ Id = "Collector", Name = "Collector", Text = "Buy 50 critters", Stat = "Bought", Goal = 50, Color = Color3.fromRGB(120, 220, 255) },
+	{ Id = "Collector", Name = "Collector", Text = "Buy 50 animals", Stat = "Bought", Goal = 50, Color = Color3.fromRGB(120, 220, 255) },
 	{ Id = "Hatcher", Name = "Egg Whisperer", Text = "Hatch 25 eggs", Stat = "Hatched", Goal = 25, Color = Color3.fromRGB(150, 200, 255) },
-	{ Id = "Thief", Name = "Master Thief", Text = "Steal 25 critters", Stat = "Stolen", Goal = 25, Color = Color3.fromRGB(255, 110, 110) },
+	{ Id = "Thief", Name = "Master Thief", Text = "Steal 25 animals", Stat = "Stolen", Goal = 25, Color = Color3.fromRGB(255, 110, 110) },
 	{ Id = "Slapper", Name = "Slap King", Text = "Slap 100 times", Stat = "Slaps", Goal = 100, Color = Color3.fromRGB(255, 170, 80) },
-	{ Id = "Scientist", Name = "Mad Scientist", Text = "Fuse 10 critters", Stat = "Fused", Goal = 10, Color = Color3.fromRGB(180, 110, 255) },
+	{ Id = "Scientist", Name = "Mad Scientist", Text = "Fuse 10 animals", Stat = "Fused", Goal = 10, Color = Color3.fromRGB(180, 110, 255) },
 	{ Id = "Explorer", Name = "Explorer", Text = "Finish 10 expeditions", Stat = "Expeditions", Goal = 10, Color = Color3.fromRGB(110, 230, 160) },
 	{ Id = "Slayer", Name = "Boss Slayer", Text = "Beat 10 bosses", Stat = "Bosses", Goal = 10, Color = Color3.fromRGB(255, 80, 120) },
-	{ Id = "Scholar", Name = "Critter Scholar", Text = "Discover 20 critters", Stat = "Index", Goal = 20, Color = Color3.fromRGB(200, 160, 255) },
+	{ Id = "Scholar", Name = "Animal Scholar", Text = "Discover 20 animals", Stat = "Index", Goal = 20, Color = Color3.fromRGB(200, 160, 255) },
 	{ Id = "Popular", Name = "Popular", Text = "Get 25 base likes", Stat = "Likes", Goal = 25, Color = Color3.fromRGB(255, 130, 180) },
 	{ Id = "Loyal", Name = "Loyal Boss", Text = "Reach a 7 day streak", Stat = "Streak", Goal = 7, Color = Color3.fromRGB(255, 210, 90) },
 	{ Id = "Phoenix", Name = "Phoenix", Text = "Rebirth 3 times", Stat = "Rebirths", Goal = 3, Color = Color3.fromRGB(255, 150, 60) },
@@ -504,6 +521,16 @@ Config.Decorations = {
 Config.UnitsById = {}
 for _, unit in Config.Units do
 	Config.UnitsById[unit.Id] = unit
+end
+-- Alte Ids zeigen auf das neue Tier (Units.Info speichert danach die neue Id)
+function Config.ResolveUnitId(id: string?): string?
+	if id == nil then
+		return nil
+	end
+	if Config.UnitsById[id] then
+		return id
+	end
+	return Config.UnitAliases[id]
 end
 
 Config.RaritiesByName = {}
