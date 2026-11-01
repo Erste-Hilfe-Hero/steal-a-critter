@@ -1,5 +1,5 @@
 -- Kreaturen werden als Text gespeichert: "id", "id:Mutation" oder "id:Mutation:Fusion".
--- Alte Spielstaende ("blobby") bleiben dadurch gueltig.
+-- Alte Spielstaende ("blobby") bleiben dadurch gueltig (Config.UnitAliases zeigt auf das neue Tier).
 local Config = require(script.Parent.Config)
 
 local Units = {}
@@ -24,7 +24,7 @@ function Units.Info(code: string?)
 		return nil
 	end
 	local id, mutation, fusion = code:match("^([^:]+):?([^:]*):?(%d*)$")
-	local def = id and Config.UnitsById[id]
+	local def = id and Config.UnitsById[Config.ResolveUnitId(id) or ""]
 	if not def then
 		return nil
 	end
@@ -46,6 +46,12 @@ function Units.Info(code: string?)
 		Value = def.Price * multiplier,
 		Scale = Config.RaritiesByName[def.Rarity].Scale * (1 + 0.25 * level),
 	}
+end
+
+-- Alte Codes ("toast:Golden:1") auf das neue Tier umschreiben; unbekannte Codes bleiben unveraendert
+function Units.Migrate(code: any): any
+	local info = Units.Info(code)
+	return if info then info.Code else code
 end
 
 return Units

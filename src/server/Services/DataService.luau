@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Units = require(ReplicatedStorage.Shared.Units)
 
 local DataService = { Services = nil :: any }
 
@@ -16,7 +17,7 @@ local function defaultData()
 	return {
 		Cash = Config.StartCash,
 		Rebirths = 0,
-		Units = {}, -- ["1"] = "blobby" (Slot -> Unit-Id)
+		Units = {}, -- ["1"] = "chick" (Slot -> Unit-Id)
 		Passes = {}, -- [PassKey] = true (dauerhaft gekaufte Vorteile)
 		Receipts = {}, -- [PurchaseId] = true
 		ReceiptOrder = {},
@@ -71,12 +72,33 @@ local function defaultData()
 	}
 end
 
+-- Steal a Animal: alte Kreaturen-Ids (Steal a Critter) auf die neuen Tiere umstellen
+local function migrateAnimals(data)
+	for slot, code in data.Units do
+		data.Units[slot] = Units.Migrate(code)
+	end
+	for _, trip in data.Expeditions do
+		if type(trip) == "table" and trip.Code then
+			trip.Code = Units.Migrate(trip.Code)
+		end
+	end
+	local index = {}
+	for id, value in data.Index do
+		local newId = Config.ResolveUnitId(id)
+		if newId then
+			index[newId] = value
+		end
+	end
+	data.Index = index
+end
+
 local function reconcile(data)
 	for key, value in defaultData() do
 		if data[key] == nil then
 			data[key] = value
 		end
 	end
+	migrateAnimals(data)
 	return data
 end
 

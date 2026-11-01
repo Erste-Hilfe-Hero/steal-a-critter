@@ -796,15 +796,15 @@ local kit = Kit.new({
 	TitleFont = Enum.Font.FredokaOne,
 	BodyFont = Enum.Font.GothamBold,
 	StatusColor = Color3.fromRGB(240, 225, 255),
-	Status = { "Connecting to the server...", "Loading critters...", "Opening the bases..." },
-	Ready = "Ready! Go steal some critters!",
+	Status = { "Connecting to the server...", "Loading animals...", "Opening the bases..." },
+	Ready = "Ready! Go steal some animals!",
 	Tips = {
 		"Got robbed? Insurance pays you 25% back - and you get 90s of REVENGE!",
-		"Fuse 3 identical critters into a stronger one with [F]!",
-		"Rainbow critters earn 10x cash - watch the belt!",
-		"Free server events every 8 minutes: Golden Hour, Critter Rush and more!",
+		"Fuse 3 identical animals into a stronger one with [F]!",
+		"Rainbow animals earn 10x cash - watch the belt!",
+		"Free server events every 8 minutes: Golden Hour, Animal Rush and more!",
 		"Play with friends: +10% cash for every friend in your server!",
-		"Slap thieves to make them drop your critter!",
+		"Slap thieves to make them drop your animal!",
 		"Come back every day - your daily reward grows with your streak!",
 	},
 	WaitForCharacter = true,
@@ -847,7 +847,7 @@ title.Size = UDim2.fromScale(0.8, 0.15)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.FredokaOne
 title.TextScaled = true
-title.Text = "STEAL A CRITTER"
+title.Text = "STEAL A ANIMAL"
 title.TextColor3 = Color3.fromRGB(255, 225, 70)
 title.Parent = stage
 local titleStroke = Instance.new("UIStroke")

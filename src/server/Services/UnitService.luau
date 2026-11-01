@@ -38,7 +38,7 @@ local function offerSlots(player: Player)
 	if not UnitService.Services.MonetizationService:HasPass(player, "ExtraSlots") then
 		UnitService.Services.Net.SendOffer(player, "Pass", "ExtraSlots", "Your base is full!")
 	end
-	UnitService.Services.Net.SendNotify(player, "Tip: hold R on a critter in your base to sell it.", Color3.fromRGB(200, 200, 255))
+	UnitService.Services.Net.SendNotify(player, "Tip: hold R on an animal in your base to sell it.", Color3.fromRGB(200, 200, 255))
 end
 
 local function notify(player: Player, text: string, color: Color3?)
@@ -110,7 +110,7 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 		return
 	end
 	if carrying[thief] or services.RivalService:IsCarrying(thief) then
-		notify(thief, "You are already carrying a critter!", RED)
+		notify(thief, "You are already carrying an animal!", RED)
 		return
 	end
 	local model = baseUnits[owner] and baseUnits[owner][slotKey]
@@ -125,7 +125,7 @@ local function startSteal(thief: Player, owner: Player, slotKey: string, prompt:
 	end
 	-- Tresor: diese Kreatur kann niemand klauen
 	if services.FeatureService:IsVaulted(owner, slotKey) then
-		notify(thief, "This critter is locked in a vault! 🔒", RED)
+		notify(thief, "This animal is locked in a vault! 🔒", RED)
 		return
 	end
 	-- Neulingsschutz: neue Spieler koennen in den ersten Minuten nicht bestohlen werden
@@ -407,7 +407,7 @@ endSteal = function(thief: Player, success: boolean)
 			return
 		elseif not slot and thief.Parent then
 			-- Basis des Diebs ist waehrend des Tragens voll geworden: nicht still scheitern
-			notify(thief, "Your base is full, so the critter ran back home!", RED)
+			notify(thief, "Your base is full, so the animal ran back home!", RED)
 			offerSlots(thief)
 		end
 	end
@@ -673,6 +673,74 @@ function UnitService:HasRevenge(player: Player, target: Player): boolean
 	return entry ~= nil and entry.Thief == target and os.clock() < entry.Until
 end
 
+---------------------------------------------------------------- Bots (RivalService)
+
+-- Darf ein Bot diese Kreatur klauen? Gleiche Regeln wie fuer Spieler (Sperre, Tresor, Neulingsschutz) plus Favoriten.
+function UnitService:CanBotSteal(owner: Player, slotKey: string): boolean
+	local services = self.Services
+	local model = baseUnits[owner] and baseUnits[owner][slotKey]
+	local data = services.DataService:Get(owner)
+	if not model or not model.Parent or model:GetAttribute("BeingStolen") or not data or not data.Units[slotKey] then
+		return false
+	end
+	if services.PlotService:IsLocked(owner) or services.RewardService:HasShield(owner) then
+		return false
+	end
+	if services.FeatureService:IsVaulted(owner, slotKey) or (data.Favorites and data.Favorites[slotKey]) then
+		return false
+	end
+	return true
+end
+
+-- Bot greift die Kreatur: sie wird durchsichtig, bis der Bot zu Hause ist oder geschlagen wird
+function UnitService:BotGrab(owner: Player, slotKey: string): (string?, Model?)
+	if not self:CanBotSteal(owner, slotKey) then
+		return nil, nil
+	end
+	local model = baseUnits[owner][slotKey]
+	local data = self.Services.DataService:Get(owner)
+	model:SetAttribute("BeingStolen", true)
+	UnitFactory.SetTransparency(model, 0.7)
+	local prompt = model:FindFirstChild("StealPrompt", true) :: ProximityPrompt?
+	if prompt then
+		prompt.Enabled = false
+	end
+	return data.Units[slotKey], model
+end
+
+-- Bot wurde geschlagen oder hat aufgegeben: Kreatur bleibt beim Besitzer
+function UnitService:BotRelease(owner: Player, slotKey: string, model: Model?)
+	if model and model.Parent then
+		model:SetAttribute("BeingStolen", false)
+		UnitFactory.SetTransparency(model, 0)
+		local prompt = model:FindFirstChild("StealPrompt", true) :: ProximityPrompt?
+		if prompt then
+			prompt.Enabled = true
+		end
+	end
+end
+
+-- Bot ist zu Hause angekommen: Kreatur weg, Versicherung zahlt (wie bei Spielern)
+function UnitService:BotTake(owner: Player, slotKey: string, model: Model?, code: string, botName: string): boolean
+	local services = self.Services
+	local data = services.DataService:Get(owner)
+	local models = baseUnits[owner]
+	local def = Units.Info(code)
+	if not owner.Parent or not data or not def or not models or models[slotKey] ~= model or data.Units[slotKey] ~= code then
+		self:BotRelease(owner, slotKey, model)
+		return false
+	end
+	self:RemoveBaseUnit(owner, slotKey)
+	local payout = math.floor(def.Value * Config.InsuranceShare)
+	services.DataService:AddCash(owner, payout)
+	if services.ExtraService and services.ExtraService.LogBot then
+		services.ExtraService:LogBot(owner, "Lost", botName, def)
+	end
+	notify(owner, `🤖 {botName} stole your {def.Name}! Insurance paid {Format.Cash(payout)}. Steal it back from their base!`, RED)
+	services.Net.SendOffer(owner, "Product", "LockBase", "Protect your base from thieves!")
+	return true
+end
+
 ---------------------------------------------------------------- Schlagen
 
 local function slap(player: Player)
@@ -697,6 +765,12 @@ local function slap(player: Player)
 			end
 		end
 	end
+	-- Bots (Rivalen) kann man auch schlagen: ein Bot mit Beute laesst sie fallen
+	if UnitService.Services.RivalService:SlapBot(player, root, if best then bestDistance else Config.SlapRange) then
+		UnitService.Services.ProgressService:Track(player, "Slaps", 1)
+		UnitService.Services.Net.PlaySfx(player, "Slap")
+		return
+	end
 	if not best then
 		return
 	end
@@ -720,8 +794,8 @@ local function slap(player: Player)
 			UnitService.Services.ExtraService:LogSave(stolen.Owner, player, best, Units.Info(stolen.Code))
 		end
 		endSteal(best, false)
-		notify(player, `You slapped {best.DisplayName} and saved the critter!`, GREEN)
-		notify(best, `{player.DisplayName} slapped you! You dropped the critter.`, RED)
+		notify(player, `You slapped {best.DisplayName} and saved the animal!`, GREEN)
+		notify(best, `{player.DisplayName} slapped you! You dropped the animal.`, RED)
 	end
 end
 
@@ -733,7 +807,7 @@ function UnitService:GiveSlapTool(player: Player)
 	local tool = Instance.new("Tool")
 	tool.Name = "Slap"
 	tool.CanBeDropped = false
-	tool.ToolTip = "Slap thieves to get your critters back"
+	tool.ToolTip = "Slap thieves to get your animals back"
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
 	handle.Size = Vector3.new(0.6, 0.6, 4)
@@ -877,7 +951,7 @@ function UnitService:Start()
 				if not thief.Parent or not root or not humanoid or humanoid.Health <= 0 then
 					endSteal(thief, false)
 				elseif os.clock() - info.StartedAt > Config.StealTimeout then
-					notify(thief, "Too slow! The critter ran home.", RED)
+					notify(thief, "Too slow! The animal ran home.", RED)
 					endSteal(thief, false)
 				elseif plot and services.WorldService.IsInside(plot, root.Position) then
 					endSteal(thief, true)

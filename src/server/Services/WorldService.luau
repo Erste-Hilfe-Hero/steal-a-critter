@@ -250,7 +250,7 @@ function WorldService:Build()
 		text.BackgroundTransparency = 1
 		text.Font = Enum.Font.FredokaOne
 		text.TextScaled = true
-		text.Text = "STEAL A CRITTER"
+		text.Text = "STEAL A ANIMAL"
 		text.TextColor3 = Color3.fromRGB(255, 225, 120)
 		text.TextStrokeColor3 = Color3.fromRGB(30, 25, 45)
 		text.TextStrokeTransparency = 0

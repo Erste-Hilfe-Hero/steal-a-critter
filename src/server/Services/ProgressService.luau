@@ -231,7 +231,7 @@ local function claimIndex(player: Player)
 		return false, "Nothing to claim"
 	end
 	if indexCount(data) < milestone.Count then
-		return false, `Discover {milestone.Count - indexCount(data)} more critters`
+		return false, `Discover {milestone.Count - indexCount(data)} more animals`
 	end
 	data.IndexClaimed = (data.IndexClaimed or 0) + 1
 	ProgressService.Services.DataService:AddCash(player, milestone.Cash)

@@ -296,7 +296,7 @@ function FeatureService:OnStat(player: Player, stat: string, amount: number)
 	data.PassXP = (data.PassXP or 0) + per * amount
 	local after = passTier(data.PassXP)
 	if after > before then
-		notify(player, `CRITTER PASS tier {after} reached! Claim it in MORE > PASS.`, Color3.fromRGB(200, 140, 255))
+		notify(player, `ANIMAL PASS tier {after} reached! Claim it in MORE > PASS.`, Color3.fromRGB(200, 140, 255))
 	end
 	self:Refresh(player)
 end
@@ -341,7 +341,7 @@ local function hatch(player: Player, egg, free: boolean): (boolean, string?, any
 	end
 	local slot = services.UnitService:FindFreeSlot(player)
 	if not slot then
-		return false, "Your base is full! Sell or fuse a critter first."
+		return false, "Your base is full! Sell or fuse an animal first."
 	end
 	if not free then
 		if data.Cash < egg.Price then
@@ -392,7 +392,7 @@ local function train(player: Player, slotKey: any)
 	local code = data and type(slotKey) == "string" and data.Units[slotKey]
 	local info = Units.Info(code)
 	if not info then
-		return false, "No critter there"
+		return false, "No animal there"
 	end
 	local level = data.Levels[slotKey] or 0
 	if level >= Config.TrainMaxLevel then
@@ -447,7 +447,7 @@ local function vault(player: Player, slotKey: any)
 	local code = data and type(slotKey) == "string" and data.Units[slotKey]
 	local info = Units.Info(code)
 	if not info then
-		return false, "No critter there"
+		return false, "No animal there"
 	end
 	if data.Vault == slotKey then
 		return false, "Already in your vault"
@@ -572,7 +572,7 @@ local function teleportTo(player: Player, plot): (boolean, string?)
 		return false, "Not possible right now"
 	end
 	if player:GetAttribute("Carrying") then
-		return false, "Not while carrying a critter - run!"
+		return false, "Not while carrying an animal - run!"
 	end
 	character:PivotTo(plot.SpawnCFrame)
 	return true
@@ -1115,7 +1115,7 @@ function FeatureService:Start()
 			task.wait(Config.GoldenBeltInterval)
 			local rarities = { "Rare", "Epic", "Legendary" }
 			self.Services.UnitService:SpawnBeltUnit(rarities[math.random(1, #rarities)], "Golden")
-			net.SendAnnounce("✨ A GOLDEN critter is riding the belt! Grab it!", GOLD)
+			net.SendAnnounce("✨ A GOLDEN animal is riding the belt! Grab it!", GOLD)
 		end
 	end)
 

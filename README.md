@@ -1,4 +1,6 @@
-# Steal a Critter – Roblox-Spiel mit Fokus auf Einnahmen
+# Steal a Animal (frueher Steal a Critter) – Roblox-Spiel mit Fokus auf Einnahmen
+
+**2026-11-01: Umbau zu "Steal a Animal"** – 20 Tiere (Chick, Mouse, Piggy, Kitty, Frog, Bunny, Fox, Panda, Penguin, Owl, Monkey, Giraffe, Wolf, Shark, Turtle, Elephant, Lion, Tiger, Unicorn, Dragon) in `Config.Units`; alte Kreaturen-Ids werden ueber `Config.UnitAliases` beim Laden auf Tiere gleicher Seltenheit umgestellt. Jede Rivalen-Basis hat einen sichtbaren Bot (RivalService): er bewacht seine Tiere, jagt Diebe und klaut selbst bei Spielern (nie das wertvollste Tier, nie Favoriten/Tresor, nicht bei Sperre/Neulingsschutz). Schlagen laesst ihn die Beute fallen; geklaute Tiere stehen danach in seiner Basis und koennen sofort zurueckgeklaut werden.
 
 Ein spielbares Grundgerüst im Genre **"Steal a ..."** (Vorbild: *Steal a Brainrot*, 2026 einer der umsatzstärksten Titel und Nummer 1 auf Mobile). Alles ist selbst gebaut: eigene Kreaturen aus Parts, kein fremder Code, keine fremden Assets.
 
@@ -25,7 +27,7 @@ Die Features antworten direkt auf die häufigsten Spieler-Beschwerden über "Ste
 - **Rache:** 90 s lang kommt das Opfer durch die Sperre des Diebes und klaut mit 0,5 s Haltezeit zurück.
 - **Kreaturen-Fusion:** 3 gleiche Kreaturen in der Basis werden mit [F] zu einer Stufe ★ fusioniert (x3,5 Einkommen, bis ★★★).
 - **Mutationen:** Golden (x2), Diamond (x4), Rainbow (x10, Farbe läuft durch) auf dem Laufband.
-- **Gratis-Server-Events** alle 8 Minuten für 2 Minuten: Golden Hour, Critter Rush, Lucky Belt, Double Cash.
+- **Gratis-Server-Events** alle 8 Minuten für 2 Minuten: Golden Hour, Animal Rush, Lucky Belt, Double Cash.
 - **Tägliche Belohnung** mit Serie (bis +300 % am 7. Tag).
 - **Freunde-Bonus:** +10 % Einkommen pro Freund im selben Server (max. +40 %).
 - **Einladen lohnt sich:** INVITE-Knopf. Kommt ein neuer Spieler über die Einladung (oder einen Teilen-Link), bekommt er 2.500 Startgeld und der Einladende Cash plus dauerhaft +5 % Einkommen (bis zu 10 Einladungen). Belohnungen für Einladende in anderen Servern liegen im DataStore `Referrals_v1` und werden alle 2 Minuten abgeholt.

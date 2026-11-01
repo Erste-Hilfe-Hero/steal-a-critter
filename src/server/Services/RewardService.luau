@@ -114,11 +114,11 @@ local function grantPrize(player: Player, prize): string
 	elseif prize.Kind == "Mutate" then
 		local name = services.UnitService:MutateBest(player, prize.Mutation)
 		if name then
-			return `your critter became {name}`
+			return `your animal became {name}`
 		end
 		local amount = reward(player, 30, 5_000)
 		services.DataService:AddCash(player, amount)
-		return `+{Format.Cash(amount)} (no critter to upgrade)`
+		return `+{Format.Cash(amount)} (no animal to upgrade)`
 	end
 	return ""
 end
@@ -324,7 +324,7 @@ local function updateShield(player: Player)
 	if (player:GetAttribute("NewbieShield") == true) ~= shielded then
 		player:SetAttribute("NewbieShield", shielded or nil)
 		if not shielded then
-			notify(player, "🛡️ Your newbie shield is gone - protect your critters!", RED)
+			notify(player, "🛡️ Your newbie shield is gone - protect your animals!", RED)
 		end
 	end
 	player:SetAttribute("ShieldLeft", if shielded then math.max(0, Config.NewbieShieldMinutes * 60 - (data.PlayTime or 0)) else nil)
@@ -350,7 +350,7 @@ local function payOffline(player: Player, data)
 		if not player.Parent then
 			return
 		end
-		notify(player, `🌙 Your critters earned {Format.Cash(amount)} while you were away!`, GOLD)
+		notify(player, `🌙 Your animals earned {Format.Cash(amount)} while you were away!`, GOLD)
 		if not pro then
 			RewardService.Services.Net.SendOffer(player, "Pass", "OfflinePro", "Earn 4x more while offline!")
 		end
