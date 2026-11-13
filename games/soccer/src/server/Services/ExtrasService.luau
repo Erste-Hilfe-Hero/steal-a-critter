@@ -867,7 +867,7 @@ function ExtrasService:Start()
 				d.Settings = {
 					Fov = number(arg.Fov, 70, 60, 100),
 					Crowd = number(arg.Crowd, 1, 0, 1),
-					FirstPerson = arg.FirstPerson ~= false,
+					FirstPerson = arg.FirstPerson == true,
 				}
 			end
 		end

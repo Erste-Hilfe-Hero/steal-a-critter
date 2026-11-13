@@ -217,7 +217,7 @@ local function buildScoreboard()
 		scoreLabels[teamName] = label({ Position = UDim2.fromOffset(2, 2), Size = UDim2.new(1, -4, 1, -4), Text = "0", TextColor3 = C.Navy, StrokeThickness = 0, Parent = box })
 	end
 	local clock = create("Frame", { Position = UDim2.fromOffset(240, 4), Size = UDim2.fromOffset(86, 36), BackgroundColor3 = C.Navy, Parent = bug }, { corner(6) })
-	scoreLabels.Time = label({ Position = UDim2.fromOffset(4, 3), Size = UDim2.new(1, -8, 1, -6), Text = "8:00", TextColor3 = C.Lime, Parent = clock })
+	scoreLabels.Time = label({ Position = UDim2.fromOffset(4, 3), Size = UDim2.new(1, -8, 1, -6), Text = "4:00", TextColor3 = C.Lime, Parent = clock })
 
 	local stats = create("Frame", { Position = UDim2.fromOffset(6, 46), Size = UDim2.fromOffset(318, 4 + 18 + #STAT_ROWS * 20), BackgroundColor3 = PANEL, BackgroundTransparency = 0.15, Parent = holder }, { corner(8) })
 	local barBack = create("Frame", { Position = UDim2.fromOffset(8, 6), Size = UDim2.new(1, -16, 0, 10), BackgroundColor3 = Config.Teams.Blue.Color, Parent = stats }, { corner(5) })

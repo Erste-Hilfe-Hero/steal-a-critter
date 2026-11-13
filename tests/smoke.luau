@@ -168,6 +168,11 @@ end
 -- Update 4
 check("format 999999 -> 1M", Format.Number(999_999) == "1M", Format.Number(999_999))
 check("tutorial steps", #Config.TutorialSteps >= 3)
+check("tutorial steal before egg", Config.TutorialSteps[3].Stat == "Stolen" and Config.TutorialSteps[4].Open == "Eggs")
+for _, id in Config.ReturnGift.Units do
+	check("return gift unit " .. id, Config.UnitsById[id] ~= nil)
+end
+check("starter offer delay", Config.StarterOfferAfter >= 120)
 for _, quest in Config.WeeklyQuests do
 	check("weekly text " .. quest.Id, string.format(quest.Text, quest.Goal):find("%d") ~= nil and quest.Goal > 0)
 end

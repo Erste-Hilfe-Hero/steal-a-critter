@@ -360,7 +360,7 @@ end
 ---------------------------------------------------------------- Anleitung
 
 local PAGES = {
-	{ "WELCOME TO SOCCER JAM!", "Red vs Blue. Score more goals than the other team in 8 minutes, or be the first to reach 10. A draw goes to GOLDEN GOAL." },
+	{ "WELCOME TO SOCCER JAM!", "Red vs Blue. Score more goals than the other team in 4 minutes, or be the first to reach 5. A draw goes to GOLDEN GOAL." },
 	{ "THE BALL", "Run into the ball to take it. Hold KICK to charge a shot and aim with the camera. Run sideways while shooting to CURVE the ball. PASS finds a teammate." },
 	{ "THE SWORD", "SWORD slashes, THRUST stabs. Hit the ball carrier to knock the ball loose. Hits from behind do triple damage. The sword only works near the ball." },
 	{ "WATCH OUT", "Hard shots SMACK players down. The alien mascots zap enemies near their goal, and running the ball into their circle knocks you out. Shoot from outside!" },

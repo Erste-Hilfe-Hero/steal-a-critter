@@ -38,7 +38,8 @@ local function defaultData()
 		SwordSkin = "classic",
 		SwordSkins = { classic = true },
 		Quests = { Day = 0, Items = {} }, -- taegliche Quests: { Id, Progress, Done }
-		Settings = { Fov = 70, Crowd = 1, FirstPerson = true },
+		Settings = { Fov = 70, Crowd = 1, FirstPerson = false },
+		ViewV2 = false, -- alte Standard-Ego-Sicht einmalig auf Third Person umgestellt
 		RocketShots = 0, -- gekaufte Rocket Shots (bleiben ueber das Verlassen hinaus)
 		RespawnTokens = 0,
 		-- Features
@@ -67,6 +68,13 @@ local function reconcile(data)
 					data[key][subKey] = subValue
 				end
 			end
+		end
+	end
+	-- 2026-11-13: Ego-Sicht war Standard; einmalig auf Third Person (V schaltet weiter um)
+	if not data.ViewV2 then
+		data.ViewV2 = true
+		if type(data.Settings) == "table" then
+			data.Settings.FirstPerson = false
 		end
 	end
 	return data
