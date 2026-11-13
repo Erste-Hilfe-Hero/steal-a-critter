@@ -50,19 +50,16 @@ jobs:
               F=js/$(echo "$URL" | md5sum | cut -c1-12).js; [ -f "$F" ] || curl -sS "$URL" -o "$F"; done < more.txt
           done
           ls js | wc -l
-          echo "== answer building code"
-          for F in $(grep -lE 'questionId:[a-zA-Z]' js/*.js | head -6); do
-            python3 -c "
-          import sys,re
-          s=open(sys.argv[1],errors='ignore').read()
-          for m in list(re.finditer(r'questionId:[a-zA-Z]',s))[:6]:
-              print('---',sys.argv[1]); print(s[max(0,m.start()-500):m.start()+500])
-          " "$F"
-          done | head -c 60000
+          F=$(grep -lF '/v2/responses/publish' js/*.js | head -1)
+          echo "== enums"; grep -oE '.{0,300}submissionState.{0,300}' "$F" | grep -oE 'var [a-zA-Z]+=\{[A-Za-z]+:"[A-Za-z]+"(,[A-Za-z]+:"[A-Za-z]+")*\}' | sort -u
+          grep -oE '[a-zA-Z]+=\{[A-Za-z]+:"[A-Za-z]+"(,[A-Za-z]+:"[A-Za-z]+")+\}' "$F" | sort -u | head -40
           Q=https://apis.roblox.com/experience-questionnaire
           QID=$(call GET "$Q/v1/questionnaires/$U/latest" | sed '$d' | jq -r .questionnaireId)
-          call GET "$Q/v1/questionnaires/$QID" | sed '$d' > q.json
-          echo "== tree"; python3 tools/maturity/tree.py q.json
+          for FMT in str list csv each; do
+            R=$(python3 tools/maturity/answers.py $U $FMT)
+            echo "== validate $FMT"; call POST "$Q/v1/responses/validate" -H 'Content-Type: application/json' -d "{\"questionnaireId\":\"$QID\",\"response\":$R}" | head -c 3000; echo
+            echo "== preview $FMT"; call POST "$Q/v1/responses/preview" -H 'Content-Type: application/json' -d "{\"universeId\":$U,\"questionnaireId\":\"$QID\",\"response\":$R}" | head -c 3000; echo
+          done
           rm -f out/pages.html
       - uses: actions/upload-artifact@v4
         with:
