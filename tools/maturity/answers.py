@@ -122,3 +122,4 @@ if __name__ == "__main__":
     if u == "additional":
         print(json.dumps({"answers": fmt(ADDITIONAL, f)})); sys.exit()
     print(json.dumps({"answers": fmt(build(GAMES[u]), f)}))
+# Stand: 2026-11-13
