@@ -1,30 +1,44 @@
 name: Maturity questionnaire
 
-# Fuellt den Roblox "Maturity & Compliance"-Fragebogen (Altersempfehlung) fuer Alis Spiele aus.
+# Fuellt den Roblox "Maturity & Compliance"-Fragebogen (Altersempfehlung) fuer alle Spiele aus.
 # Creator Hub hat dafuer keine Open-Cloud-API, deshalb mit dem Login-Cookie ROBLOSECURITY (Ali: "Mach du das", 2026-11-13).
-# Phase 1 (discover): sucht im Creator-Hub-Code nach den Fragebogen-Endpunkten. Der Cookie wird nie ausgegeben.
+# Die ehrlichen Antworten pro Spiel stehen in tools/maturity/answers.py. Der Cookie wird nie ausgegeben.
+# Ablauf pro Spiel: pruefen (validate) -> Vorschau der Einstufung -> abschicken -> veroeffentlichen.
 
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Nur diese universeId (leer = alle)"
+        required: false
+        default: ""
+      dry:
+        description: "true = nur pruefen und Vorschau, nichts abschicken"
+        required: false
+        default: "false"
   push:
     branches: [claude/**]
-    paths: [.github/workflows/maturity.yml]
+    paths: [.github/workflows/maturity.yml, tools/maturity/answers.py]
+
+concurrency: maturity
 
 permissions:
   contents: read
 
 jobs:
-  discover:
+  questionnaire:
     runs-on: ubuntu-latest
     env:
       COOKIE: ${{ secrets.ROBLOSECURITY }}
-      U: "3003317051"
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      ONLY: ${{ github.event.inputs.only }}
+      DRY: ${{ github.event.inputs.dry }}
     steps:
       - uses: actions/checkout@v4
-      - name: Discover endpoints
+      - name: Fill questionnaire
         run: |
           set +e
-          mkdir -p out js
+          if [ -z "$COOKIE" ]; then echo "::error::Secret ROBLOSECURITY fehlt"; exit 1; fi
           CSRF=""
           call() { M=$1; URL=$2; shift 2
             for TRY in 1 2; do
@@ -34,34 +48,27 @@ jobs:
               if echo "$R" | grep -q 'HTTP 403' && [ -n "$T" ] && [ "$T" != "$CSRF" ]; then CSRF=$T; continue; fi
               break
             done; echo "$R"; }
-          BASE=https://create.roblox.com
-          for P in "/dashboard/creations/experiences/$U/questionnaire" "/dashboard/creations/experiences/$U/overview" "/dashboard/creations"; do
-            curl -sSL "$BASE$P" -H "Cookie: .ROBLOSECURITY=$COOKIE" -A 'Mozilla/5.0' >> out/pages.html
-          done
-          grep -oE '(https://[a-z.]*roblox\.com)?/[A-Za-z0-9_./-]*\.js' out/pages.html | sort -u > out/scripts.txt
-          wc -l out/scripts.txt
-          # Next.js Build-Manifeste und ggf. Microfrontend-Manifeste mitnehmen
-          while read -r S; do case "$S" in http*) echo "$S";; *) echo "$BASE$S";; esac; done < out/scripts.txt > out/urls.txt
-          i=0; while read -r S; do i=$((i+1)); curl -sS "$S" -o js/$i.js; done < out/urls.txt
-          # weitere Chunks aus geladenen JS-Dateien (Pfade wie static/chunks/....js)
-          for R in 1 2; do
-            grep -ohE '"(static|_next)/[A-Za-z0-9_./~-]+\.js"|https://[a-z0-9.-]*rbxcdn\.com/[A-Za-z0-9_./~-]+\.js' js/*.js | tr -d '"' | sort -u > more.txt
-            while read -r S; do case "$S" in http*) URL=$S;; _next/*) URL="$BASE/$S";; *) URL="$BASE/_next/$S";; esac
-              F=js/$(echo "$URL" | md5sum | cut -c1-12).js; [ -f "$F" ] || curl -sS "$URL" -o "$F"; done < more.txt
-          done
-          ls js | wc -l
-          F=$(grep -lF '/v2/responses/publish' js/*.js | head -1)
-          echo "== enums"; grep -oE '.{0,300}submissionState.{0,300}' "$F" | grep -oE 'var [a-zA-Z]+=\{[A-Za-z]+:"[A-Za-z]+"(,[A-Za-z]+:"[A-Za-z]+")*\}' | sort -u
-          grep -oE '[a-zA-Z]+=\{[A-Za-z]+:"[A-Za-z]+"(,[A-Za-z]+:"[A-Za-z]+")+\}' "$F" | sort -u | head -40
+          one() { echo "$1" | tr -d '\n' | head -c ${2:-700}; echo; }
           Q=https://apis.roblox.com/experience-questionnaire
-          QID=$(call GET "$Q/v1/questionnaires/$U/latest" | sed '$d' | jq -r .questionnaireId)
-          for FMT in final; do
-            R=$(python3 tools/maturity/answers.py $U $FMT)
-            echo "== validate $FMT"; call POST "$Q/v1/responses/validate" -H 'Content-Type: application/json' -d "{\"questionnaireId\":\"$QID\",\"response\":$R}" | head -c 3000; echo
-            echo "== preview $FMT"; call POST "$Q/v1/responses/preview" -H 'Content-Type: application/json' -d "{\"universeId\":$U,\"questionnaireId\":\"$QID\",\"response\":$R}" | head -c 3000; echo
+          J='Content-Type: application/json'
+          for U in $(python3 -c "import sys; sys.path.insert(0,'tools/maturity'); import answers; print(' '.join(answers.GAMES))"); do
+            if [ -n "$ONLY" ] && [ "$ONLY" != "$U" ]; then continue; fi
+            NAME=$(python3 -c "import sys; sys.path.insert(0,'tools/maturity'); import answers; print(answers.GAMES['$U']['name'])")
+            echo "=================== $NAME ($U)"
+            QID=$(call GET "$Q/v1/questionnaires/$U/latest" | sed '$d' | jq -r .questionnaireId)
+            R=$(python3 tools/maturity/answers.py $U final)
+            echo "validate: $(one "$(call POST "$Q/v1/responses/validate" -H "$J" -d "{\"questionnaireId\":\"$QID\",\"response\":$R}")")"
+            P=$(call POST "$Q/v1/responses/preview" -H "$J" -d "{\"universeId\":$U,\"questionnaireId\":\"$QID\",\"response\":$R}")
+            echo "preview: $(echo "$P" | sed '$d' | jq -c '{age: .ageRecommendationDetails.summary.ageRecommendation, desc: [.referencedContentDescriptors[]?.displayName], restricted: .restrictedCountries, err: .userErrorMessage, disabled: .disableSubmitButton}' 2>/dev/null) $(echo "$P" | tail -1)"
+            if [ "$DRY" = "true" ]; then continue; fi
+            S=$(call POST "$Q/v1/responses/$U/submissions" -H "$J" -d "{\"questionnaireId\":\"$QID\",\"response\":$R}")
+            echo "submit: $(one "$S" 500)"
+            SID=$(echo "$S" | sed '$d' | jq -r '.submissionId // .id // empty' 2>/dev/null)
+            [ -n "$SID" ] && echo "status: $(one "$(call GET "$Q/v1/responses/$U/submissions/$SID/status")")"
+            PUB=$(call POST "$Q/v2/responses/publish" -H 'Content-Type: application/json-patch+json' -d "{\"universeId\":$U,\"questionnaireIds\":[\"$QID\"]}")
+            echo "publish: $(one "$PUB" 700)"
+            sleep 3
+            echo "latest: $(one "$(call GET "$Q/v1/responses/$U/submissions/latest" | jq -c '{submissionId, submissionDate}' 2>/dev/null)")"
+            echo "age now: $(one "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H "$J" -d "{\"universeId\":\"$U\"}" | sed '$d' | jq -c '.ageRecommendationDetails.summary.ageRecommendation | {displayName, minimumAge}' 2>/dev/null)")"
+            echo "cloud: $(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{visibility, ageRating}')"
           done
-          rm -f out/pages.html
-      - uses: actions/upload-artifact@v4
-        with:
-          name: discover
-          path: out/
