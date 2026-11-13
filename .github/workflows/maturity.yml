@@ -31,7 +31,7 @@ jobs:
     env:
       COOKIE: ${{ secrets.ROBLOSECURITY }}
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-      ONLY: ${{ github.event.inputs.only || '10772778395' }}
+      ONLY: ${{ github.event.inputs.only }}
       DRY: ${{ github.event.inputs.dry || 'true' }}
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +62,7 @@ jobs:
             echo "preview: $(echo "$P" | sed '$d' | jq -c '{age: .ageRecommendationDetails.summary.ageRecommendation, desc: [.referencedContentDescriptors[]?.displayName], restricted: .restrictedCountries, err: .userErrorMessage, disabled: .disableSubmitButton}' 2>/dev/null) $(echo "$P" | tail -1)"
             echo "active: $(one "$(call GET "$Q/v1/responses/$U" | jq -c '{submissionId, submissionDate, state: .submissionState}' 2>/dev/null)")"
             echo "metadata: $(one "$(call GET "$Q/v1/metadata/$U/status")")"
+            echo "state: $(one "$(call GET "$Q/v1/responses/$U/submissions/statuses" | sed '$d' | jq -c '[.statuses[]? | {externalState, internalState, error, updatedUtc}] | .[-2:]' 2>/dev/null)")"
             echo "eligibility: $(one "$(call GET "$Q/v1/eligibility/$U")")"
             echo "age now: $(one "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H "$J" -d "{\"universeId\":\"$U\"}" | sed '$d' | jq -c '.ageRecommendationDetails | {a: .summary.ageRecommendation | {displayName, minimumAge}, d: [.descriptorUsages[]?.descriptor.displayName]}' 2>/dev/null)")"
             if [ "$U" = 10772778395 ]; then
