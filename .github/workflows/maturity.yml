@@ -49,18 +49,24 @@ jobs:
               F=js/$(echo "$URL" | md5sum | cut -c1-12).js; [ -f "$F" ] || curl -sS "$URL" -o "$F"; done < more.txt
           done
           ls js | wc -l
-          grep -ohiE '.{0,200}(questionnaire|experience-guidelines|age-recommendation|maturity).{0,200}' js/*.js | sort -u | head -c 200000 > out/hits.txt
-          grep -ohE 'apis\.roblox\.com/[A-Za-z0-9_/{}$.-]+|"/(v[0-9a-z]+)/[A-Za-z0-9_/{}-]*(questionnaire|guideline|maturity)[A-Za-z0-9_/{}-]*"' js/*.js | sort -u > out/apis.txt
-          grep -iE 'questionnaire|guideline|maturity|compliance' out/apis.txt
-          # bekannte Kandidaten direkt probieren (nur Lesen)
-          for E in \
-            "GET https://apis.roblox.com/experience-guidelines-api/experience-guidelines/universe/$U" \
-            "GET https://apis.roblox.com/experience-questionnaire/v1/universes/$U/questionnaire" \
-            "GET https://apis.roblox.com/experience-questionnaire/v1/questionnaires/universes/$U" \
-            "GET https://apis.roblox.com/experience-guidelines-service/v1beta1/detailed-guidelines/$U" \
-            ; do set -- $E; echo "== $E" >> out/probe.txt; call $1 $2 | head -c 3000 >> out/probe.txt; echo >> out/probe.txt; done
-          call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H 'Content-Type: application/json' -d "{\"universeId\":\"$U\"}" | head -c 3000 >> out/probe.txt
-          cat out/probe.txt
+          # Kontext rund um die Fragebogen-Endpunkte ausgeben (oeffentlicher Creator-Hub-Code, nichts Geheimes)
+          for K in 'questionnaires/{universeId}/latest' 'questionnaires/{questionnaireId}' 'questionnaires/latest' 'questionnaires/status' 'questionnaires/additional' 'experience-questionnaire' 'questionnaire-api' 'questionnaireService' 'submitQuestionnaire' 'answers'; do
+            echo "######## $K"
+            grep -ohF -- "$K" js/*.js | head -1 >/dev/null
+            for F in $(grep -lF -- "$K" js/*.js | head -3); do
+              python3 -c "
+          import sys,re
+          s=open(sys.argv[1],errors='ignore').read(); k=sys.argv[2]
+          for m in list(re.finditer(re.escape(k),s))[:4]:
+              print('---',sys.argv[1],m.start()); print(s[max(0,m.start()-1500):m.start()+1500])
+          " "$F" "$K"
+            done
+          done | head -c 400000
+          # aktueller Fragebogen-Stand (Lesen)
+          for B in experience-questionnaire-api experience-questionnaire questionnaire-api experience-questionnaire-service; do
+            echo "== $B"; call GET "https://apis.roblox.com/$B/v1/questionnaires/$U/latest" | head -c 4000; echo
+            call GET "https://apis.roblox.com/$B/v1/questionnaires/latest" | head -c 4000; echo
+          done
           rm -f out/pages.html
       - uses: actions/upload-artifact@v4
         with:
