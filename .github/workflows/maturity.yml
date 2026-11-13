@@ -1,0 +1,68 @@
+name: Maturity questionnaire
+
+# Fuellt den Roblox "Maturity & Compliance"-Fragebogen (Altersempfehlung) fuer Alis Spiele aus.
+# Creator Hub hat dafuer keine Open-Cloud-API, deshalb mit dem Login-Cookie ROBLOSECURITY (Ali: "Mach du das", 2026-11-13).
+# Phase 1 (discover): sucht im Creator-Hub-Code nach den Fragebogen-Endpunkten. Der Cookie wird nie ausgegeben.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/**]
+    paths: [.github/workflows/maturity.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    env:
+      COOKIE: ${{ secrets.ROBLOSECURITY }}
+      U: "3003317051"
+    steps:
+      - name: Discover endpoints
+        run: |
+          set +e
+          mkdir -p out js
+          CSRF=""
+          call() { M=$1; URL=$2; shift 2
+            for TRY in 1 2; do
+              R=$(curl -sS -X "$M" "$URL" -H "Cookie: .ROBLOSECURITY=$COOKIE" -H "x-csrf-token: $CSRF" \
+                -H 'Origin: https://create.roblox.com' -H 'Referer: https://create.roblox.com/' -D h.txt "$@" -w '\nHTTP %{http_code}')
+              T=$(grep -i '^x-csrf-token:' h.txt | tr -d '\r' | awk '{print $2}'); rm -f h.txt
+              if echo "$R" | grep -q 'HTTP 403' && [ -n "$T" ] && [ "$T" != "$CSRF" ]; then CSRF=$T; continue; fi
+              break
+            done; echo "$R"; }
+          BASE=https://create.roblox.com
+          for P in "/dashboard/creations/experiences/$U/questionnaire" "/dashboard/creations/experiences/$U/overview" "/dashboard/creations"; do
+            curl -sSL "$BASE$P" -H "Cookie: .ROBLOSECURITY=$COOKIE" -A 'Mozilla/5.0' >> out/pages.html
+          done
+          grep -oE '(https://[a-z.]*roblox\.com)?/[A-Za-z0-9_./-]*\.js' out/pages.html | sort -u > out/scripts.txt
+          wc -l out/scripts.txt
+          # Next.js Build-Manifeste und ggf. Microfrontend-Manifeste mitnehmen
+          while read -r S; do case "$S" in http*) echo "$S";; *) echo "$BASE$S";; esac; done < out/scripts.txt > out/urls.txt
+          i=0; while read -r S; do i=$((i+1)); curl -sS "$S" -o js/$i.js; done < out/urls.txt
+          # weitere Chunks aus geladenen JS-Dateien (Pfade wie static/chunks/....js)
+          for R in 1 2; do
+            grep -ohE '"(static|_next)/[A-Za-z0-9_./~-]+\.js"|https://[a-z0-9.-]*rbxcdn\.com/[A-Za-z0-9_./~-]+\.js' js/*.js | tr -d '"' | sort -u > more.txt
+            while read -r S; do case "$S" in http*) URL=$S;; _next/*) URL="$BASE/$S";; *) URL="$BASE/_next/$S";; esac
+              F=js/$(echo "$URL" | md5sum | cut -c1-12).js; [ -f "$F" ] || curl -sS "$URL" -o "$F"; done < more.txt
+          done
+          ls js | wc -l
+          grep -ohiE '.{0,200}(questionnaire|experience-guidelines|age-recommendation|maturity).{0,200}' js/*.js | sort -u | head -c 200000 > out/hits.txt
+          grep -ohE 'apis\.roblox\.com/[A-Za-z0-9_/{}$.-]+|"/(v[0-9a-z]+)/[A-Za-z0-9_/{}-]*(questionnaire|guideline|maturity)[A-Za-z0-9_/{}-]*"' js/*.js | sort -u > out/apis.txt
+          grep -iE 'questionnaire|guideline|maturity|compliance' out/apis.txt
+          # bekannte Kandidaten direkt probieren (nur Lesen)
+          for E in \
+            "GET https://apis.roblox.com/experience-guidelines-api/experience-guidelines/universe/$U" \
+            "GET https://apis.roblox.com/experience-questionnaire/v1/universes/$U/questionnaire" \
+            "GET https://apis.roblox.com/experience-questionnaire/v1/questionnaires/universes/$U" \
+            "GET https://apis.roblox.com/experience-guidelines-service/v1beta1/detailed-guidelines/$U" \
+            ; do set -- $E; echo "== $E" >> out/probe.txt; call $1 $2 | head -c 3000 >> out/probe.txt; echo >> out/probe.txt; done
+          call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H 'Content-Type: application/json' -d "{\"universeId\":\"$U\"}" | head -c 3000 >> out/probe.txt
+          cat out/probe.txt
+          rm -f out/pages.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discover
+          path: out/
