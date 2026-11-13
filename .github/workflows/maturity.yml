@@ -51,12 +51,11 @@ jobs:
           done
           ls js | wc -l
           F=$(grep -lF '/v2/responses/publish' js/*.js | head -1)
-          echo "== radio code"; for G in $(grep -lE 'RadioButtonQuestion|CheckBoxQuestion' js/*.js | head -4); do grep -oE '.{0,700}(RadioButtonQuestion|CheckBoxQuestion).{0,700}' "$G" | head -4; done | head -c 20000
           echo "== enums"; grep -oE '.{0,300}submissionState.{0,300}' "$F" | grep -oE 'var [a-zA-Z]+=\{[A-Za-z]+:"[A-Za-z]+"(,[A-Za-z]+:"[A-Za-z]+")*\}' | sort -u
           grep -oE '[a-zA-Z]+=\{[A-Za-z]+:"[A-Za-z]+"(,[A-Za-z]+:"[A-Za-z]+")+\}' "$F" | sort -u | head -40
           Q=https://apis.roblox.com/experience-questionnaire
           QID=$(call GET "$Q/v1/questionnaires/$U/latest" | sed '$d' | jq -r .questionnaireId)
-          for FMT in jsonarr jsonstr semi pipe; do
+          for FMT in final; do
             R=$(python3 tools/maturity/answers.py $U $FMT)
             echo "== validate $FMT"; call POST "$Q/v1/responses/validate" -H 'Content-Type: application/json' -d "{\"questionnaireId\":\"$QID\",\"response\":$R}" | head -c 3000; echo
             echo "== preview $FMT"; call POST "$Q/v1/responses/preview" -H 'Content-Type: application/json' -d "{\"universeId\":$U,\"questionnaireId\":\"$QID\",\"response\":$R}" | head -c 3000; echo
