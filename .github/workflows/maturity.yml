@@ -31,7 +31,7 @@ jobs:
     env:
       COOKIE: ${{ secrets.ROBLOSECURITY }}
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-      ONLY: ${{ github.event.inputs.only }}
+      ONLY: ${{ github.event.inputs.only || 'none' }}
       DRY: ${{ github.event.inputs.dry || 'true' }}
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +48,18 @@ jobs:
               if echo "$R" | grep -q 'HTTP 403' && [ -n "$T" ] && [ "$T" != "$CSRF" ]; then CSRF=$T; continue; fi
               break
             done; echo "$R"; }
+          BASE=https://create.roblox.com; mkdir -p js
+          for P in "/dashboard/creations/experiences/3003317051/questionnaire" "/dashboard/creations/experiences/3003317051/overview"; do
+            curl -sSL "$BASE$P" -H "Cookie: .ROBLOSECURITY=$COOKIE" -A 'Mozilla/5.0' >> pages.html; done
+          grep -oE '(https://[a-z.]*roblox\.com)?/[A-Za-z0-9_./-]*\.js' pages.html | sort -u | while read -r S; do case "$S" in http*) echo "$S";; *) echo "$BASE$S";; esac; done > urls.txt
+          i=0; while read -r S; do i=$((i+1)); curl -sS "$S" -o js/$i.js; done < urls.txt
+          for R in 1 2; do
+            grep -ohE '"(static|_next)/[A-Za-z0-9_./~-]+\.js"|https://[a-z0-9.-]*rbxcdn\.com/[A-Za-z0-9_./~-]+\.js' js/*.js | tr -d '"' | sort -u > more.txt
+            while read -r S; do case "$S" in http*) URL=$S;; _next/*) URL="$BASE/$S";; *) URL="$BASE/_next/$S";; esac
+              F=js/$(echo "$URL" | md5sum | cut -c1-12).js; [ -f "$F" ] || curl -sS "$URL" -o "$F"; done < more.txt
+          done
+          rm -f pages.html
+          echo "== publish callers"; grep -ohE '.{0,900}(responsesPublish\(|responsesPublishRaw\(|IARCCompletedNotPublished|submissionState:[^e]).{0,900}' js/*.js | head -c 30000; echo
           one() { echo "$1" | tr -d '\n' | head -c ${2:-700}; echo; }
           Q=https://apis.roblox.com/experience-questionnaire
           J='Content-Type: application/json'
