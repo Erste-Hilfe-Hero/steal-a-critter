@@ -31,7 +31,7 @@ jobs:
     env:
       COOKIE: ${{ secrets.ROBLOSECURITY }}
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-      ONLY: ${{ github.event.inputs.only }}
+      ONLY: ${{ github.event.inputs.only || '10772779235' }}
       DRY: ${{ github.event.inputs.dry || 'false' }}
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +60,8 @@ jobs:
             echo "validate: $(one "$(call POST "$Q/v1/responses/validate" -H "$J" -d "{\"questionnaireId\":\"$QID\",\"response\":$R}")")"
             P=$(call POST "$Q/v1/responses/preview" -H "$J" -d "{\"universeId\":$U,\"questionnaireId\":\"$QID\",\"response\":$R}")
             echo "preview: $(echo "$P" | sed '$d' | jq -c '{age: .ageRecommendationDetails.summary.ageRecommendation, desc: [.referencedContentDescriptors[]?.displayName], restricted: .restrictedCountries, err: .userErrorMessage, disabled: .disableSubmitButton}' 2>/dev/null) $(echo "$P" | tail -1)"
+            echo "active: $(one "$(call GET "$Q/v1/responses/$U" | jq -c '{submissionId, submissionDate, state: .submissionState}' 2>/dev/null)")"
+            echo "metadata: $(one "$(call GET "$Q/v1/metadata/$U/status")")"
             if [ "$DRY" = "true" ]; then continue; fi
             S=$(call POST "$Q/v1/responses/$U/submissions" -H "$J" -d "{\"questionnaireId\":\"$QID\",\"response\":$R}")
             echo "submit: $(one "$S" 500)"
