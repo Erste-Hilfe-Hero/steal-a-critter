@@ -20,6 +20,7 @@ jobs:
       COOKIE: ${{ secrets.ROBLOSECURITY }}
       U: "3003317051"
     steps:
+      - uses: actions/checkout@v4
       - name: Discover endpoints
         run: |
           set +e
@@ -49,25 +50,19 @@ jobs:
               F=js/$(echo "$URL" | md5sum | cut -c1-12).js; [ -f "$F" ] || curl -sS "$URL" -o "$F"; done < more.txt
           done
           ls js | wc -l
-          F=$(grep -lF '/v2/responses/publish' js/*.js | head -1)
-          python3 -c "
+          echo "== answer building code"
+          for F in $(grep -lE 'questionId:[a-zA-Z]' js/*.js | head -6); do
+            python3 -c "
           import sys,re
           s=open(sys.argv[1],errors='ignore').read()
-          for n in ['eB','eD','eA','eC','eE','eF','ez','eU']:
-              m=re.search(r'function '+n+r'\(e\)\{',s)
-              if m: print('---',n); print(s[m.start():m.start()+700])
+          for m in list(re.finditer(r'questionId:[a-zA-Z]',s))[:6]:
+              print('---',sys.argv[1]); print(s[max(0,m.start()-500):m.start()+500])
           " "$F"
+          done | head -c 60000
           Q=https://apis.roblox.com/experience-questionnaire
           QID=$(call GET "$Q/v1/questionnaires/$U/latest" | sed '$d' | jq -r .questionnaireId)
-          call GET "$Q/v1/questionnaires/$QID" > q.txt
-          tail -1 q.txt; sed '$d' q.txt > q.json
-          echo "== questionnaire keys"; jq -c 'keys' q.json
-          jq '.' q.json > qp.json; wc -l qp.json
-          echo "== questionnaire pretty"; cut -c1-400 qp.json | head -3000
-          echo "== responses $U"; call GET "$Q/v1/responses/$U" | head -c 6000; echo
-          echo "== latest submission $U"; call GET "$Q/v1/responses/$U/submissions/latest" | head -c 6000; echo
-          echo "== eligibility"; call GET "$Q/v1/eligibility/$U" | head -c 2000; echo
-          echo "== metadata"; call GET "$Q/v1/metadata/$U/status" | head -c 2000; echo
+          call GET "$Q/v1/questionnaires/$QID" | sed '$d' > q.json
+          echo "== tree"; python3 tools/maturity/tree.py q.json
           rm -f out/pages.html
       - uses: actions/upload-artifact@v4
         with:
