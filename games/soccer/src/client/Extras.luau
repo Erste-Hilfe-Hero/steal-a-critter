@@ -24,7 +24,7 @@ local SOFT = Color3.fromRGB(215, 222, 245)
 
 local remote: RemoteEvent
 local hooks = {} :: any
-local settings = { Fov = 70, Crowd = 1, FirstPerson = true }
+local settings = { Fov = 70, Crowd = 1, FirstPerson = false }
 
 local function serverNow(): number
 	return workspace:GetServerTimeNow()
@@ -627,7 +627,7 @@ function Extras.Start(newHooks)
 		elseif kind == "Settings" and typeof(info) == "table" then
 			settings.Fov = tonumber(info.Fov) or 70
 			settings.Crowd = tonumber(info.Crowd) or 1
-			settings.FirstPerson = info.FirstPerson ~= false
+			settings.FirstPerson = info.FirstPerson == true
 			applySettings()
 			if hooks.SetFirstPerson then
 				hooks.SetFirstPerson(settings.FirstPerson)

@@ -817,7 +817,7 @@ local kit = Kit.new({
 		"Stay out of the enemy goal zone - the ALIEN zaps you and kills ball carriers instantly!",
 		"Stamina gives +20 max HP per level. Your own alien heals you near your goal.",
 		"Long-distance goals give bonus EXP. Score from far away!",
-		"First team to 10 goals wins. Tied at the end? Golden Goal!",
+		"First team to 5 goals wins. Tied at the end? Golden Goal!",
 		"Do your DAILY QUESTS for free coins - a new set every day!",
 		"Watch out for the GOLDEN BALL: goals with it count DOUBLE!",
 		"3 sword hits in a row = COMBO with +50% damage.",

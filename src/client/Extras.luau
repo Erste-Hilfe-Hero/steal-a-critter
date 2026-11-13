@@ -413,10 +413,18 @@ function Extras.Start(api)
 	local tutorialTitle = text({ Size = UDim2.new(1, 0, 0, 20), Text = "", Font = TITLE_FONT, TextSize = 16, TextColor3 = THEME.Gold, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1, Parent = tutorialCard })
 	local tutorialText = text({ Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Text = "", TextSize = 16, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2, Parent = tutorialCard })
 	local tutorialFooter = create("Frame", { Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = 3, Parent = tutorialCard })
-	local tutorialReward = text({ Size = UDim2.new(1, -70, 1, 0), Text = "", TextSize = 14, TextColor3 = THEME.Cash, TextXAlignment = Enum.TextXAlignment.Left, Parent = tutorialFooter })
+	local tutorialReward = text({ Size = UDim2.new(1, -124, 1, 0), Text = "", TextSize = 14, TextColor3 = THEME.Cash, TextXAlignment = Enum.TextXAlignment.Left, Parent = tutorialFooter })
 	local skipButton = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(62, 28), Text = "SKIP", TextSize = 13, Parent = tutorialFooter }, THEME.Gray)
 	skipButton.Activated:Connect(function()
 		act("SkipTutorial")
+	end)
+	-- GO: oeffnet direkt das passende Fenster (z. B. EGGS), wenn der Schritt eins hat
+	local goButton = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -68, 0, 0), Size = UDim2.fromOffset(52, 28), Text = "GO", TextSize = 14, Visible = false, Parent = tutorialFooter }, THEME.Green or THEME.Gold)
+	local goTarget = nil :: string?
+	goButton.Activated:Connect(function()
+		if goTarget and api.Open then
+			api.Open(goTarget)
+		end
 	end)
 
 	-- Pfeil: Beam vom eigenen Charakter zum Ziel, dazu ein Schild "HERE" ueber dem Ziel
@@ -515,6 +523,8 @@ function Extras.Start(api)
 				tutorialTitle.Text = `TUTORIAL  {e.Tutorial + 1}/{#Config.TutorialSteps}`
 				tutorialText.Text = step.Text
 				tutorialReward.Text = `Reward: {Format.Cash(step.Cash)}`
+				goTarget = step.Open
+				goButton.Visible = step.Open ~= nil
 				target = targetFor(step.Target)
 			end
 			local attachment = myAttachment()

@@ -7,7 +7,7 @@ local Config = {}
 Config.DataStoreName = "PlayerData_v1"
 
 -- Wirtschaft
-Config.StartCash = 100
+Config.StartCash = 300 -- 2026-11-13: neue Spieler kauften nur 1-2 Tiere, jetzt reicht es sofort fuer 3-4
 Config.BaseSlots = 8
 Config.ExtraSlotsAmount = 4
 Config.IncomeTick = 1 -- Sekunden
@@ -446,9 +446,15 @@ Config.Rivals = {
 Config.TutorialSteps = {
 	{ Text = "Buy an animal from the belt", Stat = "Bought", Goal = 1, Cash = 500, Target = "Belt" },
 	{ Text = "Lock your base at the red button", Stat = "Locks", Goal = 1, Cash = 1_000, Target = "Lock" },
-	{ Text = "Hatch your FREE egg (MORE > EGGS)", Stat = "Hatched", Goal = 1, Cash = 1_500 },
+	-- 2026-11-13: Stehlen vor dem Ei (Spieler blieben am versteckten Ei-Schritt haengen), Ei mit GO-Knopf (Open = Fenster)
 	{ Text = "Steal an animal from another base", Stat = "Stolen", Goal = 1, Cash = 3_000, Target = "Steal" },
+	{ Text = "Hatch your FREE egg - tap GO", Stat = "Hatched", Goal = 1, Cash = 1_500, Open = "Eggs" },
 }
+
+-- Wer an einem spaeteren Tag wiederkommt, bekommt einmal ein Rare-Tier geschenkt (im ersten Besuch angekuendigt)
+Config.ReturnGift = { Units = { "fox", "panda" }, TeaserSeconds = 150 }
+-- Starter Pack erst nach dieser aktiven Spielzeit (vorher kam es nach 60 s, die meisten gingen nach 1-4 Minuten)
+Config.StarterOfferAfter = 360
 
 -- Wochen-Quests: jede Woche (ab Montag 00:00 UTC) 3 grosse Aufgaben. Reward = Minuten Einkommen (mindestens MinCash)
 Config.WeeklyQuestsPerWeek = 3

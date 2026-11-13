@@ -222,6 +222,21 @@ function EventService:OnPlayerReady(player: Player)
 	end
 	local today = os.time() // 86400
 	local last = data.LastRewardDay or 0
+	-- Neuer Spieler: im ersten Besuch das Rueckkehr-Geschenk ankuendigen; spaeter an einem neuen Tag einloesen
+	if not data.ReturnGift then
+		if last ~= 0 and last < today then
+			data.ReturnGift = true
+			task.delay(5, function()
+				self:GiveReturnGift(player)
+			end)
+		elseif last == 0 or last == today then
+			task.delay(Config.ReturnGift.TeaserSeconds, function()
+				if player.Parent and not data.ReturnGift then
+					self.Services.Net.SendNotify(player, "🎁 Come back TOMORROW for a FREE Rare animal!", Color3.fromRGB(120, 220, 255))
+				end
+			end)
+		end
+	end
 	if last == today then
 		return
 	end
@@ -235,6 +250,24 @@ function EventService:OnPlayerReady(player: Player)
 			self.Services.Net.SendNotify(player, `Daily reward: +{Format.Cash(amount)} (streak day {data.RewardStreak})! Come back tomorrow for more.`, Color3.fromRGB(255, 200, 40))
 		end
 	end)
+end
+
+function EventService:GiveReturnGift(player: Player)
+	if not player.Parent then
+		return
+	end
+	local list = Config.ReturnGift.Units
+	local id = list[math.random(1, #list)]
+	local units = self.Services.UnitService
+	local def = Config.UnitsById[id]
+	if units:FindFreeSlot(player) and units:GiveUnit(player, id) then
+		self.Services.Net.SendNotify(player, `🎁 Welcome back! FREE {def.Name} ({def.Rarity}) added to your base!`, Color3.fromRGB(120, 220, 255))
+	else
+		-- Basis voll: Gegenwert in Cash
+		self.Services.DataService:AddCash(player, def.Price)
+		self.Services.Net.SendNotify(player, `🎁 Welcome back! Base full, so you get {Format.Cash(def.Price)} instead of a {def.Name}.`, Color3.fromRGB(120, 220, 255))
+	end
+	self.Services.Net.PlaySfx(player, "Reward")
 end
 
 function EventService:Start()

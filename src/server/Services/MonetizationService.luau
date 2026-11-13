@@ -373,8 +373,12 @@ function MonetizationService:OnPlayerReady(player: Player)
 	if not data or data.StarterPack or data.StarterOfferShown then
 		return
 	end
-	task.delay(60, function()
-		if player.Parent and not data.StarterPack then
+	-- Erst nach ein paar Minuten aktiver Spielzeit (insgesamt), nicht schon in der ersten Minute
+	task.spawn(function()
+		while player.Parent and (data.PlayTime or 0) < Config.StarterOfferAfter do
+			task.wait(10)
+		end
+		if player.Parent and not data.StarterPack and not data.StarterOfferShown then
 			data.StarterOfferShown = true
 			self.Services.Net.SendOffer(player, "Product", "StarterPack", "Welcome! Best value for new players")
 		end

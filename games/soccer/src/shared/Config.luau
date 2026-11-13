@@ -56,8 +56,9 @@ Config.Formation = {
 
 ---------------------------------------------------------------- Spielablauf
 
-Config.MatchSeconds = 480
-Config.ScoreLimit = 10 -- wer zuerst 10 Tore hat, gewinnt sofort
+-- 2026-11-13: kuerzer (Spielerdaten: 8 von 9 neuen Spielern gingen vor dem ersten Abpfiff)
+Config.MatchSeconds = 240
+Config.ScoreLimit = 5 -- wer zuerst 5 Tore hat, gewinnt sofort
 Config.GoldenGoalSeconds = 90
 Config.KickoffSeconds = 3
 Config.GoalCelebrationSeconds = 4
@@ -185,6 +186,7 @@ Config.Rewards = {
 	Win = { XP = 150, Coins = 50 },
 	Draw = { XP = 90, Coins = 30 },
 	Loss = { XP = 60, Coins = 20 },
+	Minute = { XP = 60, Coins = 15 }, -- jede volle Minute im Match: neue Spieler sehen sofort Fortschritt
 }
 Config.BuyEXPAmount = 250 -- EXP fuer Coins: 300, 450, 600, ... (pro Match)
 Config.BuyEXPBase = 300
@@ -213,7 +215,7 @@ function Config.Active(player: Player?, attribute: string): boolean
 	return player ~= nil and (player:GetAttribute(attribute) or 0) > workspace:GetServerTimeNow()
 end
 Config.AdCooldown = 300
-Config.StarterPackDelay = 90
+Config.StarterPackDelay = 300 -- 2026-11-13: nicht schon in den ersten Minuten (vorher 90)
 
 ---------------------------------------------------------------- Kick-Trails (Ball-Spur nach deinen Schuessen)
 

@@ -33,6 +33,7 @@ local function defaultData()
 		Referrals = 0, -- Anzahl eingeladener neuer Spieler
 		StarterPack = false, -- Starter Pack gekauft (nur einmal)
 		StarterOfferShown = false, -- Begruessungs-Angebot schon einmal gezeigt
+		ReturnGift = false, -- Geschenk fuer den ersten Besuch an einem neuen Tag schon erhalten
 		Catalysts = 0, -- Fusion Catalysts: naechste Fusion braucht nur 2 Kreaturen
 		Stats = {}, -- [Stat] = Zaehler (Bought, Stolen, Slaps, Fused, Sold, Coins, QuestsDone)
 		Quests = { Day = 0, List = {} }, -- taegliche Quests

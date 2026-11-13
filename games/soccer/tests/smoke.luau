@@ -25,6 +25,7 @@ LogService.MessageOut:Connect(function(message, kind)
 end)
 
 local Config = require(ReplicatedStorage.Shared.Config)
+check("minute reward", Config.Rewards.Minute ~= nil and Config.Rewards.Minute.XP > 0)
 
 -- Verkuerztes Match
 Config.MatchSeconds = 45

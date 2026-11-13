@@ -164,7 +164,8 @@ end
 
 ---------------------------------------------------------------- Ego-Perspektive (wie im Original), mit V umschaltbar
 
-local firstPerson = true
+-- 2026-11-13: Standard jetzt Third Person (neue Spieler gingen ohne ein einziges Tor wieder; Ego-Sicht ist am Handy schwer)
+local firstPerson = false
 
 local function applyView()
 	if firstPerson then

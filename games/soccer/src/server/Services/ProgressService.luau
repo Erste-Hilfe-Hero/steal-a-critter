@@ -389,6 +389,31 @@ end
 
 function ProgressService:Start()
 	local net = self.Services.Net
+	-- Spielzeit-Belohnung: jede Minute im laufenden Match XP + Coins (auch ohne Tor)
+	task.spawn(function()
+		local seconds = {} :: { [Player]: number }
+		while true do
+			task.wait(5)
+			local match = self.Services.MatchService
+			local state = match and match:GetState()
+			for _, player in game:GetService("Players"):GetPlayers() do
+				local actor = match and match:ActorForPlayer(player)
+				if actor and (state == "Playing" or state == "Kickoff" or state == "Goal") then
+					seconds[player] = (seconds[player] or 0) + 5
+					if seconds[player] >= 60 then
+						seconds[player] = 0
+						local xp, coins = self:Reward(player, "Minute")
+						net.SendNotify(player, `+{xp} XP  +{coins} coins for playing`, Config.Colors.Lime)
+					end
+				end
+			end
+			for player in seconds do
+				if not player.Parent then
+					seconds[player] = nil
+				end
+			end
+		end
+	end)
 	net.Upgrade.OnServerEvent:Connect(function(player, skillId)
 		if typeof(skillId) == "string" then
 			self:Upgrade(player, skillId)

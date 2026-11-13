@@ -1,0 +1,62 @@
+name: Player insights (aggregated)
+
+# Liest die Spielstaende von Steal a Animal und Soccer Jam und gibt NUR Summen/Verteilungen aus
+# (keine UserIds, keine Namen). Dazu Fehler-Zusammenfassung aus SoccerDiag_v1.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/**]
+    paths: [.github/workflows/insights.yml]
+
+jobs:
+  insights:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - name: Read and aggregate
+        run: |
+          dump() { # $1 universe $2 datastore $3 outfile -> one JSON object per line
+            U=$1; DS=$2; OUTF=$3
+            BASE="https://apis.roblox.com/datastores/v1/universes/$U/standard-datastores/datastore/entries"
+            CURSOR=""; : > keys.txt; : > "$OUTF"
+            for PAGE in $(seq 1 30); do
+              curl -sS -G "$BASE" --data-urlencode "datastoreName=$DS" --data-urlencode "limit=100" \
+                ${CURSOR:+--data-urlencode "cursor=$CURSOR"} -H "x-api-key: $ROBLOX_API_KEY" -o k.json
+              jq -r '.keys[]?.key' k.json >> keys.txt
+              CURSOR=$(jq -r '.nextPageCursor // empty' k.json); [ -z "$CURSOR" ] && break
+            done
+            while read -r K; do
+              curl -sS -G "$BASE/entry" --data-urlencode "datastoreName=$DS" --data-urlencode "entryKey=$K" \
+                -H "x-api-key: $ROBLOX_API_KEY" -D h.txt -o e.json
+              CR=$(grep -i '^roblox-entry-created-time' h.txt | cut -d' ' -f2 | tr -d '\r')
+              UP=$(grep -i '^last-modified' h.txt | cut -d' ' -f2- | tr -d '\r')
+              jq -c --arg cr "$CR" --arg up "$UP" '(fromjson? // .) | if type=="object" then . + {_cr:$cr, _up:$up} else empty end' e.json >> "$OUTF" 2>/dev/null || true
+            done < keys.txt
+          }
+          n() { echo "::notice::$1"; echo "$1"; }
+
+          dump 3003317051 PlayerData_v1 steal.jsonl
+          n "STEAL players=$(wc -l < steal.jsonl)"
+          n "STEAL $(jq -sc 'def b(f): map(f) | group_by(.) | map({k:.[0], n:length}); {
+            playMin: b(((.PlayTime // 0)/60|floor) as $m | if $m<2 then "0-2" elif $m<5 then "2-5" elif $m<10 then "5-10" elif $m<30 then "10-30" elif $m<60 then "30-60" else "60+" end),
+            activeDays: b(.ActiveDays // 0), tutorial: b(.Tutorial // 0), rebirths: b(.Rebirths // 0),
+            units: b((.Units // {}) | length), index: b((.Index // {}) | length), baseLvl: b(.BaseLevel // 0),
+            payers: map(select((.RobuxSpent // 0) > 0)) | length, robux: map(.RobuxSpent // 0) | add,
+            starterShown: map(select(.StarterOfferShown)) | length, passes: map(.Passes // {} | keys) | add | group_by(.) | map({k:.[0],n:length}),
+            refs: map(.Referrals // 0) | add, codes: map(.Codes // {} | keys) | add | group_by(.) | map({k:.[0],n:length}) }' steal.jsonl)"
+          n "STEAL stats $(jq -sc 'map(.Stats // {} | to_entries) | add | group_by(.key) | map({k:.[0].key, players: map(select(.value>0))|length, sum: map(.value)|add})' steal.jsonl)"
+          n "STEAL perPlayer $(jq -c '[((.PlayTime//0)/60|floor), (.ActiveDays//0), (.Tutorial//0), ((.Units//{})|length), (.Rebirths//0), (.Stats.Bought//0), (.Stats.Stolen//0), (.Stats.Slaps//0), (.RobuxSpent//0), (._cr|.[0:10]), (._up|.[5:16])]' steal.jsonl | tr '\n' ' ')"
+
+          dump 10772779542 TurboSoccer_v1 soccer.jsonl
+          n "SOCCER players=$(wc -l < soccer.jsonl)"
+          n "SOCCER perPlayer [matches,wins,goals,level,tutorialDone,robux,KOs,streak,created,updated] $(jq -c '[(.Matches//0),(.Wins//0),(.Goals//0),(.Level//1),(.TutorialDone//false),(.RobuxSpent//0),(.KOs//0),(.DailyStreak//0),(._cr|.[0:10]),(._up|.[5:16])]' soccer.jsonl | tr '\n' ' ')"
+          n "SOCCER $(jq -sc '{passes: map(.Passes // {} | keys) | add | group_by(.) | map({k:.[0],n:length}), codes: map(.Codes // {} | keys) | add | group_by(.) | map({k:.[0],n:length}), achievements: map(.Achievements//{}|length)}' soccer.jsonl)"
+
+          # Diagnose: Fehlertexte ueber alle Server summiert (Spielernamen in Pfaden anonymisiert)
+          dump 10772779542 SoccerDiag_v1 diag.jsonl
+          n "DIAG servers=$(wc -l < diag.jsonl) versions=$(jq -sc 'map(.Version) | group_by(.) | map({v:.[0], n:length})' diag.jsonl)"
+          jq -sc 'map(.Counts // {} | to_entries) | add | group_by(.key) | map({k:.[0].key, n: map(.value)|add}) | sort_by(-.n) | .[0:25]' diag.jsonl | sed -E 's/Players\.[^.:" ]+/Players.X/g' | fold -w 3000 | while IFS= read -r l; do n "DIAG counts $l"; done
+          jq -sc 'map((.ServerErrors // {}) | to_entries) | add | group_by(.key) | map({k:.[0].key[0:160], n: map(.value)|add}) | sort_by(-.n) | .[0:15]' diag.jsonl | sed -E 's/Players\.[^.:" ]+/Players.X/g' | fold -w 3000 | while IFS= read -r l; do n "DIAG server $l"; done
+          jq -sc 'map((.ClientErrors // {}) | to_entries) | add | group_by(.key) | map({k:.[0].key[0:160], n: map(.value)|add}) | sort_by(-.n) | .[0:15]' diag.jsonl | sed -E 's/Players\.[^.:" ]+/Players.X/g' | fold -w 3000 | while IFS= read -r l; do n "DIAG client $l"; done
+          true
