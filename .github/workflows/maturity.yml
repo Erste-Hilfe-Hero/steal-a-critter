@@ -31,7 +31,7 @@ jobs:
     env:
       COOKIE: ${{ secrets.ROBLOSECURITY }}
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-      ONLY: ${{ github.event.inputs.only }}
+      ONLY: ${{ github.event.inputs.only || '10772778395' }}
       DRY: ${{ github.event.inputs.dry || 'true' }}
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +64,14 @@ jobs:
             echo "metadata: $(one "$(call GET "$Q/v1/metadata/$U/status")")"
             echo "eligibility: $(one "$(call GET "$Q/v1/eligibility/$U")")"
             echo "age now: $(one "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H "$J" -d "{\"universeId\":\"$U\"}" | sed '$d' | jq -c '.ageRecommendationDetails | {a: .summary.ageRecommendation | {displayName, minimumAge}, d: [.descriptorUsages[]?.descriptor.displayName]}' 2>/dev/null)")"
+            if [ "$U" = 10772778395 ]; then
+              echo "full age: $(one "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H "$J" -d "{\"universeId\":\"$U\"}")" 4000)"
+              echo "iarc: $(one "$(call GET "$Q/v1/universes/$U/iarcActivities")" 3000)"
+              echo "subs: $(one "$(call GET "$Q/v1/responses/$U/submissions")" 3000)"
+              echo "statuses: $(one "$(call GET "$Q/v1/responses/$U/submissions/statuses")" 3000)"
+              echo "add latest: $(one "$(call GET "$Q/v2/responses/$U/submissions/additional/latest")" 2000)"
+              echo "guidelines v2: $(one "$(call GET "https://apis.roblox.com/experience-guidelines-service/v2beta1/detailed-guidelines?universeId=$U")" 2000)"
+            fi
             if [ "$U" = 10772779235 ]; then
               echo "config: $(one "$(call GET "https://develop.roblox.com/v1/universes/$U/configuration" | jq -c '{name, genre, playableDevices, isFriendsOnly, universeAvatarType, allowPrivateServers, isForSale}' 2>/dev/null)")"
               echo "desc len: $(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -r '.data[0].description // "" | length')"
