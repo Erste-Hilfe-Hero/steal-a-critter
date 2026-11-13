@@ -105,6 +105,20 @@ def fmt(A, f):
         out.append({"questionId": q, "value": v})
     return out
 
+# Zusatzfragebogen von Roblox: kein Spiel ist ein Social Hangout, hat freies Zeichnen, ein "sensibles Thema",
+# fremde Erlebnis-Inhalte, Generative KI, Medien-Teilen oder Endlos-Feeds -> ueberall "Nein".
+ADDITIONAL = {
+    "d72e1894-7aa7-c023-738d-737aa87408e9": ["907121ed-4b6b-f5ee-5bd5-b11a3bc247cc"],
+    "a6a92f8f-7c4a-4bd1-cfe9-5cf9342c4f31": ["ebb1f17c-81ac-c66d-7002-145f6c9d736e"],
+    "86a4eb11-6d95-448b-b4c2-8fb3f6481760": ["b5f85477-c3f2-48f4-2fdf-81544f73f6b0"],
+    "f697368a-a1f7-57f4-1ca1-ee011baaccf8": ["92d7f0f2-95ac-8e46-6b8e-9c2fe73b6295"],
+    "e2e24985-d9bb-a372-1695-fe95e1d19d55": ["e82ebe43-323f-20b9-5829-c54d6e3ba684"],
+    "12b558bb-06b8-bd83-cb31-67a5facd90f8": ["2e5a01ac-9c8c-cb28-75f4-379315a77cbe"],
+    "b8725d54-2cff-d58c-c107-36cc84a3f893": ["abf3a91b-45fc-7e33-2cb0-4dbbfaec0ac3"],
+}
+
 if __name__ == "__main__":
     u, f = sys.argv[1], sys.argv[2]
+    if u == "additional":
+        print(json.dumps({"answers": fmt(ADDITIONAL, f)})); sys.exit()
     print(json.dumps({"answers": fmt(build(GAMES[u]), f)}))

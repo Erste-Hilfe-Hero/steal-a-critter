@@ -32,7 +32,7 @@ jobs:
       COOKIE: ${{ secrets.ROBLOSECURITY }}
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
       ONLY: ${{ github.event.inputs.only }}
-      DRY: ${{ github.event.inputs.dry || 'true' }}
+      DRY: ${{ github.event.inputs.dry || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - name: Fill questionnaire
@@ -51,22 +51,6 @@ jobs:
           one() { echo "$1" | tr -d '\n' | head -c ${2:-700}; echo; }
           Q=https://apis.roblox.com/experience-questionnaire
           J='Content-Type: application/json'
-          U0=3003317051
-          echo "== additional"; A=$(call GET "$Q/v2/questionnaires/additional/universes/$U0"); echo "$A" | tail -1
-          echo "$A" | sed '$d' > add.json; jq -c 'keys' add.json
-          jq -c 'if type=="array" then .[] else . end | {id: (.id // .questionnaireId), keys: keys}' add.json | head -c 2000; echo
-          python3 - <<'PY'
-          import json,sys
-          sys.path.insert(0,'tools/maturity')
-          d=json.load(open('add.json'))
-          qs = d if isinstance(d,list) else d.get('questionnaires') or [d.get('questionnaire') or d]
-          for q in qs:
-              q = q.get('questionnaire', q) if isinstance(q,dict) else q
-              print('QN', q.get('id'), q.get('name'))
-              json.dump({'questionnaire': q}, open('/tmp/a.json','w'))
-              import subprocess; print(subprocess.run(['python3','tools/maturity/tree.py','/tmp/a.json'],capture_output=True,text=True).stdout[:30000])
-          PY
-          echo "== existing additional responses"; call GET "$Q/v2/responses/$U0/additional" | head -c 3000; echo
           for U in $(python3 -c "import sys; sys.path.insert(0,'tools/maturity'); import answers; print(' '.join(answers.GAMES))"); do
             if [ -n "$ONLY" ] && [ "$ONLY" != "$U" ]; then continue; fi
             NAME=$(python3 -c "import sys; sys.path.insert(0,'tools/maturity'); import answers; print(answers.GAMES['$U']['name'])")
@@ -81,8 +65,16 @@ jobs:
             echo "submit: $(one "$S" 500)"
             SID=$(echo "$S" | sed '$d' | jq -r '.submissionId // .id // empty' 2>/dev/null)
             [ -n "$SID" ] && echo "status: $(one "$(call GET "$Q/v1/responses/$U/submissions/$SID/status")")"
-            PUB=$(call POST "$Q/v2/responses/publish" -H 'Content-Type: application/json-patch+json' -d "{\"universeId\":$U,\"questionnaireIds\":[\"$QID\"]}")
-            echo "publish: $(one "$PUB" 700)"
+            # Zusatzfragebogen (Social Hangout, Zeichnen, KI, Medien teilen ...): bei allen Spielen "Nein"
+            AID=$(call GET "$Q/v2/questionnaires/additional/universes/$U" | sed '$d' | jq -r .questionnaire.id)
+            AR=$(python3 tools/maturity/answers.py additional final)
+            echo "additional submit: $(one "$(call POST "$Q/v2/responses/$U/submissions" -H "$J" -d "{\"questionnaireId\":\"$AID\",\"response\":$AR}")" 500)"
+            for ST in "" Submitted Complete; do
+              B="{\"universeId\":$U,\"questionnaireIds\":[\"$QID\",\"$AID\"]$( [ -n "$ST" ] && echo ",\"submissionState\":\"$ST\"")}"
+              PUB=$(call POST "$Q/v2/responses/publish" -H 'Content-Type: application/json-patch+json' -d "$B")
+              echo "publish [$ST]: $(one "$PUB" 700)"
+              echo "$PUB" | grep -q 'HTTP 20' && break
+            done
             sleep 3
             echo "latest: $(one "$(call GET "$Q/v1/responses/$U/submissions/latest" | jq -c '{submissionId, submissionDate}' 2>/dev/null)")"
             echo "age now: $(one "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H "$J" -d "{\"universeId\":\"$U\"}" | sed '$d' | jq -c '.ageRecommendationDetails.summary.ageRecommendation | {displayName, minimumAge}' 2>/dev/null)")"
