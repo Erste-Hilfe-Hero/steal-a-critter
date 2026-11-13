@@ -97,6 +97,10 @@ def fmt(A, f):
         elif f == "csv": v = ",".join(opts)
         elif f == "str": v = json.dumps(opts) if q in CHECKBOX else opts[0]
         elif f == "each": v = opts[0] if len(opts) == 1 else opts
+        elif f == "jsonarr": v = json.dumps(opts)
+        elif f == "jsonstr": v = json.dumps(opts[0]) if len(opts) == 1 else json.dumps(opts)
+        elif f == "semi": v = ";".join(opts)
+        elif f == "pipe": v = "|".join(opts)
         out.append({"questionId": q, "value": v})
     return out
 
