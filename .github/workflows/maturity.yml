@@ -1,0 +1,100 @@
+name: Maturity questionnaire
+
+# Fuellt den Roblox "Maturity & Compliance"-Fragebogen (Altersempfehlung) fuer alle Spiele aus.
+# Creator Hub hat dafuer keine Open-Cloud-API, deshalb mit dem Login-Cookie ROBLOSECURITY (Ali: "Mach du das", 2026-11-13).
+# Die ehrlichen Antworten pro Spiel stehen in tools/maturity/answers.py. Der Cookie wird nie ausgegeben.
+# Ablauf pro Spiel: pruefen (validate) -> Vorschau der Einstufung -> abschicken -> veroeffentlichen.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Nur diese universeId (leer = alle)"
+        required: false
+        default: ""
+      dry:
+        description: "true = nur pruefen und Vorschau, nichts abschicken"
+        required: false
+        default: "false"
+  push:
+    branches: [claude/**]
+    paths: [.github/workflows/maturity.yml, tools/maturity/answers.py]
+
+concurrency: maturity-v2
+
+permissions:
+  contents: read
+
+jobs:
+  questionnaire:
+    runs-on: ubuntu-latest
+    env:
+      COOKIE: ${{ secrets.ROBLOSECURITY }}
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      ONLY: ${{ github.event.inputs.only }}
+      DRY: ${{ github.event.inputs.dry || 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fill questionnaire
+        run: |
+          set +e
+          if [ -z "$COOKIE" ]; then echo "::error::Secret ROBLOSECURITY fehlt"; exit 1; fi
+          CSRF=""
+          call() { M=$1; URL=$2; shift 2
+            for TRY in 1 2; do
+              R=$(curl -sS -m 30 -X "$M" "$URL" -H "Cookie: .ROBLOSECURITY=$COOKIE" -H "x-csrf-token: $CSRF" \
+                -H 'Origin: https://create.roblox.com' -H 'Referer: https://create.roblox.com/' -D h.txt "$@" -w '\nHTTP %{http_code}')
+              T=$(grep -i '^x-csrf-token:' h.txt | tr -d '\r' | awk '{print $2}'); rm -f h.txt
+              if echo "$R" | grep -q 'HTTP 403' && [ -n "$T" ] && [ "$T" != "$CSRF" ]; then CSRF=$T; continue; fi
+              break
+            done; echo "$R"; }
+          one() { echo "$1" | tr -d '\n' | head -c ${2:-700}; echo; }
+          Q=https://apis.roblox.com/experience-questionnaire
+          J='Content-Type: application/json'
+          for U in $(python3 -c "import sys; sys.path.insert(0,'tools/maturity'); import answers; print(' '.join(answers.GAMES))"); do
+            if [ -n "$ONLY" ] && [ "$ONLY" != "$U" ]; then continue; fi
+            NAME=$(python3 -c "import sys; sys.path.insert(0,'tools/maturity'); import answers; print(answers.GAMES['$U']['name'])")
+            echo "=================== $NAME ($U)"
+            QID=$(call GET "$Q/v1/questionnaires/$U/latest" | sed '$d' | jq -r .questionnaireId)
+            R=$(python3 tools/maturity/answers.py $U final)
+            echo "validate: $(one "$(call POST "$Q/v1/responses/validate" -H "$J" -d "{\"questionnaireId\":\"$QID\",\"response\":$R}")")"
+            P=$(call POST "$Q/v1/responses/preview" -H "$J" -d "{\"universeId\":$U,\"questionnaireId\":\"$QID\",\"response\":$R}")
+            echo "preview: $(echo "$P" | sed '$d' | jq -c '{age: .ageRecommendationDetails.summary.ageRecommendation, desc: [.referencedContentDescriptors[]?.displayName], restricted: .restrictedCountries, err: .userErrorMessage, disabled: .disableSubmitButton}' 2>/dev/null) $(echo "$P" | tail -1)"
+            echo "active: $(one "$(call GET "$Q/v1/responses/$U" | jq -c '{submissionId, submissionDate, state: .submissionState}' 2>/dev/null)")"
+            echo "metadata: $(one "$(call GET "$Q/v1/metadata/$U/status")")"
+            echo "state: $(one "$(call GET "$Q/v1/responses/$U/submissions/statuses" | sed '$d' | jq -c '[.statuses[]? | {externalState, internalState, error, updatedUtc}] | .[-2:]' 2>/dev/null)")"
+            echo "eligibility: $(one "$(call GET "$Q/v1/eligibility/$U")")"
+            echo "age now: $(one "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H "$J" -d "{\"universeId\":\"$U\"}" | sed '$d' | jq -c '.ageRecommendationDetails | {a: .summary.ageRecommendation | {displayName, minimumAge}, d: [.descriptorUsages[]?.descriptor.displayName]}' 2>/dev/null)")"
+            if [ "$U" = 10772778395 ]; then
+              echo "full age: $(one "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H "$J" -d "{\"universeId\":\"$U\"}")" 4000)"
+              echo "iarc: $(one "$(call GET "$Q/v1/universes/$U/iarcActivities")" 3000)"
+              echo "subs: $(one "$(call GET "$Q/v1/responses/$U/submissions")" 3000)"
+              echo "statuses: $(one "$(call GET "$Q/v1/responses/$U/submissions/statuses")" 3000)"
+              echo "add latest: $(one "$(call GET "$Q/v2/responses/$U/submissions/additional/latest")" 2000)"
+              echo "guidelines v2: $(one "$(call GET "https://apis.roblox.com/experience-guidelines-service/v2beta1/detailed-guidelines?universeId=$U")" 2000)"
+            fi
+            if [ "$U" = 10772779235 ]; then
+              echo "config: $(one "$(call GET "https://develop.roblox.com/v1/universes/$U/configuration" | jq -c '{name, genre, playableDevices, isFriendsOnly, universeAvatarType, allowPrivateServers, isForSale}' 2>/dev/null)")"
+              echo "desc len: $(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -r '.data[0].description // "" | length')"
+              echo "game: $(one "$(curl -sS "https://games.roblox.com/v1/games?universeIds=$U" | jq -c '.data[0] | {name, genre, genre_l1, rootPlaceId}')")"
+            fi
+            if [ "$DRY" = "true" ]; then continue; fi
+            S=$(call POST "$Q/v1/responses/$U/submissions" -H "$J" -d "{\"questionnaireId\":\"$QID\",\"response\":$R}")
+            echo "submit: $(one "$S" 500)"
+            SID=$(echo "$S" | sed '$d' | jq -r '.submissionId // .id // empty' 2>/dev/null)
+            [ -n "$SID" ] && echo "status: $(one "$(call GET "$Q/v1/responses/$U/submissions/$SID/status")")"
+            # Zusatzfragebogen (Social Hangout, Zeichnen, KI, Medien teilen ...): bei allen Spielen "Nein"
+            AID=$(call GET "$Q/v2/questionnaires/additional/universes/$U" | sed '$d' | jq -r .questionnaire.id)
+            AR=$(python3 tools/maturity/answers.py additional final)
+            echo "additional submit: $(one "$(call POST "$Q/v2/responses/$U/submissions" -H "$J" -d "{\"questionnaireId\":\"$AID\",\"response\":$AR}")" 500)"
+            for ST in "" Submitted Complete; do
+              B="{\"universeId\":$U,\"questionnaireIds\":[\"$QID\",\"$AID\"]$( [ -n "$ST" ] && echo ",\"submissionState\":\"$ST\"")}"
+              PUB=$(call POST "$Q/v2/responses/publish" -H 'Content-Type: application/json-patch+json' -d "$B")
+              echo "publish [$ST]: $(one "$PUB" 700)"
+              echo "$PUB" | grep -q 'HTTP 20' && break
+            done
+            sleep 3
+            echo "latest: $(one "$(call GET "$Q/v1/responses/$U/submissions/latest" | jq -c '{submissionId, submissionDate}' 2>/dev/null)")"
+            echo "age now: $(one "$(call POST 'https://apis.roblox.com/experience-guidelines-api/experience-guidelines/get-age-recommendation' -H "$J" -d "{\"universeId\":\"$U\"}" | sed '$d' | jq -c '.ageRecommendationDetails.summary.ageRecommendation | {displayName, minimumAge}' 2>/dev/null)")"
+            echo "cloud: $(curl -sS "https://apis.roblox.com/cloud/v2/universes/$U" -H "x-api-key: $ROBLOX_API_KEY" | jq -c '{visibility, ageRating}')"
+          done
