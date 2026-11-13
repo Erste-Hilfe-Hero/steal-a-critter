@@ -49,19 +49,25 @@ jobs:
               F=js/$(echo "$URL" | md5sum | cut -c1-12).js; [ -f "$F" ] || curl -sS "$URL" -o "$F"; done < more.txt
           done
           ls js | wc -l
-          # Alle Endpunkte des Fragebogen-Clients mit Methode und Body ausgeben (oeffentlicher Code)
           F=$(grep -lF '/v2/responses/publish' js/*.js | head -1)
           python3 -c "
           import sys,re
           s=open(sys.argv[1],errors='ignore').read()
-          for m in re.finditer(r'this\.request\(\{path:',s):
-              print('---'); print(s[m.start():m.start()+900])
-          " "$F" | head -c 300000
+          for n in ['eB','eD','eA','eC','eE','eF','ez','eU']:
+              m=re.search(r'function '+n+r'\(e\)\{',s)
+              if m: print('---',n); print(s[m.start():m.start()+700])
+          " "$F"
           Q=https://apis.roblox.com/experience-questionnaire
-          echo "== status"; call GET "$Q/v1/questionnaires/status?universeId=$U" | head -c 3000; echo
           QID=$(call GET "$Q/v1/questionnaires/$U/latest" | sed '$d' | jq -r .questionnaireId)
-          echo "== questionnaire $QID"; call GET "$Q/v1/questionnaires/$QID" | head -c 120000; echo
-          echo "== additional"; call GET "$Q/v2/questionnaires/additional/universes/$U" | head -c 20000; echo
+          call GET "$Q/v1/questionnaires/$QID" > q.txt
+          tail -1 q.txt; sed '$d' q.txt > q.json
+          echo "== questionnaire keys"; jq -c 'keys' q.json
+          jq '.' q.json > qp.json; wc -l qp.json
+          echo "== questionnaire pretty"; cut -c1-400 qp.json | head -3000
+          echo "== responses $U"; call GET "$Q/v1/responses/$U" | head -c 6000; echo
+          echo "== latest submission $U"; call GET "$Q/v1/responses/$U/submissions/latest" | head -c 6000; echo
+          echo "== eligibility"; call GET "$Q/v1/eligibility/$U" | head -c 2000; echo
+          echo "== metadata"; call GET "$Q/v1/metadata/$U/status" | head -c 2000; echo
           rm -f out/pages.html
       - uses: actions/upload-artifact@v4
         with:
