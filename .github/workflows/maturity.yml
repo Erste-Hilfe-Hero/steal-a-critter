@@ -49,24 +49,19 @@ jobs:
               F=js/$(echo "$URL" | md5sum | cut -c1-12).js; [ -f "$F" ] || curl -sS "$URL" -o "$F"; done < more.txt
           done
           ls js | wc -l
-          # Kontext rund um die Fragebogen-Endpunkte ausgeben (oeffentlicher Creator-Hub-Code, nichts Geheimes)
-          for K in 'questionnaires/{universeId}/latest' 'questionnaires/{questionnaireId}' 'questionnaires/latest' 'questionnaires/status' 'questionnaires/additional' 'experience-questionnaire' 'questionnaire-api' 'questionnaireService' 'submitQuestionnaire' 'answers'; do
-            echo "######## $K"
-            grep -ohF -- "$K" js/*.js | head -1 >/dev/null
-            for F in $(grep -lF -- "$K" js/*.js | head -3); do
-              python3 -c "
+          # Alle Endpunkte des Fragebogen-Clients mit Methode und Body ausgeben (oeffentlicher Code)
+          F=$(grep -lF '/v2/responses/publish' js/*.js | head -1)
+          python3 -c "
           import sys,re
-          s=open(sys.argv[1],errors='ignore').read(); k=sys.argv[2]
-          for m in list(re.finditer(re.escape(k),s))[:4]:
-              print('---',sys.argv[1],m.start()); print(s[max(0,m.start()-1500):m.start()+1500])
-          " "$F" "$K"
-            done
-          done | head -c 400000
-          # aktueller Fragebogen-Stand (Lesen)
-          for B in experience-questionnaire-api experience-questionnaire questionnaire-api experience-questionnaire-service; do
-            echo "== $B"; call GET "https://apis.roblox.com/$B/v1/questionnaires/$U/latest" | head -c 4000; echo
-            call GET "https://apis.roblox.com/$B/v1/questionnaires/latest" | head -c 4000; echo
-          done
+          s=open(sys.argv[1],errors='ignore').read()
+          for m in re.finditer(r'this\.request\(\{path:',s):
+              print('---'); print(s[m.start():m.start()+900])
+          " "$F" | head -c 300000
+          Q=https://apis.roblox.com/experience-questionnaire
+          echo "== status"; call GET "$Q/v1/questionnaires/status?universeId=$U" | head -c 3000; echo
+          QID=$(call GET "$Q/v1/questionnaires/$U/latest" | sed '$d' | jq -r .questionnaireId)
+          echo "== questionnaire $QID"; call GET "$Q/v1/questionnaires/$QID" | head -c 120000; echo
+          echo "== additional"; call GET "$Q/v2/questionnaires/additional/universes/$U" | head -c 20000; echo
           rm -f out/pages.html
       - uses: actions/upload-artifact@v4
         with:
